@@ -19,7 +19,7 @@
       package's published binaries are trimmable and the schema
       validation path does not need runtime code generation.
     -->
-    <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
+    <PackageReference Include="JsonSchema.Net" Version="9.2.1" />
   </ItemGroup>
 
   <!--
