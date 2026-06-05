@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/paker/pak-patch-report.schema.json",
+  "title": "Pagonia Land Paker Patch Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Input",
+    "Output",
+    "Success",
+    "EntryCount",
+    "ReplacedCount",
+    "CopiedCount",
+    "AddedCount",
+    "DeletedCount",
+    "Replacements",
+    "Deletions",
+    "GdbinUpdates",
+    "Diagnostics"
+  ],
+  "properties": {
+    "Input": {
+      "type": "string"
+    },
+    "Output": {
+      "type": "string"
+    },
+    "Success": {
+      "type": "boolean"
+    },
+    "EntryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ReplacedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "CopiedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "AddedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "DeletedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "Replacements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/replacement"
+      }
+    },
+    "Deletions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "GdbinUpdates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gdbinUpdate"
+      }
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "replacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "EntryName",
+        "SourcePath"
+      ],
+      "properties": {
+        "EntryName": {
+          "type": "string"
+        },
+        "SourcePath": {
+          "type": "string"
+        }
+      }
+    },
+    "gdbinUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "EntryName",
+        "Added"
+      ],
+      "properties": {
+        "EntryName": {
+          "type": "string"
+        },
+        "Added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

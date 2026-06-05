@@ -1,0 +1,44 @@
+patchFormatVersion: "0.1"
+id: example.standalone-overlay
+name: Standalone Overlay Example
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Pattern B worked example. The mod declares a `pak:` block with the
+  metadata of a fresh module — name, summary, author, image, dependencies.
+  When the patcher applies the mod, in addition to the normal patch and
+  entry operations, it walks the output directory for `*.gd.xml` files
+  belonging to this module and writes the four-file module skeleton
+  (`manifest.json`, `files.json`, `<name>/<name>.gd.bin`, `memory.bin`)
+  the engine needs to recognise the folder as a loadable module.
+
+  After `sandbox-apply.ps1`, run `sandbox-pack.ps1` without `-BasePak`
+  to produce a standalone `.pak` the game can load alongside its own
+  paks. See [docs/mod-distribution.md](../../../docs/mod-distribution.md)
+  for the conceptual overview.
+requiredPackages:
+  - core
+optionalPackages: []
+# `entries.add` ships the new XML into the module's namespace. The
+# scaffold step below picks it up and registers it in the generated
+# `.gd.bin` automatically, so the engine actually loads it.
+entries:
+  add:
+    - path: pagonia-overlay-example/gdb/example_entity.gd.xml
+      source: entries/example_entity.gd.xml
+# `pak:` switches sandbox-pack into Pattern B mode for this mod. The
+# patcher writes the four-file module skeleton under `pak.name/` during
+# apply; sandbox-pack (no -BasePak) then bundles everything into one
+# engine-loadable overlay pak.
+pak:
+  name: pagonia-overlay-example
+  summary: Worked example of a Pattern B overlay pak from the Pagonia Land workshop
+  author: Pagonia Land
+  # The `image:` field points at any in-pak path the game should treat
+  # as the preview when the mod is listed in mod managers. A real mod
+  # would point at an `.image` asset; this stub re-uses the example XML
+  # as a placeholder.
+  image: pagonia-overlay-example/gdb/example_entity.gd.xml
+  dependencies:
+    - core

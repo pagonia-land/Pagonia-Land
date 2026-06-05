@@ -1,0 +1,48 @@
+patchFormatVersion: 0.1
+id: pagonia-land.fixture.tweakable-sawmill
+name: Fixture Tweakable Sawmill
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture mod that declares user-adjustable tweaks of every kind.
+requiredPackages:
+  - core
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+tags:
+  - tweakable
+patches:
+  - patches/buildings.yaml
+tweaks:
+  - id: softwood-cost
+    type: integer
+    label: Softwood trunk cost
+    description: How many softwood trunks the Sawmill costs to build.
+    default: 3
+    min: 1
+    max: 8
+    step: 1
+  - id: free-upkeep
+    type: boolean
+    label: Remove upkeep
+    description: When on, the Sawmill has no running upkeep.
+    default: false
+  - id: difficulty
+    type: enum
+    label: Difficulty preset
+    default: standard
+    aliases:
+      - difficulty-level
+    values:
+      - value: mild
+        label: Mild
+      - value: standard
+        label: Standard
+      - value: hardcore
+        label: Hardcore

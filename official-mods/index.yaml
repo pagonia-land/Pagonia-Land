@@ -1,0 +1,83 @@
+indexFormatVersion: "0.1"
+
+repo:
+  name: Pagonia Land — Official Mods
+  description: First-party, curated quality-of-life mods and presets for Pioneers of Pagonia, maintained against the current game version by the Pagonia Land project. The default catalog points here via the repo entry's indexPath.
+  author: Pagonia Land
+  homepage: https://github.com/pagonia-land/Pagonia-Land
+  license: MIT
+  tags:
+    - official
+    - qol
+
+mods:
+  - id: pagonia-land.mods.cheaper-sawmill
+    path: mods/cheaper-sawmill
+    displayName: Cheaper Sawmill
+    description: Lowers the Sawmill's construction cost by one Softwood Trunk and one Stone Block.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - qol
+      - buildings
+      - cheaper
+    safetyFlags:
+      requiresNewGame: false
+      safeToRemove: true
+      multiplayerSafe: unknown
+      campaignSafe: unknown
+
+  - id: pagonia-land.mods.cheaper-quarry
+    path: mods/cheaper-quarry
+    displayName: Cheaper Quarry
+    description: Lowers the Quarry's construction cost by one Softwood Trunk.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - qol
+      - buildings
+      - cheaper
+    safetyFlags:
+      requiresNewGame: false
+      safeToRemove: true
+      multiplayerSafe: unknown
+      campaignSafe: unknown
+
+  - id: pagonia-land.mods.bigger-storage
+    path: mods/bigger-storage
+    displayName: Bigger Storage
+    description: Raises the Storage building's two main ground piles from 32 to 40.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - qol
+      - buildings
+      - balance
+    safetyFlags:
+      requiresNewGame: false
+      safeToRemove: unknown
+      multiplayerSafe: unknown
+      campaignSafe: unknown
+
+collections:
+  - id: pagonia-land.collections.cheaper-buildings
+    path: collections/cheaper-buildings.collection.yaml
+    displayName: Cheaper Buildings
+    description: Cheaper Sawmill + Cheaper Quarry — trims early construction costs across your first production buildings.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - qol
+      - preset
+      - cheaper
+
+  - id: pagonia-land.collections.starter-qol
+    path: collections/starter-qol.collection.yaml
+    displayName: Starter QoL Pack
+    description: Cheaper Sawmill + Quarry + roomier Storage, wired into one ready-to-play beginner preset.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - qol
+      - preset
+      - beginner

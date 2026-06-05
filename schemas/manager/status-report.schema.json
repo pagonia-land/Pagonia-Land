@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/status-report.schema.json",
+  "title": "Pagonia Land Manager — Status Report",
+  "description": "JSON report emitted by `pagonia-manager status --json <out>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "success", "enabledMods", "loadOrder", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["status"] },
+    "success": { "type": "boolean" },
+    "profile": { "type": ["string", "null"] },
+    "collection": { "type": ["string", "null"] },
+    "enabledMods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "version"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "loadOrder": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

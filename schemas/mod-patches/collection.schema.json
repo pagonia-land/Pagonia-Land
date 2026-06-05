@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/mod-patches/collection.schema.json",
+  "title": "Pagonia Land Mod Collection",
+  "description": "v0.1 schema for curated lists of Pagonia Land patch-style mods.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "collectionFormatVersion",
+    "id",
+    "name",
+    "version",
+    "author",
+    "gameDatabaseVersion",
+    "description",
+    "mods"
+  ],
+  "properties": {
+    "collectionFormatVersion": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "enum": [
+        "0.1",
+        0.1
+      ]
+    },
+    "id": {
+      "$ref": "#/$defs/id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "gameDatabaseVersion": {
+      "$ref": "#/$defs/gameDatabaseVersion"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1200
+    },
+    "conflictPolicy": {
+      "type": "string",
+      "enum": [
+        "strict",
+        "warn",
+        "curated",
+        "experimental"
+      ],
+      "default": "strict"
+    },
+    "mods": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/collectionMod"
+      }
+    },
+    "loadOrder": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/id"
+      },
+      "uniqueItems": true
+    },
+    "requiresNewGame": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "safeToRemove": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "multiplayerSafe": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "campaignSafe": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "homepage": {
+      "$ref": "#/$defs/uriString"
+    },
+    "repository": {
+      "$ref": "#/$defs/uriString"
+    },
+    "updateUrl": {
+      "$ref": "#/$defs/uriString"
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "beginner",
+        "qol",
+        "balance",
+        "visual",
+        "ui",
+        "dlc",
+        "maps",
+        "tools",
+        "experimental",
+        "other"
+      ]
+    },
+    "tags": {
+      "description": "Free-form categorisation tags. See docs/mod-tags.md for the recommended vocabulary. Collection-level tags additionally use 'preset' to mark this as a curated combination of mods rather than a single mod.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "maxLength": 40,
+        "examples": [
+          "preset", "qol", "balance", "realism", "hardcore", "cheaper",
+          "expansion", "overhaul", "compatibility", "safe-edits",
+          "buildings", "production", "economy", "military", "tech-tree",
+          "decoration", "cosmetic", "ui", "audio",
+          "maps", "artifacts", "localization", "tools-editor",
+          "experimental", "alpha", "beta", "stable", "archived",
+          "language-de", "language-en", "language-fr", "language-es"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "previewImages": {
+      "$ref": "#/$defs/pathList"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*[a-z0-9]$",
+      "minLength": 3,
+      "maxLength": 140
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([+-][A-Za-z0-9._-]+)?$"
+    },
+    "gameDatabaseVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+\\+[0-9]+$"
+    },
+    "packageName": {
+      "type": "string",
+      "enum": [
+        "core",
+        "decorations1",
+        "dlc1",
+        "tools"
+      ]
+    },
+    "packageList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/packageName"
+      },
+      "uniqueItems": true
+    },
+    "safetyValue": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "unknown"
+          ]
+        }
+      ]
+    },
+    "tweakValueMap": {
+      "type": "object",
+      "description": "Tweak id → override value. Keys are the mod's declared tweak ids; each value should match that tweak's declared type (string / number / boolean). Overrides the mod-declared default.",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "collectionMod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "source": {
+          "description": "Where the mod comes from. Accepts an absolute URI (download), a relative path under the mods root (local file tree), or the literal \"local\". A future Pagonia Land Mod Manager may treat URI sources differently from filesystem sources.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uriString"
+            },
+            {
+              "$ref": "#/$defs/relativePath"
+            },
+            {
+              "type": "string",
+              "const": "local"
+            }
+          ]
+        },
+        "required": {
+          "type": "boolean",
+          "default": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "requiresPackages": {
+          "$ref": "#/$defs/packageList"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tweaks": {
+          "$ref": "#/$defs/tweakValueMap"
+        }
+      }
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "^[A-Za-z]:"
+          },
+          {
+            "pattern": "^/"
+          },
+          {
+            "pattern": "\\.\\."
+          },
+          {
+            "pattern": "\\\\"
+          }
+        ]
+      }
+    },
+    "pathList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relativePath"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "uriString": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 500
+    }
+  }
+}

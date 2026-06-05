@@ -1,0 +1,10 @@
+# Funnel reports through the templates above; security issues go through the
+# private advisory channel, never a public blank issue.
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability (private)
+    url: https://github.com/pagonia-land/Pagonia-Land/security/advisories/new
+    about: Report a security issue privately via a GitHub Security Advisory. See SECURITY.md. Do not open a public issue for vulnerabilities.
+  - name: Questions & discussion
+    url: https://github.com/pagonia-land/Pagonia-Land/discussions
+    about: For usage questions and general discussion (if Discussions is enabled), or browse the docs first.

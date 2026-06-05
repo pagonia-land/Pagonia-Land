@@ -1,0 +1,13 @@
+operations:
+  - id: wine-icon-swap
+    operation: replaceValue
+    risk: low
+    reason: Cosmetic-only DLC icon swap; gated behind requiresPackages -> dlc1 so it never fires on a core-only install.
+    target:
+      file: dlc1/gdb/resources.gd.xml
+      entityGuid: ddb8f6f6-40ed-46d8-9751-76014d51ec5c
+      entityName: Wine
+      component: ResourceDescription
+      path: Icon
+    expectedOldValue: dlc1/gui/icons/commodities/icon_com_wine_001.png
+    value: dlc1/gui/icons/commodities/icon_com_grapes_001.png

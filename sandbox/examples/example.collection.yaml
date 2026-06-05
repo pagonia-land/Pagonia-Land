@@ -1,0 +1,27 @@
+collectionFormatVersion: 0.1
+id: example.qol-bundle
+name: Sandbox Example Bundle
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Bundles the two example mods so the patcher applies them together. Used by
+  docs/first-mods.md to demonstrate how collections work. Copy this file into
+  sandbox/collections/ and point sandbox-apply.ps1 at it with -Collection.
+conflictPolicy: strict
+
+mods:
+  - id: example.lower-sawmill-cost
+    version: "0.1.0"
+    source: local
+    required: true
+    enabled: true
+  - id: example.remove-stone-cost
+    version: "0.1.0"
+    source: local
+    required: true
+    enabled: true
+
+loadOrder:
+  - example.lower-sawmill-cost
+  - example.remove-stone-cost

@@ -1,0 +1,13 @@
+operations:
+  - id: cheaper-quarry-softwood-cost
+    operation: replaceValue
+    risk: low
+    reason: Lower the Quarry's Softwood Trunk construction cost from 3 to 2.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: 11ad1726-d5d0-4e9b-8945-55ebd46a0be8
+      entityName: Quarry
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "3"
+    value: "2"

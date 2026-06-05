@@ -1,0 +1,54 @@
+patchFormatVersion: "0.1"
+id: example.sanctuary-add-custom-ability
+name: Sanctuary (Cornucopia) — Add Custom Ability (Example)
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  End-to-end worked example for the Meadowsong DLC. Combines a Pattern B
+  overlay pak (defines a brand-new Sanctuary ability as an entity in
+  this mod's own *.gd.xml via `pak:` + `entries.add`) with a Pattern A
+  patch (adds the new ability's GUID to the shipped Sanctuary's
+  AspectShrine/Abilities list).
+
+  Requires the Meadowsong DLC (dlc1). The new ability is modelled after
+  SanctuaryCleanse and reuses the shipped visuals, sounds, and
+  localisation strings — a deliberate shortcut so the demo works
+  without a separate icon/loca/VFX pak.
+requiredPackages:
+  - core
+  - dlc1
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+
+# entries.add ships the new ability definition into the mod's own
+# namespace. The scaffold step picks it up and registers it in the
+# generated <name>.gd.bin so the engine loads it.
+entries:
+  add:
+    - path: pagonia-sanctuary-ability/gdb/abilities.gd.xml
+      source: entries/abilities.gd.xml
+
+# pak: switches sandbox-pack into Pattern B mode. During apply, the
+# patcher writes manifest.json + files.json + <name>.gd.bin + memory.bin
+# under <pak.name>/. sandbox-pack (no -BasePak) then bundles everything
+# into a single engine-loadable overlay pak.
+pak:
+  name: pagonia-sanctuary-ability
+  summary: Adds a custom ability to the Sanctuary (Cornucopia) building
+  author: Pagonia Land
+  image: pagonia-sanctuary-ability/gdb/abilities.gd.xml
+  dependencies:
+    - core
+    - dlc1
+
+# patches: declarative XML edits applied to the shipped paks. Here we
+# extend the Sanctuary's ability list to include our new ability GUID.
+patches:
+  - patches/sanctuary.yaml

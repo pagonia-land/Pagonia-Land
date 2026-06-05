@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/paker/pak-pack-report.schema.json",
+  "title": "Pagonia Land Paker Pack Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "PakInfo",
+    "Output",
+    "Success",
+    "EntryCount",
+    "PackedCount",
+    "Filter",
+    "Diagnostics"
+  ],
+  "properties": {
+    "PakInfo": {
+      "type": "string"
+    },
+    "Output": {
+      "type": "string"
+    },
+    "Success": {
+      "type": "boolean"
+    },
+    "EntryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "PackedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "Filter": {
+      "$ref": "#/$defs/filter"
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "CompressedOnly",
+        "UncompressedOnly",
+        "Start",
+        "End",
+        "FilenameContains"
+      ],
+      "properties": {
+        "CompressedOnly": {
+          "type": "boolean"
+        },
+        "UncompressedOnly": {
+          "type": "boolean"
+        },
+        "Start": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "End": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "FilenameContains": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

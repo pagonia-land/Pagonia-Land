@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/patcher/patch-apply-report.schema.json",
+  "title": "Pagonia Land Patch Apply Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "PlanSource",
+    "Success",
+    "OutputGameRoot",
+    "ModCount",
+    "PlanWriteCount",
+    "AppliedWriteCount",
+    "FailedWriteCount",
+    "Mods",
+    "Writes",
+    "Entries",
+    "EntryCounts",
+    "Diagnostics"
+  ],
+  "properties": {
+    "PlanSource": {
+      "type": "string",
+      "enum": [
+        "directMods",
+        "collection",
+        "collections",
+        "lockfile"
+      ]
+    },
+    "Success": {
+      "type": "boolean"
+    },
+    "OutputGameRoot": {
+      "type": "string"
+    },
+    "ModCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "PlanWriteCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "AppliedWriteCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "FailedWriteCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "Mods": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mod"
+      }
+    },
+    "Writes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/write"
+      }
+    },
+    "Entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "EntryCounts": {
+      "$ref": "#/$defs/entryCounts"
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "mod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Id",
+        "Name",
+        "Version",
+        "WriteCount",
+        "EntryCount"
+      ],
+      "properties": {
+        "Id": {
+          "type": "string"
+        },
+        "Name": {
+          "type": "string"
+        },
+        "Version": {
+          "type": "string"
+        },
+        "WriteCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "EntryCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ResolvedTweaks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resolvedTweak"
+          }
+        }
+      }
+    },
+    "resolvedTweak": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "TweakId",
+        "SourceValue",
+        "ResolvedValue",
+        "Origin"
+      ],
+      "properties": {
+        "TweakId": {
+          "type": "string"
+        },
+        "SourceValue": {
+          "type": "string"
+        },
+        "ResolvedValue": {
+          "type": "string"
+        },
+        "Origin": {
+          "type": "string"
+        }
+      }
+    },
+    "write": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "OperationId",
+        "OperationType",
+        "File",
+        "EntityGuid",
+        "EntityName",
+        "Component",
+        "Path",
+        "Attribute",
+        "OldValue",
+        "NewValue"
+      ],
+      "properties": {
+        "OperationId": {
+          "type": "string"
+        },
+        "OperationType": {
+          "type": "string",
+          "enum": [
+            "replaceValue",
+            "replaceAttribute",
+            "replaceNode",
+            "addListItem",
+            "removeListItem",
+            "addEntity",
+            "removeEntity",
+            "mergeComponent"
+          ]
+        },
+        "File": {
+          "type": "string"
+        },
+        "EntityGuid": {
+          "type": "string"
+        },
+        "EntityName": {
+          "type": "string"
+        },
+        "Component": {
+          "type": "string"
+        },
+        "Path": {
+          "type": "string"
+        },
+        "Attribute": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "OldValue": {
+          "type": "string"
+        },
+        "NewValue": {
+          "type": "string"
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Mod",
+        "Operation",
+        "Path",
+        "SourceFile"
+      ],
+      "properties": {
+        "Mod": {
+          "type": "string"
+        },
+        "Operation": {
+          "type": "string",
+          "enum": [
+            "Replace",
+            "Add",
+            "Delete"
+          ]
+        },
+        "Path": {
+          "type": "string"
+        },
+        "SourceFile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "entryCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Planned",
+        "Replaced",
+        "Added",
+        "Deleted",
+        "Failed"
+      ],
+      "properties": {
+        "Planned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "Replaced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "Added": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "Deleted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "Failed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

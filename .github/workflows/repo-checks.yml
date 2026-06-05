@@ -1,0 +1,161 @@
+# Repository-hygiene checks. Two independent jobs:
+#
+# 1. forbidden-paths — runs on EVERY push and PR. Hard-rejects any commit
+#    that touches paths the project considers off-limits (extracted game
+#    data, generated artefacts, version snapshots). Backs up the rules in
+#    CONTRIBUTING.md and .gitignore — those can be circumvented (force-add,
+#    typo in .gitignore), this job cannot.
+#
+# 2. markdown-links — runs on doc-only changes. Catches relative-path and
+#    anchor breakage from file renames, header re-titles, and broken
+#    cross-links. Would have prevented the kind of regression the
+#    dlc-overlays.md -> package-layering.md rename forced a manual grep
+#    sweep over.
+name: repo-checks
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  forbidden-paths:
+    name: forbidden-paths (no game data / generated / snapshots)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need at least two commits so we can diff push events. For PRs the
+          # action sets up the merge ref automatically.
+          fetch-depth: 0
+
+      - name: Reject commits touching off-limits paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Determine the range to inspect.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          # On the very first push to a branch BASE_SHA can be a zero hash.
+          # Fall back to "diff against root" in that case.
+          if [ -z "$BASE_SHA" ] || ! git rev-parse --quiet --verify "$BASE_SHA^{commit}" >/dev/null; then
+            DIFF_RANGE="$HEAD_SHA"
+          else
+            DIFF_RANGE="$BASE_SHA..$HEAD_SHA"
+          fi
+
+          echo "Inspecting changed files in $DIFF_RANGE"
+          CHANGED=$(git diff --name-only "$DIFF_RANGE")
+          echo "Changed files:"
+          echo "$CHANGED" | awk '{ print "  " $0 }'
+          echo ''
+
+          # Hard-rejected path patterns. README.md exceptions inside each
+          # directory document the layout for users without shipping content.
+          VIOLATIONS=""
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+
+            case "$path" in
+              # Extracted game XML — proprietary content.
+              game-gdb/*/gdb/*|game-gdb/*/maps/*|game-gdb/*/gui/*)
+                VIOLATIONS="${VIOLATIONS}${path}\n" ;;
+              # Real game pak archives.
+              game-paks/*.pak|game-maps/*.pak)
+                VIOLATIONS="${VIOLATIONS}${path}\n" ;;
+              # Generated analysis output (regeneratable from game-gdb).
+              generated/entities.json|generated/references.json|generated/analysis-summary.json)
+                VIOLATIONS="${VIOLATIONS}${path}\n" ;;
+              generated/catalog/*|generated/diffs/*)
+                VIOLATIONS="${VIOLATIONS}${path}\n" ;;
+              # Per-version snapshot trees (anything but the top-level README).
+              snapshots/[0-9]*/*)
+                VIOLATIONS="${VIOLATIONS}${path}\n" ;;
+            esac
+          done <<< "$CHANGED"
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo '::error::Pull request touches off-limits paths. These must not be committed; see CONTRIBUTING.md.'
+            printf '%b' "$VIOLATIONS" | sed 's/^/  /'
+            exit 1
+          fi
+
+          echo 'No off-limits paths touched.'
+
+  markdown-links:
+    name: markdown link check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need history so the push-diff below can resolve before..after.
+          fetch-depth: 0
+
+      # Decide whether to run the link check. Always run for manual dispatch
+      # and PRs (the check walks every .md anyway; a PR should never merge a
+      # broken link). For pushes, skip when no .md changed so a non-doc push
+      # doesn't re-walk every link. Detected via `git diff` rather than the
+      # push payload's commit file lists — that avoids the push-only
+      # `github.event.commits.*` context access (and its 2048-commit cap) and
+      # also catches renames.
+      - name: Detect markdown changes
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          BASE_SHA="${{ github.event.before }}"
+          HEAD_SHA="${{ github.sha }}"
+          # First push to a branch (no resolvable base): don't try to guess,
+          # just run the check.
+          if [ -z "$BASE_SHA" ] || ! git rev-parse --quiet --verify "$BASE_SHA^{commit}" >/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BASE_SHA..$HEAD_SHA" | grep -qi '\.md$'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Link check (relative paths + anchors)
+        if: steps.changed.outputs.run == 'true'
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # --offline: only check filesystem-resolvable links (relative paths,
+          # in-page anchors). Skips external HTTP to keep CI deterministic and
+          # to avoid flaky failures from third-party sites.
+          # --no-progress: cleaner CI logs.
+          # --exclude-path snapshots/ generated/: those trees are git-ignored
+          # (per-version local snapshots, locally-generated catalog output),
+          # so links inside them shouldn't gate PRs.
+          # --exclude '_imported/': the docs site's _imported/ tree is a
+          # build-time mirror (docs_hooks/prebuild.py copies root/tool/schema
+          # READMEs into docs_build/_imported/). It never exists in the raw
+          # source tree lychee walks, so links INTO it (e.g. from
+          # docs/downloads.md) can't resolve offline. This excludes the link
+          # *targets* by URL pattern — --exclude-path only filters input files.
+          # The targets are validated for real by the MkDocs build in pages.yml.
+          args: >-
+            --offline
+            --no-progress
+            --exclude-path snapshots
+            --exclude-path generated
+            --exclude '_imported/'
+            --verbose
+            './**/*.md'
+          fail: true

@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/mod-patches/repo-index.schema.json",
+  "title": "Pagonia Land Mod-Distribution Repo Index",
+  "description": "v0.1 schema for a per-repo index.yaml catalog used to publish Pagonia Land mods and collections through a Git repository. The manager fetches this file first to discover what a repo offers without crawling its folder tree. See docs/mod-distribution.md for the channel-status table and examples/mod-repo-example/ for a working reference.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "indexFormatVersion",
+    "repo"
+  ],
+  "properties": {
+    "indexFormatVersion": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "enum": [
+        "0.1",
+        0.1
+      ]
+    },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "homepage": {
+          "$ref": "#/$defs/uriString"
+        },
+        "bannerUrl": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uriString"
+            },
+            {
+              "$ref": "#/$defs/relativePath"
+            }
+          ]
+        },
+        "license": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "tags": {
+          "$ref": "#/$defs/tagList"
+        }
+      }
+    },
+    "mods": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/modEntry"
+      }
+    },
+    "collections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/collectionEntry"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*[a-z0-9]$",
+      "minLength": 3,
+      "maxLength": 140
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([+-][A-Za-z0-9._-]+)?$"
+    },
+    "gameDatabaseVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+\\+[0-9]+$"
+    },
+    "uriString": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 500
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "^[A-Za-z]:"
+          },
+          {
+            "pattern": "^/"
+          },
+          {
+            "pattern": "\\.\\."
+          },
+          {
+            "pattern": "\\\\"
+          }
+        ]
+      }
+    },
+    "pathList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relativePath"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "tagList": {
+      "description": "Free-form categorisation tags. See docs/mod-tags.md for the recommended vocabulary (content domain, intent, technical, maturity, language).",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "maxLength": 40,
+        "examples": [
+          "buildings", "production", "recipes", "economy", "resources",
+          "units", "combat", "military", "tech-tree",
+          "decoration", "cosmetic", "ui", "audio",
+          "maps", "artifacts", "localization", "tools-editor",
+          "qol", "balance", "realism", "hardcore", "cheat", "cheaper",
+          "expansion", "fix", "tweak", "overhaul", "compatibility", "safe-edits",
+          "xml-only", "pak", "standalone", "vanilla-compatible", "dlc-aware", "preset",
+          "experimental", "alpha", "beta", "stable", "archived",
+          "language-de", "language-en", "language-fr", "language-es",
+          "language-it", "language-pl", "language-ru",
+          "language-zh", "language-ja", "language-ko", "language-pt-br"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "safetyValue": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "unknown"
+          ]
+        }
+      ]
+    },
+    "safetyFlags": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requiresNewGame": {
+          "$ref": "#/$defs/safetyValue"
+        },
+        "safeToRemove": {
+          "$ref": "#/$defs/safetyValue"
+        },
+        "multiplayerSafe": {
+          "$ref": "#/$defs/safetyValue"
+        },
+        "campaignSafe": {
+          "$ref": "#/$defs/safetyValue"
+        }
+      }
+    },
+    "modEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "gameDatabaseVersion": {
+          "$ref": "#/$defs/gameDatabaseVersion"
+        },
+        "tags": {
+          "$ref": "#/$defs/tagList"
+        },
+        "safetyFlags": {
+          "$ref": "#/$defs/safetyFlags"
+        },
+        "screenshots": {
+          "$ref": "#/$defs/pathList"
+        }
+      }
+    },
+    "collectionEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "gameDatabaseVersion": {
+          "$ref": "#/$defs/gameDatabaseVersion"
+        },
+        "tags": {
+          "$ref": "#/$defs/tagList"
+        },
+        "screenshots": {
+          "$ref": "#/$defs/pathList"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+# Normalize line endings on commit.
+# Text files are stored with LF in the repository; Git converts to the
+# platform's native line ending on checkout when core.autocrlf is on.
+* text=auto eol=lf
+
+# Explicit text files (override "text=auto" detection on edge cases).
+*.cs        text eol=lf
+*.csproj    text eol=lf
+*.slnx      text eol=lf
+*.json      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.md        text eol=lf
+*.xml       text eol=lf
+*.ps1       text eol=lf
+*.sh        text eol=lf
+*.txt       text eol=lf
+.gitignore  text eol=lf
+.gitattributes text eol=lf
+
+# Binary files (never converted).
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.dll       binary
+*.exe       binary
+*.pak       binary
+*.gd.bin    binary

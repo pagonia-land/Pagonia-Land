@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/tweak-list.schema.json",
+  "title": "Pagonia Land Manager — Tweak List Report",
+  "description": "JSON report emitted by `pagonia-manager tweak list <mod-id> --json <out>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "success", "modId", "tweaks", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["tweakList"] },
+    "success": { "type": "boolean" },
+    "profile": { "type": ["string", "null"] },
+    "modId": { "type": "string", "minLength": 1 },
+    "modVersion": { "type": ["string", "null"] },
+    "tweaks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "label", "default", "value", "origin"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "enum": ["number", "integer", "boolean", "enum"] },
+          "label": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "default": { "type": "string" },
+          "value": { "type": "string" },
+          "origin": { "type": "string", "enum": ["default", "profile-override", "collection-default"] },
+          "min": { "type": ["number", "null"] },
+          "max": { "type": ["number", "null"] },
+          "step": { "type": ["number", "null"] },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value", "label"],
+              "properties": {
+                "value": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

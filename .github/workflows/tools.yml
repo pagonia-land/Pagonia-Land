@@ -1,0 +1,112 @@
+# Validates the C# tools (patcher + paker + manager) and the JSON Schemas on
+# every push and PR. Mirrors `scripts/preflight.ps1` so a local preflight pass
+# means CI will pass too. If you change any of: tools/pagonia-patcher/,
+# tools/pagonia-paker/, tools/pagonia-manager/, schemas/mod-patches/,
+# schemas/manager/, sandbox/examples/, official-mods/, or catalog/, this is the
+# workflow that catches regressions before merge. preflight schema-validates the
+# first-party official-mods tree + catalog/official.yaml, so a community PR that
+# edits the catalog (Phase 7 intake) is validated here before review.
+name: tools
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'tools/pagonia-patcher/**'
+      - 'tools/pagonia-paker/**'
+      - 'tools/pagonia-manager/**'
+      - 'schemas/mod-patches/**'
+      - 'schemas/manager/**'
+      - 'schemas/patcher/**'
+      - 'schemas/paker/**'
+      - 'sandbox/examples/**'
+      - 'official-mods/**'
+      - 'catalog/**'
+      - 'scripts/preflight.ps1'
+      - '.github/workflows/tools.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'tools/pagonia-patcher/**'
+      - 'tools/pagonia-paker/**'
+      - 'tools/pagonia-manager/**'
+      - 'schemas/mod-patches/**'
+      - 'schemas/manager/**'
+      - 'schemas/patcher/**'
+      - 'schemas/paker/**'
+      - 'sandbox/examples/**'
+      - 'official-mods/**'
+      - 'catalog/**'
+      - 'scripts/preflight.ps1'
+      - '.github/workflows/tools.yml'
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    name: build + tests + schema-validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run preflight
+        shell: pwsh
+        run: ./scripts/preflight.ps1
+
+  # Verify the Native AOT publish still works on Windows. Catches AOT
+  # regressions (missing DynamicDependency rootings, new reflection paths,
+  # incompatible NuGet packages) that the test stage above can miss.
+  aot-publish:
+    name: AOT publish smoke (win-x64)
+    runs-on: windows-latest
+    needs: preflight
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish patcher (Native AOT, win-x64)
+        run: dotnet publish tools\pagonia-patcher\src\PagoniaLand.Patcher.Cli -c Release -r win-x64
+
+      - name: Publish paker (Native AOT, win-x64)
+        run: dotnet publish tools\pagonia-paker\src\PagoniaLand.Paker.Cli -c Release -r win-x64
+
+      - name: Publish manager (Native AOT, win-x64)
+        run: dotnet publish tools\pagonia-manager\src\PagoniaLand.Manager.Cli -c Release -r win-x64
+
+      - name: Smoke-test published patcher binary
+        shell: pwsh
+        run: |
+          $exe = 'tools\pagonia-patcher\src\PagoniaLand.Patcher.Cli\bin\Release\net8.0\win-x64\publish\pagonia-patcher.exe'
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "patcher --version failed" }
+          & $exe schema-validate --mod sandbox\examples\sanctuary-add-custom-ability
+          if ($LASTEXITCODE -ne 0) { throw "patcher schema-validate failed" }
+
+      - name: Smoke-test published paker binary
+        shell: pwsh
+        run: |
+          $exe = 'tools\pagonia-paker\src\PagoniaLand.Paker.Cli\bin\Release\net8.0\win-x64\publish\pagonia-paker.exe'
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "paker --version failed" }
+
+      # The manager walkthrough drives every command end-to-end + schema-
+      # validates every JSON report. Re-running it against the AOT binary
+      # catches DynamicDependency rootings the framework build doesn't surface.
+      - name: Smoke-test published manager binary (full walkthrough)
+        shell: pwsh
+        run: |
+          $exe = 'tools\pagonia-manager\src\PagoniaLand.Manager.Cli\bin\Release\net8.0\win-x64\publish\pagonia-manager.exe'
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "manager --version failed" }
+          & .\sandbox\examples\manager-walkthrough\run.ps1 -ManagerExe $exe
+          if ($LASTEXITCODE -ne 0) { throw "manager walkthrough failed against AOT binary" }

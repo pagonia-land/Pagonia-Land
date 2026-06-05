@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/install-report.schema.json",
+  "title": "Pagonia Land Manager — Install Report",
+  "description": "JSON report emitted by `pagonia-manager install --json <out>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "outcome", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["install"] },
+    "outcome": { "type": "string", "enum": ["Failed", "Installed", "AlreadyInstalled"] },
+    "modId": { "type": ["string", "null"] },
+    "version": { "type": ["string", "null"] },
+    "manifestName": { "type": ["string", "null"] },
+    "installPath": { "type": ["string", "null"] },
+    "diagnostics": { "$ref": "#/$defs/diagnosticArray" }
+  },
+  "$defs": {
+    "diagnosticArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/diagnostic" }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "code", "message"],
+      "properties": {
+        "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" },
+        "path": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PagoniaLand.Manager.Core\PagoniaLand.Manager.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Spectre.Console powers the interactive shell — selection prompts, tables,
+    progress bars, color-coded diagnostics. v0.49+ ships first-class Native
+    AOT support; the generic prompt types instantiated by this project
+    (SelectionPrompt<string>, MultiSelectionPrompt<string>, TextPrompt<string>,
+    TextPrompt<int>, ConfirmationPrompt) are covered by Spectre's own AOT annotations, so no
+    [DynamicDependency] pinning is needed here. Note: the AOT-publish
+    sandbox walkthrough exercises the scripted CLI surface only; interactive-
+    shell paths are validated by manual smoke against the published binary.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>pagonia-manager</AssemblyName>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\..\assets\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+</Project>

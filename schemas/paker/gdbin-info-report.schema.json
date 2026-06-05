@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/paker/gdbin-info-report.schema.json",
+  "title": "Pagonia Land Paker GdBin Info Report",
+  "description": "JSON report emitted by `pagonia-paker gdbin info --json <path> <gdbin>`. Describes the decoded contents of a Pioneers of Pagonia `<modulename>.gd.bin` index file: its seven-byte header, the list of in-pak `*.gd.xml` paths it lists, and any diagnostics from parsing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Gdbin",
+    "Success",
+    "EntryCount",
+    "HeaderBytesHex",
+    "Entries",
+    "Diagnostics"
+  ],
+  "properties": {
+    "Gdbin": {
+      "type": "string",
+      "description": "Path to the .gd.bin file the report describes."
+    },
+    "Success": {
+      "type": "boolean",
+      "description": "True when the file parsed cleanly. On false, see Diagnostics for the parse error."
+    },
+    "EntryCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of *.gd.xml entries enumerated in the index."
+    },
+    "HeaderBytesHex": {
+      "type": "array",
+      "description": "The seven-byte format header, preserved verbatim as hex strings (`0xNN`). Byte[3] is empirically `entries.Count - 1` across shipped indexes; the others are constants except for byte[1] which is `0x01` on tools.pak and `0x00` elsewhere.",
+      "items": {
+        "type": "string",
+        "pattern": "^0x[0-9A-Fa-f]{2}$"
+      }
+    },
+    "Entries": {
+      "type": "array",
+      "description": "In-pak paths of every *.gd.xml file the module contributes to the GameDatabase. Order matches the on-disk order in the .gd.bin.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

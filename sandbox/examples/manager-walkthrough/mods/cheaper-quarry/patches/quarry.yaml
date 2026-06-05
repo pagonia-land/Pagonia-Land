@@ -1,0 +1,13 @@
+operations:
+  - id: walkthrough-cheaper-quarry-op
+    operation: replaceValue
+    risk: low
+    reason: Walkthrough demonstration patch — lower the quarry softwood cost.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: ab999999-9999-4000-8000-000000000001
+      entityName: Quarry
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "6"
+    value: "5"

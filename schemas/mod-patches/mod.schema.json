@@ -1,0 +1,600 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/mod-patches/mod.schema.json",
+  "title": "Pagonia Land Mod Manifest",
+  "description": "v0.1 schema for a Pioneers of Pagonia GameDatabase patch mod manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "patchFormatVersion",
+    "id",
+    "name",
+    "version",
+    "author",
+    "gameDatabaseVersion",
+    "description",
+    "requiredPackages"
+  ],
+  "properties": {
+    "patchFormatVersion": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "enum": [
+        "0.1",
+        0.1
+      ]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*[a-z0-9]$",
+      "minLength": 3,
+      "maxLength": 120
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([+-][A-Za-z0-9._-]+)?$"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "gameDatabaseVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+\\+[0-9]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "requiredPackages": {
+      "$ref": "#/$defs/packageList"
+    },
+    "optionalPackages": {
+      "$ref": "#/$defs/packageList"
+    },
+    "requiresNewGame": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "safeToRemove": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "multiplayerSafe": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "campaignSafe": {
+      "$ref": "#/$defs/safetyValue"
+    },
+    "dependencies": {
+      "$ref": "#/$defs/modIdList"
+    },
+    "loadAfter": {
+      "$ref": "#/$defs/modIdList"
+    },
+    "loadBefore": {
+      "$ref": "#/$defs/modIdList"
+    },
+    "incompatibleWith": {
+      "$ref": "#/$defs/modIdList"
+    },
+    "patches": {
+      "$ref": "#/$defs/pathList"
+    },
+    "patchSets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/patchSet"
+      },
+      "uniqueItems": true
+    },
+    "entries": {
+      "$ref": "#/$defs/entryOperations"
+    },
+    "tweaks": {
+      "$ref": "#/$defs/tweakList"
+    },
+    "pak": {
+      "$ref": "#/$defs/pakMetadata"
+    },
+    "homepage": {
+      "$ref": "#/$defs/uriString"
+    },
+    "repository": {
+      "$ref": "#/$defs/uriString"
+    },
+    "downloadUrl": {
+      "$ref": "#/$defs/uriString"
+    },
+    "updateUrl": {
+      "$ref": "#/$defs/uriString"
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "balance",
+        "buildings",
+        "resources",
+        "production",
+        "units",
+        "objectives",
+        "visual",
+        "audio",
+        "ui",
+        "maps",
+        "tools",
+        "experimental",
+        "other"
+      ]
+    },
+    "tags": {
+      "description": "Free-form categorisation tags. See docs/mod-tags.md for the recommended vocabulary (content domain, intent, technical, maturity, language).",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "maxLength": 40,
+        "examples": [
+          "buildings", "production", "recipes", "economy", "resources",
+          "units", "combat", "military", "tech-tree",
+          "decoration", "cosmetic", "ui", "audio",
+          "maps", "artifacts", "localization", "tools-editor",
+          "qol", "balance", "realism", "hardcore", "cheat", "cheaper",
+          "expansion", "fix", "tweak", "tweakable", "overhaul", "compatibility", "safe-edits",
+          "xml-only", "pak", "standalone", "vanilla-compatible", "dlc-aware",
+          "experimental", "alpha", "beta", "stable", "archived",
+          "language-de", "language-en", "language-fr", "language-es",
+          "language-it", "language-pl", "language-ru",
+          "language-zh", "language-ja", "language-ko", "language-pt-br"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "previewImages": {
+      "$ref": "#/$defs/pathList"
+    }
+  },
+  "allOf": [
+    {
+      "anyOf": [
+        {
+          "required": [
+            "patches"
+          ]
+        },
+        {
+          "required": [
+            "patchSets"
+          ]
+        },
+        {
+          "required": [
+            "entries"
+          ]
+        }
+      ]
+    },
+    {
+      "not": {
+        "allOf": [
+          {
+            "required": [
+              "patches"
+            ]
+          },
+          {
+            "required": [
+              "patchSets"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "packageName": {
+      "type": "string",
+      "enum": [
+        "core",
+        "decorations1",
+        "dlc1",
+        "tools"
+      ]
+    },
+    "packageList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/packageName"
+      },
+      "uniqueItems": true
+    },
+    "safetyValue": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "unknown"
+          ]
+        }
+      ]
+    },
+    "modId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*[a-z0-9]$",
+      "minLength": 3,
+      "maxLength": 120
+    },
+    "modIdList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/modId"
+      },
+      "uniqueItems": true
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "^[A-Za-z]:"
+          },
+          {
+            "pattern": "^/"
+          },
+          {
+            "pattern": "\\.\\."
+          },
+          {
+            "pattern": "\\\\"
+          }
+        ]
+      }
+    },
+    "pathList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relativePath"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "uriString": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 500
+    },
+    "patchSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "optional",
+        "requiresPackages",
+        "patches"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "requiresPackages": {
+          "$ref": "#/$defs/packageList"
+        },
+        "patches": {
+          "$ref": "#/$defs/pathList"
+        }
+      }
+    },
+    "pakEntryPath": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 260,
+      "description": "In-pak path. Must start with a module namespace (core / decorations1 / dlc1 / tools for Pattern A overrides, or the mod's own pak.name for Pattern B overlays) followed by an extension. No path traversal, no backslashes.",
+      "pattern": "^[a-z0-9][a-z0-9._-]*/[^\\\\:*?\"<>|]+\\.[A-Za-z0-9.]+$",
+      "not": {
+        "pattern": "\\.\\."
+      }
+    },
+    "entryReplaceOrAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "source"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/pakEntryPath"
+        },
+        "source": {
+          "$ref": "#/$defs/relativePath"
+        }
+      }
+    },
+    "entryOperations": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "replace"
+          ]
+        },
+        {
+          "required": [
+            "add"
+          ]
+        },
+        {
+          "required": [
+            "delete"
+          ]
+        }
+      ],
+      "properties": {
+        "replace": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entryReplaceOrAdd"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "add": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entryReplaceOrAdd"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "delete": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pakEntryPath"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "tweakId": {
+      "type": "string",
+      "description": "A tweak identifier (also used for legacy aliases). Lowercase letters, digits, and hyphens; must start with a letter or digit.",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "maxLength": 40
+    },
+    "tweakEnumValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "label"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    "tweak": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One user-adjustable parameter. The manager surfaces it to the user; the patcher resolves `{{ tweaks.<id> }}` placeholders against the chosen value before applying. Stable ids matter: rename via `aliases` rather than changing `id`, or stored user overrides are silently dropped.",
+      "required": [
+        "id",
+        "type",
+        "default",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/tweakId"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "number",
+            "integer",
+            "boolean",
+            "enum"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/tweakEnumValue"
+          }
+        },
+        "aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/tweakId"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "values"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "boolean"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "integer"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "number"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "tweakList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/tweak"
+      }
+    },
+    "pakMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Pattern B overlay-pak metadata. When present, the patcher's scaffold step writes a four-file module skeleton (manifest.json + files.json + <name>/<name>.gd.bin + memory.bin) into the output tree so sandbox-pack without -BasePak produces a standalone, engine-loadable overlay pak.",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Module namespace used in the generated manifest.json/files.json and as the in-pak folder name. Modders pick this; it must not collide with shipped pak names (core, dlc1, decorations1, tools).",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-z0-9][a-z0-9._-]*[a-z0-9]$"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "author": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "image": {
+          "type": "string",
+          "description": "Pak-internal path the game treats as the mod's preview image when the mod is listed in mod managers.",
+          "maxLength": 260
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# Python dependencies for building the documentation site locally and in CI.
+#
+# Install with:
+#   pip install -r requirements-docs.txt
+#
+# Pinned to compatible-version ranges to keep the build reproducible without
+# blocking minor security updates. Bump deliberately, not opportunistically.
+
+mkdocs>=1.6,<2.0
+mkdocs-material>=9.5,<10.0
+pymdown-extensions>=10.7,<11.0

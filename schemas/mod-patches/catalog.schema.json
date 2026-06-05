@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/mod-patches/catalog.schema.json",
+  "title": "Pagonia Land Mod Catalog",
+  "description": "v0.1 schema for a catalog.yaml — a curated list of mod-distribution repos plus optional federated references to other catalogs. The manager aggregates across every catalog the user is subscribed to, with cycle + depth + dedup protection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catalogFormatVersion",
+    "catalog"
+  ],
+  "properties": {
+    "catalogFormatVersion": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "enum": [
+        "0.1",
+        0.1
+      ]
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200
+        },
+        "maintainer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "homepage": {
+          "$ref": "#/$defs/uriString"
+        },
+        "license": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "tags": {
+          "$ref": "#/$defs/tagList"
+        }
+      }
+    },
+    "repos": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repoEntry"
+      }
+    },
+    "catalogs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/catalogEntry"
+      }
+    }
+  },
+  "$defs": {
+    "uriString": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 500
+    },
+    "tagList": {
+      "description": "Free-form categorisation tags. See docs/mod-tags.md for the recommended vocabulary (content domain, intent, technical, maturity, language).",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "maxLength": 40,
+        "examples": [
+          "buildings", "production", "recipes", "economy", "resources",
+          "units", "combat", "military", "tech-tree",
+          "decoration", "cosmetic", "ui", "audio",
+          "maps", "artifacts", "localization", "tools-editor",
+          "qol", "balance", "realism", "hardcore", "cheat", "cheaper",
+          "expansion", "fix", "tweak", "overhaul", "compatibility", "safe-edits",
+          "xml-only", "pak", "standalone", "vanilla-compatible", "dlc-aware", "preset",
+          "experimental", "alpha", "beta", "stable", "archived",
+          "language-de", "language-en", "language-fr", "language-es",
+          "language-it", "language-pl", "language-ru",
+          "language-zh", "language-ja", "language-ko", "language-pt-br"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "repoEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "repo"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "repo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "indexPath": {
+          "description": "Optional repo-relative directory containing this repo's index.yaml; the entry's mod folders resolve under it too. Omit (the default) for an index.yaml at the repo root. Lets one repo host a mod-distribution tree in a subfolder. Must be a safe relative directory — no leading '/', no '\\', no '.'/'..' segments, no drive prefix. Honoured by the manager from the step that ships fetcher support.",
+          "type": "string",
+          "pattern": "^(?!.*(^|/)\\.\\.?(/|$))[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280
+        },
+        "tags": {
+          "$ref": "#/$defs/tagList"
+        }
+      }
+    },
+    "catalogEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "description": "Reference to another catalog. Accepts the same source forms the manager understands for subscriptions: 'gh:owner/repo[#ref][/path]' for GitHub-hosted catalogs and 'file://absolute/path/catalog.yaml' for local catalogs (testing, offline, LAN).",
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 500
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280
+        }
+      }
+    }
+  }
+}

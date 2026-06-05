@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0-dev</InformationalVersion>
+  </PropertyGroup>
+
+  <!--
+    YamlDotNet is the same YAML stack Patcher.Core uses (transitively reachable
+    here, but referenced directly so Manager.Core's own deps are obvious from
+    this csproj). The store state / profile model types are pinned in
+    ILLink.Descriptors.xml so trimming / AOT keep their public properties.
+  -->
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <!--
+    Manager.Core wraps the two engine cores. Both are referenced directly so the
+    dependency graph is obvious from this csproj alone (Patcher.Core already
+    pulls Paker.Core transitively, but explicit beats implicit here). All three
+    libraries target .NET 8 with AOT-friendly types, so the published manager
+    binary stays trimmable.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\pagonia-patcher\src\PagoniaLand.Patcher.Core\PagoniaLand.Patcher.Core.csproj" />
+    <ProjectReference Include="..\..\..\pagonia-paker\src\PagoniaLand.Paker.Core\PagoniaLand.Paker.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    JsonSchema.Net is reachable transitively via Patcher.Core (its SchemaValidator pulls it in),
+    but the manager's own ManagerSchemaValidator uses it directly. Referenced explicitly here so
+    Manager.Core's own deps stay obvious from this csproj.
+  -->
+  <ItemGroup>
+    <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="ILLink.Descriptors.xml" />
+  </ItemGroup>
+
+  <!--
+    Manager JSON report schemas are embedded into Manager.Core so the AOT-published binary can
+    run `schema-validate` from any working directory. Source of truth lives at schemas/manager/.
+    Manifest resource names: PagoniaLand.Manager.Schemas.<file>.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\install-report.schema.json"             LogicalName="PagoniaLand.Manager.Schemas.install-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\uninstall-report.schema.json"           LogicalName="PagoniaLand.Manager.Schemas.uninstall-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\deploy-report.schema.json"              LogicalName="PagoniaLand.Manager.Schemas.deploy-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\rollback-report.schema.json"            LogicalName="PagoniaLand.Manager.Schemas.rollback-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\collection-install-report.schema.json"  LogicalName="PagoniaLand.Manager.Schemas.collection-install-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\status-report.schema.json"              LogicalName="PagoniaLand.Manager.Schemas.status-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\deploy-status-report.schema.json"       LogicalName="PagoniaLand.Manager.Schemas.deploy-status-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\tweak-list.schema.json"                 LogicalName="PagoniaLand.Manager.Schemas.tweak-list.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\tweak-set.schema.json"                  LogicalName="PagoniaLand.Manager.Schemas.tweak-set.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\tweak-reset.schema.json"                LogicalName="PagoniaLand.Manager.Schemas.tweak-reset.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\expansions-list-report.schema.json"     LogicalName="PagoniaLand.Manager.Schemas.expansions-list-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\expansions-set-report.schema.json"      LogicalName="PagoniaLand.Manager.Schemas.expansions-set-report.schema.json" />
+  </ItemGroup>
+
+</Project>

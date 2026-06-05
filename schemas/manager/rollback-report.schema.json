@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/rollback-report.schema.json",
+  "title": "Pagonia Land Manager — Rollback Report",
+  "description": "JSON report emitted by `pagonia-manager rollback --json <out>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "outcome", "restoredFileCount", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["rollback"] },
+    "outcome": { "type": "string", "enum": ["Failed", "Reverted", "NothingToRollback"] },
+    "gameFingerprint": { "type": ["string", "null"] },
+    "revertedTimestamp": { "type": ["string", "null"] },
+    "revertedProfile": { "type": ["string", "null"] },
+    "restoredFileCount": { "type": "integer", "minimum": 0 },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

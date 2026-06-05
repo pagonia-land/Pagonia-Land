@@ -1,0 +1,43 @@
+# Fast guard that the docs never ship a stale game version or stale headline
+# counts. Runs scripts/check-doc-currency.ps1 (pure text, no build) so it can
+# gate documentation-only PRs — which the heavier tools.yml deliberately skips.
+#
+# Canonical sources: VALIDATION_BASELINE.md (version + validation counts) and
+# REFERENCE.md (generated-catalog counts). See UPDATE_PLAYBOOK.md -> Version
+# Currency for the full checklist.
+name: docs-currency
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'README.md'
+      - 'DATABASE_OVERVIEW.md'
+      - 'REFERENCE.md'
+      - 'VALIDATION_BASELINE.md'
+      - 'docs/**'
+      - 'scripts/check-doc-currency.ps1'
+      - '.github/workflows/docs-currency.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'README.md'
+      - 'DATABASE_OVERVIEW.md'
+      - 'REFERENCE.md'
+      - 'VALIDATION_BASELINE.md'
+      - 'docs/**'
+      - 'scripts/check-doc-currency.ps1'
+      - '.github/workflows/docs-currency.yml'
+  workflow_dispatch:
+
+jobs:
+  doc-currency:
+    name: version + headline counts in sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check doc currency
+        shell: pwsh
+        run: ./scripts/check-doc-currency.ps1

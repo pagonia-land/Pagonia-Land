@@ -1,0 +1,237 @@
+using System.Diagnostics.CodeAnalysis;
+
+namespace PagoniaLand.Manager;
+
+public enum DeployCleanAction
+{
+    /// <summary>The timestamp directory was removed (or would have been on a
+    /// dry-run).</summary>
+    Removed,
+
+    /// <summary>The timestamp was within the keep-window or protected as the
+    /// active <c>state.yaml.lastDeploy</c> entry.</summary>
+    Kept,
+
+    /// <summary>The timestamp would have been removed by the keep-window
+    /// rule but was the current <c>state.yaml.lastDeploy</c> entry — refusing
+    /// to remove it preserves the "what status says is the latest" rollback
+    /// path.</summary>
+    RefusedLatest,
+}
+
+/// <summary>One audit row from <see cref="DeployCleanService.Clean"/>. Surfaces
+/// every per-timestamp action the call took (or would have taken on dry-run)
+/// so the CLI / wizard can render a precise log of what changed.</summary>
+public sealed record DeployCleanEntry(
+    string Fingerprint,
+    string Timestamp,
+    string Profile,
+    DeployCleanAction Action,
+    string Reason);
+
+public sealed class DeployCleanResult
+{
+    public int RemovedCount { get; init; }
+    public int KeptCount { get; init; }
+    public int RefusedCount { get; init; }
+    public bool DryRun { get; init; }
+    public IReadOnlyList<DeployCleanEntry> Entries { get; init; } = Array.Empty<DeployCleanEntry>();
+    public IReadOnlyList<ManagerDiagnostic> Diagnostics { get; init; } = Array.Empty<ManagerDiagnostic>();
+}
+
+/// <summary>opt-in retention command for deploy backups.
+/// Per-fingerprint keeps the N most recent timestamp directories and removes
+/// older ones (manifests + backups). Refuses to delete the timestamp that
+/// <c>state.yaml.lastDeploy</c> currently references — removing it would
+/// orphan the user's "current deploy" with no rollback path.
+/// <para>Default behaviour throughout the live-install path was "keep all backups". This
+/// command is the user-opt-in to reclaim disk space without changing that
+/// default. the current release does NOT auto-run it; the wizard surfaces a
+/// <c>manager.deploysStorageHigh</c> hint when the total store/deploys/
+/// size crosses ~5 GB, but the actual cleanup is always explicit.</para>
+/// </summary>
+public sealed class DeployCleanService
+{
+    private readonly DeployHistoryStore _historyStore = new();
+    private readonly StoreStateReader _stateReader = new();
+
+    // AOT pin so YamlDotNet can rewrite the trimmed history.yaml.
+    private const DynamicallyAccessedMemberTypes Shape =
+        DynamicallyAccessedMemberTypes.PublicConstructors
+        | DynamicallyAccessedMemberTypes.PublicProperties
+        | DynamicallyAccessedMemberTypes.PublicFields;
+
+    [DynamicDependency(Shape, typeof(DeployHistory))]
+    [DynamicDependency(Shape, typeof(DeployHistoryEntry))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(List<DeployHistoryEntry>))]
+    public DeployCleanService()
+    {
+    }
+
+    /// <summary>Trim deploy timestamp directories per fingerprint to the
+    /// <paramref name="keep"/> most recent entries.</summary>
+    /// <param name="gameRoot">Optional scope — when non-null, only the
+    /// fingerprint computed for this game install gets cleaned. When null,
+    /// every fingerprint directory under <c>&lt;store&gt;/deploys/</c> is
+    /// processed (each subject to its own keep-N rule).</param>
+    /// <param name="dryRun">When true, no files are removed and history.yaml
+    /// is not rewritten; the returned Entries log still shows what WOULD have
+    /// happened. Counts reflect "would remove / would keep" tallies.</param>
+    public DeployCleanResult Clean(StoreLayout layout, int keep, string? gameRoot, bool dryRun)
+    {
+        var diagnostics = new List<ManagerDiagnostic>();
+        var entries = new List<DeployCleanEntry>();
+
+        if (keep < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(keep), keep, "keep must be >= 0");
+        }
+
+        if (!Directory.Exists(layout.DeploysDirectory))
+        {
+            return new DeployCleanResult { DryRun = dryRun };
+        }
+
+        var activeLastDeploy = ResolveActiveLastDeploy(layout);
+
+        IEnumerable<string> targetFingerprints;
+        if (!string.IsNullOrWhiteSpace(gameRoot))
+        {
+            var currentFingerprint = GameFingerprint.Compute(gameRoot);
+            targetFingerprints = Directory.Exists(layout.DeployFingerprintDirectory(currentFingerprint))
+                ? new[] { currentFingerprint }
+                : Array.Empty<string>();
+        }
+        else
+        {
+            targetFingerprints = Directory.EnumerateDirectories(layout.DeploysDirectory)
+                .Select(Path.GetFileName)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Cast<string>();
+        }
+
+        var removed = 0;
+        var kept = 0;
+        var refused = 0;
+
+        foreach (var fingerprint in targetFingerprints)
+        {
+            if (!_historyStore.TryRead(layout, fingerprint, out var history, out _)) continue;
+            if (history.Deploys.Count == 0) continue;
+
+            // history.Deploys is newest-first by construction (DeployService
+            // prepends the new entry). Take the first `keep` to preserve;
+            // everything past that is a candidate for removal.
+            var toKeep = history.Deploys.Take(keep).ToList();
+            var toMaybeRemove = history.Deploys.Skip(keep).ToList();
+
+            foreach (var entry in toKeep)
+            {
+                kept++;
+                entries.Add(new DeployCleanEntry(
+                    Fingerprint: fingerprint,
+                    Timestamp: entry.Timestamp,
+                    Profile: entry.Profile,
+                    Action: DeployCleanAction.Kept,
+                    Reason: $"within keep-{keep} window"));
+            }
+
+            var keptAfterProtection = new List<DeployHistoryEntry>(toKeep);
+
+            foreach (var entry in toMaybeRemove)
+            {
+                if (activeLastDeploy is not null
+                    && string.Equals(activeLastDeploy.Value.Fingerprint, fingerprint, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(activeLastDeploy.Value.Timestamp, entry.Timestamp, StringComparison.Ordinal))
+                {
+                    refused++;
+                    keptAfterProtection.Add(entry);
+                    entries.Add(new DeployCleanEntry(
+                        Fingerprint: fingerprint,
+                        Timestamp: entry.Timestamp,
+                        Profile: entry.Profile,
+                        Action: DeployCleanAction.RefusedLatest,
+                        Reason: "current state.yaml.lastDeploy — removing would orphan the user's 'latest deploy'"));
+                    diagnostics.Add(new ManagerDiagnostic(
+                        ManagerDiagnosticSeverity.Warning,
+                        ManagerDiagnosticCodes.DeployCleanRefusedLatest,
+                        $"Refused to remove '{entry.Timestamp}' under fingerprint '{fingerprint}' — state.yaml.lastDeploy points at it."));
+                    continue;
+                }
+
+                removed++;
+                entries.Add(new DeployCleanEntry(
+                    Fingerprint: fingerprint,
+                    Timestamp: entry.Timestamp,
+                    Profile: entry.Profile,
+                    Action: DeployCleanAction.Removed,
+                    Reason: dryRun ? "would remove (dry-run)" : "removed"));
+                diagnostics.Add(new ManagerDiagnostic(
+                    ManagerDiagnosticSeverity.Info,
+                    ManagerDiagnosticCodes.DeployCleanRemoved,
+                    dryRun
+                        ? $"Dry-run: would remove '{entry.Timestamp}' under fingerprint '{fingerprint}'."
+                        : $"Removed '{entry.Timestamp}' under fingerprint '{fingerprint}'."));
+
+                if (!dryRun)
+                {
+                    var tsDir = layout.DeployTimestampDirectory(fingerprint, entry.Timestamp);
+                    if (Directory.Exists(tsDir))
+                    {
+                        try { Directory.Delete(tsDir, recursive: true); }
+                        catch (IOException) { /* best-effort */ }
+                    }
+                }
+            }
+
+            // Rewrite history.yaml with the truncated list (keep-window plus
+            // any refused-latest entries that survived). On dry-run we skip
+            // the write — the on-disk state is unchanged.
+            if (!dryRun && keptAfterProtection.Count != history.Deploys.Count)
+            {
+                _historyStore.Write(layout, fingerprint, new DeployHistory
+                {
+                    DeployHistoryVersion = history.DeployHistoryVersion,
+                    GameFingerprint = history.GameFingerprint,
+                    GameRoot = history.GameRoot,
+                    Deploys = keptAfterProtection,
+                });
+            }
+        }
+
+        return new DeployCleanResult
+        {
+            RemovedCount = removed,
+            KeptCount = kept,
+            RefusedCount = refused,
+            DryRun = dryRun,
+            Entries = entries,
+            Diagnostics = diagnostics,
+        };
+    }
+
+    /// <summary>Total bytes used under <c>&lt;store&gt;/deploys/</c>. Best-effort
+    /// — broken symlinks / permission errors are ignored. Used by the status
+    /// dashboard to surface a "deploys storage is growing, consider 'deploys
+    /// clean'" hint when the total crosses a soft threshold.</summary>
+    public static long ComputeDeploysSize(StoreLayout layout)
+    {
+        if (!Directory.Exists(layout.DeploysDirectory)) return 0;
+        long total = 0;
+        foreach (var file in Directory.EnumerateFiles(layout.DeploysDirectory, "*", SearchOption.AllDirectories))
+        {
+            try { total += new FileInfo(file).Length; }
+            catch { /* best-effort */ }
+        }
+        return total;
+    }
+
+    private (string Fingerprint, string Timestamp)? ResolveActiveLastDeploy(StoreLayout layout)
+    {
+        if (!_stateReader.Exists(layout)) return null;
+        var state = _stateReader.Read(layout);
+        if (state.LastDeploy is null) return null;
+        var fp = GameFingerprint.Compute(state.LastDeploy.GameRoot);
+        return (fp, state.LastDeploy.Timestamp);
+    }
+}

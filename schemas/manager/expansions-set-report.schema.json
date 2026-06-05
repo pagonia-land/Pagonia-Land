@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/expansions-set-report.schema.json",
+  "title": "Pagonia Land Manager — Expansions Set Report",
+  "description": "JSON report emitted by `pagonia-manager expansions set <decorations1|dlc1> <owned|not-owned|unknown> --json <out>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "success", "mutated", "gameRoot", "package", "owned", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["expansionsSet"] },
+    "success": { "type": "boolean" },
+    "mutated": { "type": "boolean" },
+    "gameRoot": { "type": "string" },
+    "gameFingerprint": { "type": ["string", "null"] },
+    "package": { "type": "string", "enum": ["decorations1", "dlc1", "core", "tools"] },
+    "owned": { "type": "string", "enum": ["owned", "not-owned", "unknown"] },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

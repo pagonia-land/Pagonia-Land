@@ -1,0 +1,19 @@
+patchFormatVersion: 0.1
+id: pagonia-land.fixture.merge-component-sawmill
+name: Fixture Merge Component Sawmill
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture mod that merges an extra Building child into the existing Sawmill Building component.
+requiredPackages:
+  - core
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+patches:
+  - patches/buildings.yaml

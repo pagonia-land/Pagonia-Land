@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/expansions-list-report.schema.json",
+  "title": "Pagonia Land Manager — Expansions List Report",
+  "description": "JSON report emitted by `pagonia-manager expansions list --json <out>`. Reports each canonical package's present/owned/effective state for one game install.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "success", "gameRoot", "expansions", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["expansionsList"] },
+    "success": { "type": "boolean" },
+    "gameRoot": { "type": "string" },
+    "gameFingerprint": { "type": ["string", "null"] },
+    "expansions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["package", "present", "owned", "effective"],
+        "properties": {
+          "package": { "type": "string", "enum": ["core", "decorations1", "dlc1", "tools"] },
+          "present": { "type": "boolean" },
+          "owned": { "type": "string", "enum": ["owned", "not-owned", "unknown"] },
+          "effective": { "type": "boolean" }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

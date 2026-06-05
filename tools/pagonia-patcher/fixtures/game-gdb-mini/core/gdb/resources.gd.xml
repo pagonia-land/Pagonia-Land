@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GameDatabase>
+  <Groups>
+    <Group Name="Resources">
+      <Entities>
+        <Entity Name="Softwood Trunk" Guid="c22b4997-5563-44ab-8aa0-04a7b2c826be">
+          <Children />
+          <Values>
+            <ResourceDescription>
+              <Name>Softwood Trunk</Name>
+              <Icon>core/gui/icons/commodities/com_trunk_softwood_001.png</Icon>
+            </ResourceDescription>
+          </Values>
+        </Entity>
+        <Entity Name="Stone Block" Guid="d8dd765a-ac73-49cc-a9b9-f6102f6f8e07">
+          <Children />
+          <Values>
+            <ResourceDescription>
+              <Name>Stone Block</Name>
+              <Icon>core/gui/icons/commodities/icon_com_stone_block_001.png</Icon>
+            </ResourceDescription>
+          </Values>
+        </Entity>
+      </Entities>
+    </Group>
+  </Groups>
+</GameDatabase>

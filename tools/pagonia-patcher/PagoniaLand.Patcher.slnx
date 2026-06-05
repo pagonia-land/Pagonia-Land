@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PagoniaLand.Patcher.Cli/PagoniaLand.Patcher.Cli.csproj" />
+    <Project Path="src/PagoniaLand.Patcher.Core/PagoniaLand.Patcher.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PagoniaLand.Patcher.Tests/PagoniaLand.Patcher.Tests.csproj" />
+  </Folder>
+</Solution>

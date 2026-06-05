@@ -1,0 +1,26 @@
+operations:
+  - id: cheaper-sawmill-softwood-cost
+    operation: replaceValue
+    risk: low
+    reason: Lower the Sawmill's Softwood Trunk construction cost from 4 to 3.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    value: "3"
+
+  - id: cheaper-sawmill-stone-cost
+    operation: replaceValue
+    risk: low
+    reason: Lower the Sawmill's Stone Block construction cost from 4 to 3.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='d8dd765a-ac73-49cc-a9b9-f6102f6f8e07']/Content/Amount
+    expectedOldValue: "4"
+    value: "3"

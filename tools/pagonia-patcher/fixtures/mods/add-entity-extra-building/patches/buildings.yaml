@@ -1,0 +1,10 @@
+operations:
+  - id: add-entity-extra-building
+    operation: addEntity
+    risk: medium
+    reason: Fixture patch for testing the addEntity operation.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityName: Buildings
+    xml: |
+      <Entity Name="FixtureLumberCamp" Guid="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"><Children /><Values><Building><Name>FixtureLumberCamp</Name></Building></Values></Entity>

@@ -1,0 +1,67 @@
+# Locally extracted proprietary game database files.
+# Keep these on your machine, but do not publish them in this repository.
+/game-gdb/*
+!/game-gdb/README.md
+
+# Locally placed proprietary .pak archives (game install copies).
+# Same rule as /game-gdb/: keep them on your machine, never publish them.
+/game-paks/*
+!/game-paks/README.md
+
+# Locally placed user-map .pak archives (editor output / mod.io downloads).
+# Same rule as /game-paks/: keep them on your machine, never publish them.
+/game-maps/*
+!/game-maps/README.md
+
+# Generated analysis artifacts derived from the local game database.
+# Regenerate them with scripts/analyze_database.ps1 after placing XMLs in game-gdb/.
+/generated/*.json
+/generated/catalog/
+/generated/diffs/
+
+# Local version snapshots for private update/diff work.
+# Snapshot contents can include extracted proprietary game XMLs and generated data.
+/snapshots/*
+!/snapshots/README.md
+
+# Common local/editor noise.
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# Local Claude Code permissions
+.claude/
+
+# .NET build output.
+**/bin/
+**/obj/
+**/.vs/
+
+# Patcher test output.
+/tools/pagonia-patcher/fixtures/out/
+
+# Paker local smoke-test output, mirroring the patcher's fixtures/out/.
+/tools/pagonia-paker/fixtures/out/
+/tools/pagonia-paker/out/
+
+# Sandbox workspace. Modder-supplied content stays local; only the example
+# folder under sandbox/examples/ and the per-folder READMEs are committed.
+# sandbox/out/ is wiped and re-created on every apply, so nothing in it can
+# be committed.
+/sandbox/mods/*
+!/sandbox/mods/.gitkeep
+!/sandbox/mods/README.md
+/sandbox/collections/*
+!/sandbox/collections/.gitkeep
+!/sandbox/collections/README.md
+/sandbox/out/
+
+# MkDocs build output (the docs site), the prebuild-mirrored docs tree, and
+# the local Python virtual env. /docs_build/ is regenerated on every build
+# by docs_hooks/prebuild.py — never edit it directly; edit /docs/ or the
+# imported source files (CONTRIBUTING.md, tools/*/README.md, etc.) instead.
+/site/
+/docs_build/
+/.venv/
+__pycache__/

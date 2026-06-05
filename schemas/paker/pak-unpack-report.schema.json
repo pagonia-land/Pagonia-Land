@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/paker/pak-unpack-report.schema.json",
+  "title": "Pagonia Land Paker Unpack Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Pak",
+    "Success",
+    "OutputDir",
+    "EntryCount",
+    "ExtractedCount",
+    "SkippedCount",
+    "FailedCount",
+    "Filter",
+    "Entries",
+    "Diagnostics"
+  ],
+  "properties": {
+    "Pak": {
+      "type": "string"
+    },
+    "Success": {
+      "type": "boolean"
+    },
+    "OutputDir": {
+      "type": "string"
+    },
+    "EntryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ExtractedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "SkippedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "FailedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "Filter": {
+      "$ref": "#/$defs/filter"
+    },
+    "Entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Index",
+        "Filename",
+        "Compressed",
+        "Status",
+        "OutputPath"
+      ],
+      "properties": {
+        "Index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "Filename": {
+          "type": "string"
+        },
+        "Compressed": {
+          "type": "boolean"
+        },
+        "Status": {
+          "type": "string",
+          "enum": [
+            "extracted",
+            "skipped",
+            "failed"
+          ]
+        },
+        "OutputPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "CompressedOnly",
+        "UncompressedOnly",
+        "Start",
+        "End",
+        "FilenameContains"
+      ],
+      "properties": {
+        "CompressedOnly": {
+          "type": "boolean"
+        },
+        "UncompressedOnly": {
+          "type": "boolean"
+        },
+        "Start": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "End": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "FilenameContains": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

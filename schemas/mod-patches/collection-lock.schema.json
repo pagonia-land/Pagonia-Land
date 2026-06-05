@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/mod-patches/collection-lock.schema.json",
+  "title": "Pagonia Land Mod Collection Lockfile",
+  "description": "Schema for resolved collection installations. The initial 0.1 shape carries optional per-mod source + resolvedAt (cross-repo remote fetches with a pinned commit SHA, so a re-install months later reproduces byte-identical) and tweaks (pinned resolved tweak values).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "collectionLockVersion",
+    "collectionId",
+    "collectionVersion",
+    "gameDatabaseVersion",
+    "mods"
+  ],
+  "properties": {
+    "collectionLockVersion": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "enum": [
+        "0.1",
+        0.1
+      ]
+    },
+    "collectionId": {
+      "$ref": "#/$defs/id"
+    },
+    "collectionVersion": {
+      "$ref": "#/$defs/semver"
+    },
+    "gameDatabaseVersion": {
+      "$ref": "#/$defs/gameDatabaseVersion"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mods": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/lockedMod"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*[a-z0-9]$",
+      "minLength": 3,
+      "maxLength": 140
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([+-][A-Za-z0-9._-]+)?$"
+    },
+    "gameDatabaseVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+\\+[0-9]+$"
+    },
+    "lockedMod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "enabled"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "resolvedSource": {
+          "$ref": "#/$defs/uriString"
+        },
+        "archiveSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "source": {
+          "description": "Optional. Transport-neutral identifier pinning the exact origin of this mod at install time, e.g. 'gh:owner/repo#<commit-sha>/<mod-id>'. Used by re-install to fetch byte-identical content even after the source branch moves on the remote. Empty / absent for purely local installs.",
+          "type": "string",
+          "maxLength": 500
+        },
+        "resolvedAt": {
+          "description": "Optional. ISO-8601 timestamp captured when this mod's source was resolved. Together with 'source', records when the SHA was pinned.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "tweaks": {
+          "description": "Optional. The tweak values resolved for this mod when the lockfile was generated (tweak id → value). Re-applying pins these exact values so the substitution is reproducible.",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        }
+      }
+    },
+    "uriString": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 500
+    }
+  }
+}

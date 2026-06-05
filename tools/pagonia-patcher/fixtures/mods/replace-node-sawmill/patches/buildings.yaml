@@ -1,0 +1,15 @@
+operations:
+  - id: replace-node-sawmill-decal
+    operation: replaceNode
+    risk: low
+    reason: Fixture patch for testing the replaceNode operation.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: Building
+      path: Decal
+    expectedOldXml: |
+      <Decal><Texture>core/textures/decal_sawmill_001.png</Texture><Tint>FFFFFF</Tint></Decal>
+    xml: |
+      <Decal><Texture>core/textures/decal_sawmill_002.png</Texture><Tint>EEDDCC</Tint><Opacity>0.8</Opacity></Decal>

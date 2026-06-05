@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/deploy-status-report.schema.json",
+  "title": "Pagonia Land Manager — Deploy Status Report",
+  "description": "JSON report emitted by `pagonia-manager deploy-status --json <out>` (and `deploy-list --json <out>`, same shape).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "gameRoot", "gameFingerprint", "gameProductVersion", "hasDeploys", "deploys", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["deployStatus"] },
+    "gameRoot": { "type": "string", "minLength": 1 },
+    "gameFingerprint": { "type": "string" },
+    "gameProductVersion": {
+      "description": "The live install's game version, read from the executable's Win32 ProductVersion — byte-for-byte the same string mods declare as gameDatabaseVersion (e.g. 1.3.0-11768+193445). null when no readable exe (extracted layout / fixture).",
+      "type": ["string", "null"]
+    },
+    "hasDeploys": { "type": "boolean" },
+    "deploys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["timestamp", "profile", "modCount", "fileCount"],
+        "properties": {
+          "timestamp": { "type": "string", "minLength": 1 },
+          "profile": { "type": "string" },
+          "modCount": { "type": "integer", "minimum": 0 },
+          "fileCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

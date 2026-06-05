@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/paker/pak-list-report.schema.json",
+  "title": "Pagonia Land Paker List Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Pak",
+    "Success",
+    "Version",
+    "EntryCount",
+    "PakInfoPath",
+    "Entries",
+    "Diagnostics"
+  ],
+  "properties": {
+    "Pak": {
+      "type": "string"
+    },
+    "Success": {
+      "type": "boolean"
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "EntryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "PakInfoPath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "Entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Index",
+        "Compressed",
+        "Filename",
+        "BeginOffset",
+        "Size",
+        "SizeInPak"
+      ],
+      "properties": {
+        "Index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "Compressed": {
+          "type": "boolean"
+        },
+        "Filename": {
+          "type": "string"
+        },
+        "BeginOffset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "Size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "SizeInPak": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

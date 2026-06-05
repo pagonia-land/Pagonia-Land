@@ -1,0 +1,93 @@
+operations:
+  # ============================================================
+  # Patch 1 — replaceValue
+  # ============================================================
+  # Swap one ability slot for a different Ability GUID.
+  #
+  # Here the slot is "SanctuarAccelerateDepositsGrowth Ability" — the
+  # spell that speeds up plant growth on existing deposits. The
+  # predicate path picks the right slot by matching its current
+  # content, so this stays correct even if another mod changes the
+  # order of items above it.
+  #
+  # PLACEHOLDER: the value below points at a non-existent Ability GUID
+  # ("aaaaaaaa-..."). Replace it with the GUID of an Ability you've
+  # defined yourself (in your own *.gd.xml shipped as a Pattern B
+  # overlay pak) or with another existing Sanctuary Ability GUID from
+  # dlc1/gdb/abilities.gd.xml.
+  - id: replace-accelerate-growth-with-custom
+    operation: replaceValue
+    risk: medium
+    reason: Demonstrate swapping one ability slot for a different ability.
+    target:
+      file: dlc1/gdb/buildings.gd.xml
+      entityGuid: 482eddcc-ae28-49b0-8e97-807ab1a69db6
+      entityName: Sanctuary
+      component: AspectShrine
+      # XPath-style: navigate to the <Ability> text node inside the
+      # Item whose current Ability matches the expected GUID.
+      path: Abilities/Item[Content/Ability='0656fcb2-9fd9-43ff-95b9-645165f67193']/Content/Ability
+    # expectedOldValue is the safety net. If the live database has a
+    # different ability in this slot, the patcher refuses to apply
+    # rather than silently overwriting an unrelated change.
+    expectedOldValue: "0656fcb2-9fd9-43ff-95b9-645165f67193"
+    value: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+  # ============================================================
+  # Patch 2 — addListItem
+  # ============================================================
+  # Append a 9th ability slot to the Sanctuary's ability bar.
+  #
+  # The Abilities list isn't fixed-length: addListItem simply appends
+  # a new <Item> child to the container resolved by target.path. The
+  # in-game UI shows whatever the list holds at load time.
+  #
+  # PLACEHOLDER: the Ability GUID below ("bbbbbbbb-...") doesn't
+  # exist. Replace it with your own Ability entity GUID (defined in a
+  # *.gd.xml you ship via a Pattern B overlay pak — see
+  # sandbox/examples/standalone-overlay/ for that pattern).
+  - id: add-extra-ability-slot
+    operation: addListItem
+    risk: medium
+    reason: Add an extra ability to the Sanctuary's spell bar.
+    target:
+      file: dlc1/gdb/buildings.gd.xml
+      entityGuid: 482eddcc-ae28-49b0-8e97-807ab1a69db6
+      entityName: Sanctuary
+      component: AspectShrine
+      # target.path points at the list container, not at any item.
+      path: Abilities
+    # Whitespace inside xml: blocks is normalised by the patcher
+    # before insertion, so indentation here is for readability only.
+    xml: |
+      <Item>
+        <Content>
+          <Ability>bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb</Ability>
+        </Content>
+      </Item>
+
+  # ============================================================
+  # Patch 3 — removeListItem
+  # ============================================================
+  # Drop one ability from the Sanctuary's spell bar entirely.
+  #
+  # Here we remove "SanctuarExploreUnderground Ability" (GUID
+  # 0d52e59b-...). expectedOldXml must match an existing child of
+  # <Abilities> byte-for-byte after whitespace normalisation — the
+  # patcher refuses to delete anything else.
+  #
+  # This patch is real and will apply against the shipped DLC1 data
+  # as-is. The other two patches above need their placeholder GUIDs
+  # swapped first.
+  - id: remove-explore-underground
+    operation: removeListItem
+    risk: medium
+    reason: Remove the Explore Underground ability from the Sanctuary's spell bar.
+    target:
+      file: dlc1/gdb/buildings.gd.xml
+      entityGuid: 482eddcc-ae28-49b0-8e97-807ab1a69db6
+      entityName: Sanctuary
+      component: AspectShrine
+      path: Abilities
+    expectedOldXml: |
+      <Item><Content><Ability>0d52e59b-c8e1-4cfa-ab20-16812395f341</Ability></Content></Item>

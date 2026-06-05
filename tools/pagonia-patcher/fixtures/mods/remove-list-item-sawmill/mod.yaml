@@ -1,0 +1,19 @@
+patchFormatVersion: 0.1
+id: pagonia-land.fixture.remove-list-item-sawmill
+name: Fixture Remove List Item Sawmill
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture mod that removes the Stone Block Sawmill cost via removeListItem.
+requiredPackages:
+  - core
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+patches:
+  - patches/buildings.yaml

@@ -1,0 +1,67 @@
+# Dependabot configuration.
+#
+# Why: keep NuGet dependencies for the three .NET tools and GitHub Actions
+# pinned versions current without manual sweeps. Updates land as PRs against
+# main that the maintainer can review on a weekly cadence.
+#
+# What we DO NOT auto-update:
+#   - Anything outside the three tool projects (no python, npm, etc. — none today)
+#
+# Scope rationale: each tool gets its own ecosystem block so PRs are scoped
+# to one tool at a time. A single root-level NuGet block would lump updates
+# across patcher / paker / manager into combined PRs, which makes it harder
+# to revert a single failing dependency.
+
+version: 2
+updates:
+  # NuGet — pagonia-patcher
+  - package-ecosystem: nuget
+    directory: /tools/pagonia-patcher
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - patcher
+    commit-message:
+      prefix: "patcher: deps"
+
+  # NuGet — pagonia-paker
+  - package-ecosystem: nuget
+    directory: /tools/pagonia-paker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - paker
+    commit-message:
+      prefix: "paker: deps"
+
+  # NuGet — pagonia-manager
+  - package-ecosystem: nuget
+    directory: /tools/pagonia-manager
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - manager
+    commit-message:
+      prefix: "manager: deps"
+
+  # GitHub Actions — every action @version is pinned and watched
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: "ci: action deps"

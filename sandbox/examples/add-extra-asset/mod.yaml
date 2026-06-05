@@ -1,0 +1,45 @@
+patchFormatVersion: "0.1"
+id: example.add-extra-asset
+name: Add Extra Asset Example
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Template mod that does not patch any XML. Instead it demonstrates the three
+  binary `entries:` operations a modder can use to ship icons, textures,
+  audio, prefabs, or any other non-XML pak content: replace an existing
+  entry, add a brand-new entry, or delete an entry from the resulting pak.
+
+  The paths below intentionally use fictional `entries/notes-readme.txt`
+  files so the example applies cleanly against the patcher's artificial
+  game-gdb-mini fixture. For a real mod, replace them with the actual entry
+  paths your game install uses (look them up by running
+  `pagonia-paker list <your-pak>` first).
+requiredPackages:
+  - core
+optionalPackages: []
+# `patches:` and `entries:` are independent. A real mod usually has both —
+# XML rules that change values, plus the assets those rules reference. This
+# template ships only `entries:` so you can see the binary side in isolation;
+# combine it with `patches:` once you understand each half on its own.
+entries:
+  # `replace:` substitutes an existing pak entry with your file. The path
+  # MUST match an entry that already exists in the base pak you'll patch
+  # against; the paker will refuse if not (commented out by default because
+  # the artificial game-gdb-mini fixture has no .image entries).
+  #
+  # replace:
+  #   - path: core/gui/icons/buildings/icon_sawmill.image
+  #     source: entries/icon_sawmill.image
+  add:
+    # `add:` ships a brand-new entry. The path must NOT already be in the
+    # base pak; if it is, the paker reports patchAddConflictsWithExisting.
+    - path: core/gdb/notes-readme.txt
+      source: entries/notes-readme.txt
+  # `delete:` is a flat list of pak entry paths to omit from the resulting
+  # pak. Each path must match an existing entry; missing targets surface as
+  # `patchDeleteTargetMissing`. Commented out because game-gdb-mini does not
+  # have a removable entry to demo against.
+  #
+  # delete:
+  #   - core/gdb/some-obsolete-blob.bin

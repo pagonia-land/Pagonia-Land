@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/paker/pak-classify-report.schema.json",
+  "title": "Pagonia Land Paker Classify Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Pak",
+    "Success",
+    "Kind",
+    "Name",
+    "ModuleFolder",
+    "Dependencies",
+    "HasGdBin",
+    "PopmapCount",
+    "OverridesAtRoot",
+    "Diagnostics"
+  ],
+  "properties": {
+    "Pak": {
+      "type": "string"
+    },
+    "Success": {
+      "type": "boolean"
+    },
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "module",
+        "user-map",
+        "overlay",
+        "unknown"
+      ]
+    },
+    "Name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ModuleFolder": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "Dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "HasGdBin": {
+      "type": "boolean"
+    },
+    "PopmapCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "OverridesAtRoot": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Root the YAML model types so the trimmer and Native AOT compiler keep their
+  public constructors and properties, which YamlDotNet accesses via reflection.
+  See https://learn.microsoft.com/dotnet/core/deploying/trimming/trimming-options
+  for the descriptor format.
+-->
+<linker>
+  <assembly fullname="PagoniaLand.Patcher.Core">
+    <type fullname="PagoniaLand.Patcher.ModManifest" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.PatchSet" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.PatchFile" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.PatchOperation" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.PatchTarget" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.CollectionManifest" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.CollectionMod" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.CollectionLock" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.LockedMod" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.SafetyState" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.EntryOperations" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.EntryFileMapping" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.PakMetadata" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.TweakDeclaration" preserve="all" />
+    <type fullname="PagoniaLand.Patcher.TweakEnumValue" preserve="all" />
+  </assembly>
+  <!--
+    YamlDotNet instantiates the collection types referenced by the model properties via
+    Activator.CreateInstance. Root the generic definitions used by our models so the trimmer
+    keeps their constructors and Add methods available at runtime.
+  -->
+  <assembly fullname="System.Private.CoreLib">
+    <type fullname="System.Collections.Generic.List`1" preserve="all" />
+    <type fullname="System.Collections.Generic.Dictionary`2" preserve="all" />
+  </assembly>
+</linker>

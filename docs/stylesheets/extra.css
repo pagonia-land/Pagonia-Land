@@ -1,0 +1,238 @@
+/* Pagonia Land — MkDocs Material custom overrides */
+
+/* Make the header logo larger and tighten the gap between logo and site title.
+   Material's default logo is ~1.2rem tall, which makes the detailed icon look
+   tiny on desktop. Bumping to 2rem keeps it crisp on retina without pushing
+   the header height much. */
+.md-header__button.md-logo {
+  margin: 0.2rem 0;
+  padding: 0.2rem 0 0.2rem 0.5rem;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2rem;
+  width: 2rem;
+}
+
+/* Pull the site title close to the logo. Default Material spacing is
+   generous for plain-text logos; with a recognizable icon, a tighter pairing
+   reads as "logo + wordmark" rather than "icon, then some text". */
+.md-header__title {
+  margin-left: 0;
+}
+
+/* Make the site title slightly bolder to better balance the larger logo. */
+.md-header__topic:first-child {
+  font-weight: 600;
+}
+
+/* Disable the smooth slide animation between site_name and page_title in
+   the header. Material's default animates a vertical translate-Y between
+   the two topics on scroll; on the Home page where page_title equals
+   site_name ("Pagonia Land"), the slide looks like the text is wiggling.
+   Removing the transition makes the swap instant — invisible on Home
+   (same text), and a snap rather than a slide on other pages. */
+.md-header__topic {
+  transition: none !important;
+}
+
+/* Hide the 'pagonia-land/Pagonia-Land' repo text + the star/fork count
+   chips next to the GitHub icon in the header. Keep the icon itself. */
+.md-source__repository,
+.md-source__facts {
+  display: none;
+}
+
+/* Hide the duplicate GitHub source button that Material auto-inserts at
+   the bottom of the mobile hamburger drawer. We keep the source visible
+   in the top header instead (see .md-header__source override below). */
+.md-nav__source {
+  display: none;
+}
+
+/* Tighten the source container so it doesn't reserve Material's default
+   11.7rem of horizontal space for the now-hidden text — let it shrink
+   to just the icon width. */
+.md-header__source {
+  width: auto !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+}
+
+/* Keep the source (GitHub) icon visible on mobile too. Material's
+   default hides .md-header__source below 76em viewport so the title
+   can take that space; with our text/facts hidden the source is just
+   the icon and fits next to Discord even on narrow viewports. */
+@media screen and (max-width: 76.1875em) {
+  .md-header__source {
+    display: block;
+  }
+}
+
+/* Discord icon injected by docs/javascripts/extra.js — match the size
+   and spacing of Material's other header buttons (search, GitHub). */
+.md-header__discord {
+  padding: 0.4rem;
+}
+.md-header__discord svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: currentColor;
+}
+
+/* ---------------------------------------------------------------------
+   Homepage hero block. docs/index.md wraps its lead in <div class="hero">
+   to get a styled landing-page block instead of a plain H1 + paragraph.
+   --------------------------------------------------------------------- */
+.hero {
+  padding: 2.2rem 2rem;
+  margin: 0 0 2rem;
+  background: linear-gradient(135deg, #1f2937 0%, #2d3748 100%);
+  border-radius: 0.3rem;
+  color: white;
+}
+
+/* Eyebrow / kicker — small label that sits ABOVE the icon+subtitle row.
+   Color is muted toward the background so it reads as a quiet note,
+   not a competing headline. */
+.hero__title {
+  margin: 0 0 1.2rem !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  line-height: 1.4;
+  border-bottom: none !important;
+}
+
+.hero__title .headerlink {
+  display: none !important;
+}
+
+/* Icon + subtitle sit side-by-side, vertically centered on each other.
+   The eyebrow above and the buttons below sit OUTSIDE this row, so the
+   icon aligns specifically with the subtitle text and not with the
+   whole text block. */
+.hero__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.4rem;
+}
+
+.hero__icon {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+}
+
+/* Main hero text — the visual headline. */
+.hero__subtitle {
+  flex: 1;
+  margin: 0 !important;
+  color: white !important;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  font-weight: 400;
+  min-width: 0;
+}
+
+.hero__subtitle strong {
+  color: white;
+  font-weight: 600;
+}
+
+.hero__subtitle a {
+  color: rgba(255, 255, 255, 0.95) !important;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.4);
+}
+
+.hero__subtitle a:hover {
+  color: white !important;
+  text-decoration-color: white;
+}
+
+.hero__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 1.7rem;
+}
+
+/* Secondary buttons (Download, Catalog Browser). Outline-only buttons washed
+   out against the dark hero, so give them a faint fill + a stronger border:
+   clearly tappable, but visibly subordinate to the solid primary CTA. */
+.hero .md-button {
+  margin: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.65);
+  color: white;
+  font-weight: 600;
+  transition:
+    background-color 125ms ease,
+    border-color 125ms ease,
+    color 125ms ease,
+    transform 125ms ease;
+}
+
+.hero .md-button:hover,
+.hero .md-button:focus {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: white;
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* Primary CTA — solid white with a soft lift so "Get Started" is unmistakably
+   the first click. */
+.hero .md-button--primary {
+  background: white;
+  color: #1f2937 !important;
+  border-color: white;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.hero .md-button--primary:hover,
+.hero .md-button--primary:focus {
+  background: #f3f4f6;
+  color: #1f2937 !important;
+  border-color: #f3f4f6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32);
+}
+
+/* Stack the icon/subtitle row on narrow viewports. */
+@media screen and (max-width: 60em) {
+  .hero {
+    padding: 1.8rem 1.4rem;
+    text-align: center;
+  }
+
+  .hero__row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .hero__icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .hero__title {
+    font-size: 0.65rem;
+  }
+
+  .hero__subtitle {
+    font-size: 1rem;
+  }
+
+  .hero__buttons {
+    justify-content: center;
+  }
+}

@@ -1,0 +1,26 @@
+operations:
+  - id: bigger-storage-pile-0
+    operation: replaceValue
+    risk: low
+    reason: Raise the Storage building's first ground pile capacity from 32 to 40. It is a dual pile, so both its front and back halves grow together.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: a965815d-0d04-494c-b7ed-3b8757f611f0
+      entityName: Storage
+      component: AspectPiles
+      path: Piles/Item[Content/PileLocator='stc_storage_front_0']/Content/MaxCapacity
+    expectedOldValue: "32"
+    value: "40"
+
+  - id: bigger-storage-pile-1
+    operation: replaceValue
+    risk: low
+    reason: Raise the Storage building's second ground pile capacity from 32 to 40. It is a dual pile, so both its front and back halves grow together.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: a965815d-0d04-494c-b7ed-3b8757f611f0
+      entityName: Storage
+      component: AspectPiles
+      path: Piles/Item[Content/PileLocator='stc_storage_front_1']/Content/MaxCapacity
+    expectedOldValue: "32"
+    value: "40"

@@ -1,0 +1,18 @@
+collectionFormatVersion: 0.1
+id: pagonia-land.fixture.collections.local-tweaked
+name: Fixture Tweaked Preset Collection
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture collection that overrides a mod's tweak default (a curator preset).
+conflictPolicy: strict
+mods:
+  - id: pagonia-land.fixture.templated-sawmill
+    version: "0.1.0"
+    source: "local"
+    required: true
+    enabled: true
+    tweaks:
+      softwood-cost: "5"
+loadOrder:
+  - pagonia-land.fixture.templated-sawmill

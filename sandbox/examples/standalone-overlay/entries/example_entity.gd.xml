@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal stub XML that ships under the mod's own namespace
+  (pagonia-overlay-example/gdb/...). Replace this with whatever your
+  mod actually declares — a new building entity, a new recipe, etc.
+
+  The scaffold step in the patcher walks the output directory for
+  *.gd.xml under the module's name folder and registers every match in
+  the generated <name>.gd.bin index, so the engine actually loads it.
+-->
+<EntityGroup />

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Root the YAML model types so the trimmer and Native AOT compiler keep their
+  public constructors and properties, which YamlDotNet accesses via reflection.
+  See https://learn.microsoft.com/dotnet/core/deploying/trimming/trimming-options
+  for the descriptor format.
+-->
+<linker>
+  <assembly fullname="PagoniaLand.Manager.Core">
+    <type fullname="PagoniaLand.Manager.StoreState" preserve="all" />
+    <type fullname="PagoniaLand.Manager.StoreLastDeploy" preserve="all" />
+    <type fullname="PagoniaLand.Manager.ProfileFile" preserve="all" />
+    <type fullname="PagoniaLand.Manager.ProfileEnabledMod" preserve="all" />
+    <type fullname="PagoniaLand.Manager.InstallSidecar" preserve="all" />
+    <type fullname="PagoniaLand.Manager.DeployManifest" preserve="all" />
+    <type fullname="PagoniaLand.Manager.DeployedMod" preserve="all" />
+    <type fullname="PagoniaLand.Manager.DeployFileEntry" preserve="all" />
+    <type fullname="PagoniaLand.Manager.DeployAddedFileEntry" preserve="all" />
+    <type fullname="PagoniaLand.Manager.DeployHistory" preserve="all" />
+    <type fullname="PagoniaLand.Manager.DeployHistoryEntry" preserve="all" />
+    <type fullname="PagoniaLand.Manager.RepoIndex" preserve="all" />
+    <type fullname="PagoniaLand.Manager.RepoIndexRepo" preserve="all" />
+    <type fullname="PagoniaLand.Manager.RepoIndexMod" preserve="all" />
+    <type fullname="PagoniaLand.Manager.RepoIndexCollection" preserve="all" />
+    <type fullname="PagoniaLand.Manager.Catalog" preserve="all" />
+    <type fullname="PagoniaLand.Manager.CatalogMetadata" preserve="all" />
+    <type fullname="PagoniaLand.Manager.CatalogRepoEntry" preserve="all" />
+    <type fullname="PagoniaLand.Manager.CatalogReference" preserve="all" />
+    <type fullname="PagoniaLand.Manager.CatalogCacheMeta" preserve="all" />
+  </assembly>
+  <!--
+    YamlDotNet instantiates the collection types referenced by the model properties via
+    Activator.CreateInstance. Root the generic definitions used by our models so the trimmer
+    keeps their constructors and Add methods available at runtime.
+  -->
+  <assembly fullname="System.Private.CoreLib">
+    <type fullname="System.Collections.Generic.List`1" preserve="all" />
+    <type fullname="System.Collections.Generic.Dictionary`2" preserve="all" />
+  </assembly>
+</linker>

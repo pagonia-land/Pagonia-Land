@@ -1,0 +1,37 @@
+catalogFormatVersion: "0.1"
+
+catalog:
+  name: Pagonia Land Example Catalog
+  maintainer: pagonia-land
+  description: |
+    Reference catalog that demonstrates the multi-subscription + federation
+    model. Lists the bundled example mod-distribution repo plus two fictional
+    curator repos so `catalog browse` has something to render, and references
+    one nested sub-catalog so the federation path is exercised.
+  homepage: https://github.com/pagonia-land/Pagonia-Land
+  tags:
+    - example
+    - reference
+
+repos:
+  - owner: pagonia-land
+    repo: example-mods
+    summary: Bundled reference repo — two example mods + one preset collection.
+    tags:
+      - reference
+      - example
+  - owner: TheLavaBlock
+    repo: example-hardcore-presets
+    summary: (example) Hardcore difficulty presets, one collection per playstyle.
+    tags:
+      - preset
+      - hardcore
+  - owner: someone
+    repo: localization-pack-fictional
+    summary: (fictional) Community localization packs maintained across game updates.
+    tags:
+      - localization
+
+catalogs:
+  - source: file:./catalogs/sub-catalog.yaml
+    summary: Nested test catalog (uses file:// so it works offline). Demonstrates federation + dedup against the same repo listed here.

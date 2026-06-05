@@ -1,0 +1,33 @@
+collectionFormatVersion: 0.1
+id: pagonia-land.example.beginner-qol
+name: Beginner QoL Pack
+version: 0.1.0
+author: TheLavaBlock
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: Small safe quality-of-life preset bundling both example mods into one ready-to-play setup.
+conflictPolicy: strict
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+category: beginner
+tags:
+  - qol
+  - preset
+  - example
+mods:
+  - id: pagonia-land.example.cheaper-sawmill
+    version: "0.1.0"
+    source: "mods/cheaper-sawmill"
+    required: true
+    enabled: true
+  - id: pagonia-land.example.apple-icon-test
+    version: "0.1.0"
+    source: "mods/apple-icon-test"
+    required: false
+    enabled: false
+    requiresPackages:
+      - dlc1
+loadOrder:
+  - pagonia-land.example.cheaper-sawmill
+  - pagonia-land.example.apple-icon-test

@@ -1,0 +1,314 @@
+# Manual release workflow. Triggered by an admin from the Actions UI:
+# Actions -> "release" -> "Run workflow" -> enter version + draft flag -> Run.
+#
+# `workflow_dispatch` is admin-only by default — only people with write access
+# to the repo can trigger it. GitHub enforces this; no extra config needed.
+#
+# Pipeline:
+#   1. build  (matrix: win-x64 / linux-x64 / osx-x64 / osx-arm64)
+#        publishes patcher + paker + manager as Native AOT single-file binaries
+#        with the requested version stamped in, smoke-tests each --version,
+#        packages each tool into its own archive
+#   2. schemas
+#        bundles schemas/{mod-patches,manager,patcher,paker} into one zip
+#   3. release
+#        downloads every artifact, computes SHA-256 over all assets, creates
+#        a GitHub Release (draft by default — admin reviews + publishes in UI)
+#
+# Tag handling: `gh release create vX.Y.Z` creates the git tag for us.
+# If a draft release is later deleted without publishing, the tag remains —
+# admin should delete the orphan tag manually in that case.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (no v prefix, e.g. 0.1.0)'
+        required: true
+        type: string
+        default: '0.1.0'
+      draft:
+        description: 'Create as draft (admin reviews + publishes in GitHub UI)'
+        required: true
+        type: boolean
+        default: true
+
+# Least privilege at the top level: build + schemas only read the repo. The
+# release job that creates the GitHub release elevates to contents: write itself.
+permissions:
+  contents: read
+
+# Prevent two admins (or a double-click) from racing two releases against the
+# same tag. Same version = serialized; different versions still run in parallel.
+# cancel-in-progress: false because cancelling mid-publish would leave the
+# created tag without the assets.
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            runner: windows-latest
+            ext: '.exe'
+            archive_ext: 'zip'
+          - rid: linux-x64
+            runner: ubuntu-latest
+            ext: ''
+            archive_ext: 'tar.gz'
+          - rid: osx-x64
+            # Intel runner — Native AOT for osx-x64 must build on x64 hardware.
+            # macos-13 (the old default-Intel image) was retired by GitHub;
+            # macos-15-intel is the current standard Intel macOS runner.
+            runner: macos-15-intel
+            ext: ''
+            archive_ext: 'tar.gz'
+          - rid: osx-arm64
+            runner: macos-14
+            ext: ''
+            archive_ext: 'tar.gz'
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish patcher (Native AOT)
+        run: >
+          dotnet publish tools/pagonia-patcher/src/PagoniaLand.Patcher.Cli
+          -c Release -r ${{ matrix.rid }}
+          -p:Version=${{ inputs.version }}
+          -p:InformationalVersion=${{ inputs.version }}+${{ github.sha }}
+
+      - name: Publish paker (Native AOT)
+        run: >
+          dotnet publish tools/pagonia-paker/src/PagoniaLand.Paker.Cli
+          -c Release -r ${{ matrix.rid }}
+          -p:Version=${{ inputs.version }}
+          -p:InformationalVersion=${{ inputs.version }}+${{ github.sha }}
+
+      - name: Publish manager (Native AOT)
+        run: >
+          dotnet publish tools/pagonia-manager/src/PagoniaLand.Manager.Cli
+          -c Release -r ${{ matrix.rid }}
+          -p:Version=${{ inputs.version }}
+          -p:InformationalVersion=${{ inputs.version }}+${{ github.sha }}
+
+      # On macOS (Apple Silicon especially) any executable MUST carry at least
+      # an ad-hoc signature or the loader rejects it with SIGKILL "code
+      # signature invalid" before our --version smoke can even print. Sign
+      # all macOS binaries before smoke-testing them. This is free (no Apple
+      # Developer ID needed); it does NOT remove the Gatekeeper
+      # quarantine warning on first download — that's notarization's job.
+      - name: Ad-hoc codesign macOS binaries
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Explicit tool -> Cli-project mapping. macOS runners ship bash 3.2,
+          # which has no `${tool^}` (capitalise-first) expansion — that's a
+          # bash 4 feature and fails as "bad substitution" here. Mirror the
+          # pwsh steps' explicit map instead of relying on case transforms.
+          for tool in patcher paker manager; do
+            case "$tool" in
+              patcher) cli=PagoniaLand.Patcher.Cli ;;
+              paker)   cli=PagoniaLand.Paker.Cli ;;
+              manager) cli=PagoniaLand.Manager.Cli ;;
+            esac
+            bin="tools/pagonia-$tool/src/$cli/bin/Release/net8.0/${{ matrix.rid }}/publish/pagonia-$tool"
+            codesign --force --sign - --timestamp=none "$bin"
+            codesign --verify --verbose=2 "$bin"
+          done
+
+      - name: Smoke-test published binaries
+        shell: pwsh
+        run: |
+          $tools = @{
+            patcher = 'PagoniaLand.Patcher.Cli'
+            paker   = 'PagoniaLand.Paker.Cli'
+            manager = 'PagoniaLand.Manager.Cli'
+          }
+          foreach ($tool in $tools.Keys) {
+            $cli = $tools[$tool]
+            $bin = "tools/pagonia-$tool/src/$cli/bin/Release/net8.0/${{ matrix.rid }}/publish/pagonia-$tool${{ matrix.ext }}"
+            if ($IsLinux -or $IsMacOS) {
+              chmod +x $bin
+            }
+            Write-Host "==> smoke $tool"
+            & $bin --version
+            if ($LASTEXITCODE -ne 0) { throw "pagonia-$tool --version failed" }
+          }
+
+      - name: Package per-tool archives
+        shell: pwsh
+        run: |
+          # Archive filenames are intentionally versionless (e.g.
+          # `pagonia-manager-win-x64.zip`) so the README's
+          # `releases/latest/download/<name>` links stay stable across releases.
+          # The wrapper directory INSIDE the archive keeps the version
+          # (`pagonia-manager-0.1.0-win-x64/`) so extracted folders self-identify
+          # and don't collide across versions on disk.
+          $tools = @{
+            patcher = 'PagoniaLand.Patcher.Cli'
+            paker   = 'PagoniaLand.Paker.Cli'
+            manager = 'PagoniaLand.Manager.Cli'
+          }
+          New-Item -ItemType Directory -Path 'out' -Force | Out-Null
+
+          foreach ($tool in $tools.Keys) {
+            $cli         = $tools[$tool]
+            $pubDir      = "tools/pagonia-$tool/src/$cli/bin/Release/net8.0/${{ matrix.rid }}/publish"
+            $wrapperName = "pagonia-$tool-${{ inputs.version }}-${{ matrix.rid }}"
+            $stageDir    = "stage/$wrapperName"
+
+            New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
+            Copy-Item "$pubDir/pagonia-$tool${{ matrix.ext }}" "$stageDir/"
+            Copy-Item "tools/pagonia-$tool/README.md" "$stageDir/"
+            Copy-Item "tools/pagonia-$tool/CLI.md"    "$stageDir/"
+            Copy-Item "LICENSE"                       "$stageDir/"
+
+            $archive = "out/pagonia-$tool-${{ matrix.rid }}.${{ matrix.archive_ext }}"
+            if ('${{ matrix.archive_ext }}' -eq 'zip') {
+              Compress-Archive -Path $stageDir -DestinationPath $archive -Force
+            } else {
+              tar -czf $archive -C 'stage' $wrapperName
+            }
+
+            Write-Host "==> packaged $archive (wraps $wrapperName/)"
+          }
+
+          Get-ChildItem out | Format-Table
+
+      - name: Upload archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
+
+  schemas:
+    name: package schemas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package schemas bundle
+        shell: bash
+        run: |
+          # Versionless archive name for stable README links; the wrapper
+          # directory inside carries the version so extracted folders self-identify.
+          mkdir -p out
+          stage="pagonia-schemas-${{ inputs.version }}"
+          mkdir -p "$stage/mod-patches" "$stage/manager" "$stage/patcher" "$stage/paker"
+
+          cp -r schemas/mod-patches/. "$stage/mod-patches/"
+          cp -r schemas/manager/.     "$stage/manager/"
+          cp -r schemas/patcher/.     "$stage/patcher/"
+          cp -r schemas/paker/.       "$stage/paker/"
+          cp LICENSE "$stage/"
+          cp LICENSE-DOCS.md "$stage/" 2>/dev/null || true
+
+          # Self-documenting README at the zip root so a downloader knows what
+          # they got without grepping the source repo. Using a brace-group of
+          # echo lines instead of a heredoc — bash heredocs require the
+          # terminator at column 0, which breaks YAML's `run: |` block-scalar
+          # indentation rules. echo lines have no such constraint.
+          {
+            echo "# Pagonia Land — Schema Bundle ${{ inputs.version }}"
+            echo ""
+            echo "All canonical JSON Schemas the Pagonia Land tooling promises as a"
+            echo "public contract, bundled for downstream consumers (mod managers,"
+            echo "IDE plugins, web validators)."
+            echo ""
+            echo "- \`mod-patches/\` — \`mod.yaml\`, patch files, collections, lockfiles"
+            echo "- \`manager/\`     — manager JSON report shapes (install, deploy, plan, ...)"
+            echo "- \`patcher/\`     — patcher JSON report shapes (plan, apply, ...)"
+            echo "- \`paker/\`       — paker JSON report shapes (list, unpack, pack, patch, ...)"
+            echo ""
+            echo "Match against the \`reportKind\` / file name as the discriminator and"
+            echo "the diagnostic \`code\` field for error matching. Schemas follow"
+            echo "JSON Schema draft 2020-12."
+            echo ""
+            echo "Source repo: https://github.com/${{ github.repository }}"
+            echo "Built from commit: ${{ github.sha }}"
+          } > "$stage/README.md"
+
+          zip -r "out/pagonia-schemas.zip" "$stage"
+          ls -la out/
+
+      - name: Upload schemas
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-schemas
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: create GitHub release
+    needs: [build, schemas]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: assets
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Compute SHA-256 checksums
+        shell: bash
+        working-directory: assets
+        run: |
+          # Stable, sorted, single-line-per-file format that `sha256sum -c` understands.
+          ls -la
+          sha256sum -- *.zip *.tar.gz | sort > SHA256SUMS.txt
+          echo "---"
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: assets
+        run: |
+          version="${{ inputs.version }}"
+          tag="v${version}"
+          draft_flag=""
+          if [[ "${{ inputs.draft }}" == "true" ]]; then
+            draft_flag="--draft"
+          fi
+
+          # --generate-notes auto-fills the body from commits since the last
+          # release (or the whole history for the first one). Admin can edit
+          # in the UI before publishing the draft.
+          gh release create "$tag" \
+            --title "$tag" \
+            --target "${{ github.sha }}" \
+            --generate-notes \
+            $draft_flag \
+            -- *.zip *.tar.gz SHA256SUMS.txt
+
+          echo ""
+          echo "Release created at: https://github.com/${{ github.repository }}/releases/tag/${tag}"
+          if [[ "${{ inputs.draft }}" == "true" ]]; then
+            echo "Status: DRAFT — review assets in the GitHub UI, then click Publish."
+          else
+            echo "Status: PUBLISHED."
+          fi

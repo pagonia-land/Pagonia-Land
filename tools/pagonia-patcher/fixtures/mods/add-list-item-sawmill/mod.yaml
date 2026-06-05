@@ -1,0 +1,19 @@
+patchFormatVersion: 0.1
+id: pagonia-land.fixture.add-list-item-sawmill
+name: Fixture Add List Item Sawmill
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture mod that adds a third Sawmill construction cost via addListItem.
+requiredPackages:
+  - core
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+patches:
+  - patches/buildings.yaml

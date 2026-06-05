@@ -1,0 +1,19 @@
+patchFormatVersion: 0.1
+id: pagonia-land.fixture.add-entity-extra-building
+name: Fixture Add Entity Extra Building
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture mod that adds a whole new fixture building entity via addEntity.
+requiredPackages:
+  - core
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+patches:
+  - patches/buildings.yaml

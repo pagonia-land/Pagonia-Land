@@ -1,0 +1,16 @@
+collectionFormatVersion: 0.1
+id: pagonia-land.fixture.collections.local-duplicate
+name: Fixture Local Duplicate Collection
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture collection that repeats an already enabled mod.
+conflictPolicy: strict
+mods:
+  - id: pagonia-land.fixture.cheaper-sawmill
+    version: "0.1.0"
+    source: "local"
+    required: true
+    enabled: true
+loadOrder:
+  - pagonia-land.fixture.cheaper-sawmill

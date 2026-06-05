@@ -1,0 +1,13 @@
+patchFormatVersion: 0.1
+id: Bad Mod Id
+name: Broken Fixture Mod
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "beta-update"
+description: Fixture mod with intentional validation errors.
+requiredPackages:
+  - core
+  - unknown-package
+optionalPackages: []
+patches:
+  - patches/buildings.yaml

@@ -1,0 +1,33 @@
+catalogFormatVersion: "0.1"
+
+catalog:
+  name: Pagonia Land — Official Catalog
+  maintainer: pagonia-land
+  description: |
+    The official, curated catalog of trustworthy Pagonia Land mod repos and
+    the default subscription in Pagonia Land Manager. The first-party mods live
+    in this same repository under official-mods/, referenced below via the repo
+    entry's indexPath. Vetted community repos and federated community catalogs
+    are added by PR — see catalog/README.md for the intake process.
+  homepage: https://github.com/pagonia-land/Pagonia-Land
+  license: CC0
+  tags:
+    - official
+    - curated
+
+repos:
+  - owner: pagonia-land
+    repo: Pagonia-Land
+    indexPath: official-mods
+    summary: First-party quality-of-life mods + starter presets, maintained against the current game version.
+    tags:
+      - official
+      - qol
+      - preset
+
+# Reserved for the community on-ramp:
+#   - vetted single repos go under `repos:` above (owner/repo[, indexPath]);
+#   - independently-maintained community lists get federated under `catalogs:`
+#     (each as `- source: gh:owner/repo[/path]`).
+# Both are added by PR with CI validation — see catalog/README.md.
+catalogs: []

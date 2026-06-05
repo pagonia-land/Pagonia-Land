@@ -1,0 +1,15 @@
+patchFormatVersion: "0.1"
+id: pagonia-land.walkthrough.cheaper-quarry
+name: Walkthrough Cheaper Quarry
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Walkthrough fixture mod. Reduces the Quarry softwood cost from 6 to 5
+  on a fixture buildings.gd.xml that ships next to this walkthrough. The
+  two walkthrough mods touch different entities so both can be enabled
+  simultaneously without conflict.
+requiredPackages:
+  - core
+patches:
+  - patches/quarry.yaml

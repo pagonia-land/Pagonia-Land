@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Custom Sanctuary ability shipped by this mod. Modelled after
+  SanctuaryCleanse Ability (GUID 089703d9-...) from dlc1/gdb/abilities.gd.xml
+  with two practical tweaks: a lower mana cost (5 instead of 10) and a
+  shorter cooldown (3s instead of 5s) — the "fast cleanse" demo.
+
+  Asset and localisation references all point at shipped dlc1 / core
+  entities so the ability shows up in-game without needing a separate
+  asset pak or localisation pak. A real new ability would:
+    1. ship its own Icon under <m>/gui/icons/...
+    2. declare its own UI strings in a localisation pak
+    3. point at its own AreaVfx entity (and ship that too)
+  None of that is needed to demonstrate the patch-and-merge flow.
+
+  The entity sits inside a <Group Name="ModSanctuary"> so the engine's
+  group machinery has a stable container; the group name is chosen to
+  avoid collision with the shipped "Sanctuary" group in dlc1.
+-->
+<EntityGroup>
+  <Groups>
+    <EntityGroup Name="ModSanctuary">
+      <Entities>
+        <Entity Name="PagoniaLandExampleFastCleanse Ability" Guid="e1a91b00-0001-4000-8000-000000000001">
+          <Children />
+          <Values>
+            <ShrineAbility>
+              <Name>IconicBuilding Sanctuary RemoveInfectedArea Ability Name</Name>
+              <Description>IconicBuilding Sanctuary RemoveInfectedArea Ability Description</Description>
+              <Icon>dlc1/gui/icons/magics/icon_spell_sanctuary_cleanse_area_001.png</Icon>
+              <TargetRange>500</TargetRange>
+              <Type>RemoveDepositsArea</Type>
+              <UsageType>ActiveTargeted</UsageType>
+              <ResourceCosts>
+                <Item>
+                  <Content>
+                    <ManaResource>64d9543a-da8e-448f-a7f2-a9a9531a594e</ManaResource>
+                    <Cost>5</Cost>
+                  </Content>
+                </Item>
+              </ResourceCosts>
+              <Cooldown>00:00:03</Cooldown>
+              <TargetVisual>ea9ac759-34a7-469f-86ce-95d4b492f7a4</TargetVisual>
+              <TargetRangeVisual>8dfd0dd9-7412-402f-8b21-11550ff5480c</TargetRangeVisual>
+              <OnUsedSound>event:/spell/spell_sanctuary_cleanse_area</OnUsedSound>
+              <CustomRequirementsNotMetErrorMessage>AbilityError: No infectedArea in range</CustomRequirementsNotMetErrorMessage>
+              <AchievementStatName>cleanse</AchievementStatName>
+            </ShrineAbility>
+            <RemoveDepositsAreaAbility>
+              <Radius>50</Radius>
+              <RadiusVisual>dd839771-5301-47d0-b93e-f31c960b75d6</RadiusVisual>
+              <RadiusExpansionPerSecond>15</RadiusExpansionPerSecond>
+              <AreaVfx>3716fe54-7b4a-4590-9877-9507a06142f2</AreaVfx>
+              <UpdateDistanceThreshold>5</UpdateDistanceThreshold>
+              <TargetDepositType>8a646859-257c-4406-9fb7-154fc5eb0334</TargetDepositType>
+              <RemoveLimit>80</RemoveLimit>
+              <OverrideRemoveLimitDetailName>IconicBuilding Sanctuary RemoveInfectedArea Ability RemoveLimit Detail name</OverrideRemoveLimitDetailName>
+            </RemoveDepositsAreaAbility>
+          </Values>
+        </Entity>
+      </Entities>
+    </EntityGroup>
+  </Groups>
+</EntityGroup>

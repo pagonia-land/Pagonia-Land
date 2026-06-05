@@ -1,0 +1,55 @@
+name: validate
+
+# Runs every push and PR against the example-mods repo (or any repo that
+# forks this template). Validates the repo-level index.yaml plus every
+# mod.yaml and collection it lists against the canonical Pagonia Land
+# JSON Schemas. Drift between index.yaml and the actual on-repo content
+# (a mod renamed but not updated here, a collection pointing at a missing
+# id) fails the run before the manager ever fetches it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  schema-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download pagonia-patcher
+        run: |
+          set -euo pipefail
+          mkdir -p .bin
+          # Release assets are versionless tar.gz archives that wrap a
+          # version-named folder (pagonia-patcher-<ver>-linux-x64/pagonia-patcher).
+          # Pin "latest" to a specific release tag for reproducible CI; forks
+          # should swap it for the version they want to validate against.
+          curl -sSL -o patcher.tar.gz \
+            "https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-patcher-linux-x64.tar.gz"
+          tar -xzf patcher.tar.gz
+          mv pagonia-patcher-*-linux-x64/pagonia-patcher .bin/pagonia-patcher
+          chmod +x .bin/pagonia-patcher
+          echo "$PWD/.bin" >> "$GITHUB_PATH"
+
+      - name: Validate repo index
+        run: pagonia-patcher schema-validate --repo-index index.yaml
+
+      - name: Validate every mod
+        run: |
+          set -euo pipefail
+          for mod in mods/*/; do
+            echo "--- $mod"
+            pagonia-patcher schema-validate --mod "$mod"
+          done
+
+      - name: Validate every collection
+        run: |
+          set -euo pipefail
+          for collection in collections/*.collection.yaml; do
+            echo "--- $collection"
+            pagonia-patcher schema-validate --collection "$collection"
+          done

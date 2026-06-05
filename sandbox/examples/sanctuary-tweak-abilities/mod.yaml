@@ -1,0 +1,34 @@
+patchFormatVersion: 0.1
+id: example.sanctuary-tweak-abilities
+name: Sanctuary (Cornucopia) — Tweak Abilities (Example)
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Example mod that demonstrates the three list-modifying patch operations
+  against the Sanctuary's ability list (the in-game "Cornucopia" building
+  from the Meadowsong DLC). Shows replaceValue, addListItem, and
+  removeListItem in one mod, on three different items in the same list, so
+  the patches do not collide.
+
+  Requires the Meadowsong DLC (the dlc1 package) — the Sanctuary entity is
+  defined in dlc1/gdb/buildings.gd.xml and won't resolve in a core-only
+  game-gdb.
+
+  Two of the three patches reference placeholder Ability GUIDs you must
+  replace before this mod has real effect — see the comments in
+  patches/abilities.yaml. The third patch (removeListItem on Explore
+  Underground) is real and applies as-is.
+requiredPackages:
+  - core
+  - dlc1
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+patches:
+  - patches/abilities.yaml

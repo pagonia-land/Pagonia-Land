@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0-dev</InformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <!--
+      JsonSchema.Net is used by SchemaValidator to validate mod.yaml +
+      patch files + collection / lockfile YAML against the canonical JSON
+      Schemas shipped under schemas/mod-patches/. AOT-friendly: the
+      package's published binaries are trimmable and the schema
+      validation path does not need runtime code generation.
+    -->
+    <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
+  </ItemGroup>
+
+  <!--
+    Patcher.Core depends on Paker.Core for GdBinWriter / GdBinFormatConstants
+    used by the Pattern B overlay-pak scaffold writer (PakScaffoldWriter). Both
+    libraries target .NET 8 with AOT-friendly types, so the published patcher
+    binary stays trimmable.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\pagonia-paker\src\PagoniaLand.Paker.Core\PagoniaLand.Paker.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    YamlDotNet reads the public properties of the YAML model types via reflection.
+    Pin the model types so the trimmer / Native AOT compiler keeps their public
+    constructors, properties, and any nested types referenced from them.
+  -->
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="ILLink.Descriptors.xml" />
+  </ItemGroup>
+
+  <!--
+    The canonical mod/patch/collection/lockfile JSON Schemas under
+    schemas/mod-patches/ are embedded into the Patcher.Core assembly so the
+    AOT-published binary can run `schema-validate` from any working directory.
+    The single source of truth lives at the repository's schemas/ folder; build
+    copies it in. Manifest resource name: PagoniaLand.Patcher.Schemas.<file>.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\mod.schema.json"             LogicalName="PagoniaLand.Patcher.Schemas.mod.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\patch-file.schema.json"      LogicalName="PagoniaLand.Patcher.Schemas.patch-file.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\collection.schema.json"      LogicalName="PagoniaLand.Patcher.Schemas.collection.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\collection-lock.schema.json" LogicalName="PagoniaLand.Patcher.Schemas.collection-lock.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\repo-index.schema.json"      LogicalName="PagoniaLand.Patcher.Schemas.repo-index.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\catalog.schema.json"         LogicalName="PagoniaLand.Patcher.Schemas.catalog.schema.json" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+operations:
+  # removeListItem deletes one child of a list container. The match happens by
+  # XML content: expectedOldXml is normalised and compared to each direct
+  # child of the container resolved by target.path.
+  - id: remove-stone-block-cost
+    operation: removeListItem
+    risk: low
+    reason: Free the Sawmill from needing Stone Block during construction.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      # The path points at the list container, not at the item itself. Here
+      # that means the <Costs> element under <AspectBuildup>.
+      path: Costs
+    # expectedOldXml must match an existing child of <Costs> exactly (after
+    # whitespace normalisation). The patcher refuses to remove anything else.
+    expectedOldXml: |
+      <Item><Content><Resource>d8dd765a-ac73-49cc-a9b9-f6102f6f8e07</Resource><Amount>4</Amount></Content></Item>

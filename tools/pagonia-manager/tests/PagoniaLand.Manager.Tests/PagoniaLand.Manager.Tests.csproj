@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PagoniaLand.Manager.Core\PagoniaLand.Manager.Core.csproj" />
+    <!--
+      A version-stamped stub assembly copied next to the tests so GameVersionReader
+      tests have a real PE carrying a known Win32 version resource to read. The tests
+      never call into it — they locate the file by name and read it via FileVersionInfo.
+    -->
+    <ProjectReference Include="..\PagoniaLand.Manager.TestFixtures.GameExe\PagoniaLand.Manager.TestFixtures.GameExe.csproj" />
+  </ItemGroup>
+
+  <!--
+    YamlDotNet is reachable transitively via Manager.Core, but the tests use it
+    directly (round-trip checks for StoreState / ProfileFile against a freshly
+    built serializer/deserializer pair). Referenced explicitly so the test
+    project is independently buildable.
+  -->
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

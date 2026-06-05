@@ -1,0 +1,293 @@
+# MkDocs config. The site is built + deployed to GitHub Pages by
+# .github/workflows/pages.yml on every push to main/master that touches the
+# docs surface; /catalog/ is the static catalog browser layered in there too.
+#
+# To preview locally:
+#   pip install -r requirements-docs.txt
+#   mkdocs serve
+#   open http://127.0.0.1:8000
+#
+# To build (output goes to ./site/, gitignored):
+#   mkdocs build
+
+site_name: Pagonia Land
+site_description: Community workshop for modding Pioneers of Pagonia — GameDatabase docs, CLI tools, JSON Schemas, worked examples.
+site_url: https://pagonia-land.github.io/Pagonia-Land/
+site_author: Pagonia Land contributors
+
+repo_url: https://github.com/pagonia-land/Pagonia-Land
+repo_name: pagonia-land/Pagonia-Land
+edit_uri: edit/main/docs/
+
+docs_dir: docs_build
+# docs_build/ is a complete mirror of docs/ plus selected root + tools +
+# schemas imports, with cross-tree links rewritten. It is regenerated on
+# every build by docs_hooks/prebuild.py and is gitignored. Source files in
+# docs/ stay the source of truth.
+# site_dir defaults to ./site/ — also gitignored.
+
+theme:
+  name: material
+  language: en
+  logo: assets/icon-128.png
+  favicon: assets/favicon.ico
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+
+plugins:
+  - search
+
+# Pre-build hook copies root-level docs + tools + schemas READMEs into
+# docs/_imported/ so they show up in the site. See docs_hooks/prebuild.py.
+hooks:
+  - docs_hooks/prebuild.py
+
+# Tell mkdocs serve to also watch these paths so the prebuild hook re-runs
+# when source-of-truth files (outside docs/) change.
+watch:
+  - CONTRIBUTING.md
+  - CODE_OF_CONDUCT.md
+  - SECURITY.md
+  - REVIEWING.md
+  - NOTICE.md
+  - CHANGELOG.md
+  - DATABASE_OVERVIEW.md
+  - REFERENCE.md
+  - VALIDATION_BASELINE.md
+  - UPDATE_PLAYBOOK.md
+  - tools/README.md
+  - tools/pagonia-manager/README.md
+  - tools/pagonia-manager/CLI.md
+  - tools/pagonia-manager/CHANGELOG.md
+  - sandbox/README.md
+  - sandbox/examples/README.md
+  - sandbox/examples/manager-walkthrough/README.md
+  - tools/pagonia-patcher/README.md
+  - tools/pagonia-patcher/CLI.md
+  - tools/pagonia-paker/README.md
+  - tools/pagonia-paker/CLI.md
+  - schemas/README.md
+  - schemas/manager/README.md
+  - schemas/mod-patches/README.md
+  - schemas/patcher/README.md
+  - schemas/paker/README.md
+  - examples/README.md
+  - examples/mod-repo-example/README.md
+  - examples/mod-catalog-example/README.md
+  - docs_hooks/prebuild.py
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      permalink_title: Anchor link to this section
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pagonia-land/Pagonia-Land
+      name: Pagonia Land on GitHub
+
+# Explicit navigation mirrors the README's chapter structure, collapsed
+# into five top-level tabs (Home / Get Started / Database / Modding /
+# Reference) instead of one tab per doc. Add new docs here when you add
+# them; mkdocs will warn on a missing-from-nav otherwise.
+nav:
+  - Home: index.md
+  - Get Started:
+    - Local Setup: setup.md
+    - First Modding Experiments: first-mods.md
+    - FAQ: faq.md
+    - Glossary: glossary.md
+    - Troubleshooting: troubleshooting.md
+  - Database:
+    - Database Overview: _imported/database-overview.md
+    - Core Concepts:
+      - Entity Model: entities.md
+      - GUID Reference: guid-reference.md
+      - Common Fields and Patterns: common-fields.md
+      - Package Loading and Overlays: package-loading.md
+      - Package Layering and DLC: package-layering.md
+      - DLC Patch and Override Model: dlc-patch-override-model.md
+    - Gameplay Data:
+      - Resources: resources.md
+      - Buildings: buildings.md
+      - Production Recipes: production.md
+      - Units: units.md
+      - Objectives: objectives.md
+      - Notifications and Narration: notification-narration.md
+      - Localization: localization.md
+    - Cross-File Systems:
+      - System Guides: systems/README.md
+      - Artifacts: systems/artifacts.md
+      - Treasure Hunting: systems/treasure-hunting.md
+      - Shrines and Sanctuary: systems/shrines.md
+      - Combat Boosts: systems/combat-boosts.md
+      - Map, POI, and Objective Systems: systems/map-poi-objectives.md
+      - Terrain Props, Deposits, And MapGen: systems/world-mapgen.md
+      - NPC, Encounter, and Combat: systems/npc-encounter-combat.md
+      - Tech Tree, Unlocks, And Seasonal Gates: systems/progression-unlocks-seasonal.md
+      - Visual, Audio, and Assets: systems/visual-audio-assets.md
+      - Tools and Editor Data: tools-editor.md
+  - Modding:
+    # Section landing page — same shape as Tools / Schemas use 'Overview'.
+    - Overview: modding.md
+    - Sandbox:
+      # Section overview — same shape as Tools / Schemas use 'Overview'.
+      - Overview: _imported/sandbox/index.md
+      - Safe Edits: safe-edits.md
+      - Modding Risk Map: modding-risk-map.md
+      - Mod Distribution Patterns: mod-distribution.md
+      - Declarative Patch Format: mod-patch-format.md
+      - Mod Tweaks: mod-tweaks.md
+      - Patch Conflict Model: mod-conflicts.md
+      - Mod Collections: mod-collections.md
+      - Mod Catalogs: mod-catalogs.md
+      - Mod Tags Vocabulary: mod-tags.md
+      - Patcher and Manager Architecture: mod-manager-architecture.md
+    - Worked Examples:
+      - Overview: examples/README.md
+      # Labels mirror each page's H1 exactly. Order runs read -> edit -> ship:
+      # traces (read-only) first, then small edits, then patch/collection/repo
+      # packaging examples.
+      - Traces:
+        - Trace The Sawmill Production Chain: examples/trace-sawmill-chain.md
+        - Trace A Full Production Chain: examples/trace-full-production-chain.md
+        - Trace A Resource From Deposit To Building: examples/trace-resource-deposit-building.md
+        - Trace A DLC Production Addition: examples/trace-dlc-production-addition.md
+        - Trace A Map Objective: examples/trace-map-objective.md
+        - Trace An Artifact Through Treasure And Shrine Systems: examples/trace-artifact-treasure-shrine.md
+        - Trace Unit Attachments: examples/trace-unit-attachments.md
+        - Trace A Tech Tree Unlock: examples/trace-tech-tree-unlock.md
+        - Trace A Tools Editor Terrain Sediment: examples/trace-tools-editor-sediment.md
+      - Small Edits:
+        - Change A Building Construction Cost: examples/change-building-cost.md
+        - Change A Recipe Resource Amount: examples/change-recipe-resource-amount.md
+        - Change A Resource Display Name Or Icon: examples/change-resource-display-icon.md
+        - Change A Unit Recruitment Cost: examples/change-unit-recruitment-cost.md
+        - Create A Decoration Variant: examples/create-decoration-variant.md
+      - Patch Examples:
+        - Overview: examples/mod-patches/README.md
+        - Cheaper Sawmill Patch: examples/mod-patches/cheaper-sawmill.md
+        - Optional DLC Patch Set: examples/mod-patches/optional-dlc-patch.md
+        - Resource Icon Patch: examples/mod-patches/resource-icon-patch.md
+        - Conflict Example: examples/mod-patches/conflict-example.md
+      - Collection Examples: examples/collections/README.md
+      # Reference layouts for packaging/publishing — these import repo-root
+      # READMEs, whose H1s stay repo-generic, so nav labels describe them here.
+      - Repo & Catalog Layouts:
+        - Sandbox Templates: _imported/sandbox/examples.md
+        - Mod-Repo Layouts: _imported/examples/index.md
+        - Multi-Mod Repo Example: _imported/examples/mod-repo-example.md
+        - Mod Catalog Example: _imported/examples/mod-catalog-example.md
+  - Tools:
+    - Overview: _imported/tools/index.md
+    - Pagonia Manager:
+      - Overview: _imported/tools/pagonia-manager/index.md
+      - CLI Reference: _imported/tools/pagonia-manager/cli.md
+      - End-to-End Walkthrough: _imported/sandbox/manager-walkthrough.md
+      - Changelog: _imported/tools/pagonia-manager/changelog.md
+    - Pagonia Patcher:
+      - Overview: _imported/tools/pagonia-patcher/index.md
+      - CLI Reference: _imported/tools/pagonia-patcher/cli.md
+    - Pagonia Paker:
+      - Overview: _imported/tools/pagonia-paker/index.md
+      - CLI Reference: _imported/tools/pagonia-paker/cli.md
+    - Catalog Browser: catalog-browser.md
+  - Schemas:
+    - Overview: _imported/schemas/index.md
+    - Mod Patches: _imported/schemas/mod-patches.md
+    - Manager Reports: _imported/schemas/manager.md
+    - Patcher Reports: _imported/schemas/patcher.md
+    - Paker Reports: _imported/schemas/paker.md
+  - Reference:
+    - Repository Layout & Local Data: repository-layout.md
+    - Generated Database Reference: _imported/reference.md
+    - Validation Baseline: _imported/validation-baseline.md
+    - Update Playbook: _imported/update-playbook.md
+    - Local Snapshots: snapshots.md
+    - Catalog Coverage: catalog-coverage.md
+    - Quirks and Anomalies: quirks-and-anomalies.md
+    - Game Database Changelog: _imported/changelog.md
+    - Notice: _imported/notice.md
+    - Project:
+      - Contributing: _imported/contributing.md
+      - Reviewing: _imported/reviewing.md
+      - Security Policy: _imported/security.md
+      - Code of Conduct: _imported/code-of-conduct.md
+  # Downloads — curated page with per-platform tables + verification +
+  # source-build pointers. Internal page (stays in the docs site); the
+  # actual ZIP/tar.gz links inside the page go to GitHub.
+  - Download: downloads.md
+  # External quick-link to the catalog browser. Trailing ↗ flags it as
+  # leaving the docs site (Material doesn't auto-mark external URLs in
+  # nav); docs/javascripts/extra.js sets target="_blank" on it at page
+  # load.
+  - 'Catalog Browser ↗': 'https://pagonia-land.github.io/Pagonia-Land/catalog/'

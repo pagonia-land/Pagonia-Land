@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GameDatabase>
+  <Groups>
+    <Group Name="Buildings">
+      <Entities>
+        <Entity Name="Sawmill" Guid="c732cb26-7487-4a7b-b1ba-b65e094f9bac">
+          <Children />
+          <Values>
+            <AspectBuildup>
+              <Costs>
+                <Item>
+                  <Content>
+                    <Resource>c22b4997-5563-44ab-8aa0-04a7b2c826be</Resource>
+                    <Amount>4</Amount>
+                  </Content>
+                </Item>
+                <Item>
+                  <Content>
+                    <Resource>d8dd765a-ac73-49cc-a9b9-f6102f6f8e07</Resource>
+                    <Amount>4</Amount>
+                  </Content>
+                </Item>
+              </Costs>
+            </AspectBuildup>
+            <Building>
+              <Name>Sawmill</Name>
+              <Icon>core/gui/icons/buildings/icon_build_sawmill_001.png</Icon>
+              <Mesh Path="meshes/buildings/sawmill_001.fbx" Variant="default" />
+              <Decal>
+                <Texture>core/textures/decal_sawmill_001.png</Texture>
+                <Tint>FFFFFF</Tint>
+              </Decal>
+            </Building>
+          </Values>
+        </Entity>
+      </Entities>
+    </Group>
+  </Groups>
+</GameDatabase>

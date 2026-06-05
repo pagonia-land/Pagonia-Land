@@ -1,0 +1,28 @@
+operations:
+  # Add the new ability's GUID to the Sanctuary's ability list, so the
+  # in-game spell bar surfaces it as the 9th slot. The ability entity
+  # itself lives in this mod's own *.gd.xml (entries/abilities.gd.xml)
+  # and is shipped via entries.add in mod.yaml — the engine resolves
+  # the GUID at load time after merging this mod's pak with dlc1.
+  #
+  # Because the Sanctuary entity is in dlc1 and the new ability entity
+  # is in our overlay pak, this is a cross-pak reference. The Meadowsong
+  # engine handles that natively (every non-core pak references core +
+  # its other dependencies); see docs/mod-distribution.md →
+  # Cross-Pak Entity Merging for the merge semantics.
+  - id: add-fast-cleanse-ability-to-sanctuary
+    operation: addListItem
+    risk: medium
+    reason: Surface the custom Fast Cleanse ability in the Sanctuary spell bar.
+    target:
+      file: dlc1/gdb/buildings.gd.xml
+      entityGuid: 482eddcc-ae28-49b0-8e97-807ab1a69db6
+      entityName: Sanctuary
+      component: AspectShrine
+      path: Abilities
+    xml: |
+      <Item>
+        <Content>
+          <Ability>e1a91b00-0001-4000-8000-000000000001</Ability>
+        </Content>
+      </Item>

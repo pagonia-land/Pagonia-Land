@@ -1,0 +1,19 @@
+catalogFormatVersion: "0.1"
+
+catalog:
+  name: Sub-catalog (federation demo)
+  maintainer: pagonia-land
+  description: |
+    Nested catalog referenced by the top-level example catalog via the
+    catalogs[] federation field. The aggregator should walk into this file
+    when flattening the subscription graph, dedupe pagonia-land/example-mods
+    against the parent's listing, and surface "vouched by 2 catalogs" for
+    repos that appear in both.
+
+repos:
+  - owner: pagonia-land
+    repo: example-mods
+    summary: Same as the parent — demonstrates dedup + vouching trust signal.
+  - owner: thirdparty
+    repo: extra-fictional-mods
+    summary: (fictional) Only in this sub-catalog; surfaces a fresh entry under the federated browse.

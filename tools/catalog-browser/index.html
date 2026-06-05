@@ -1,0 +1,1948 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/icon-64.png">
+  <link rel="icon" type="image/png" sizes="128x128" href="assets/icon-128.png">
+  <title>Pagonia Land Catalog Browser</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #5d6673;
+      --line: #d9dee7;
+      /* Material teal preset — matches the docs-site theme accent. */
+      --accent: #009688;
+      --accent-strong: #00796b;
+      --chip: #e0f2f1;
+      --warn: #8a5a00;
+      /* Brand bar gradient — same slate gradient as the docs-site hero
+         so the catalog reads as part of the Pagonia Land project rather
+         than a separate app. */
+      --brand-bar-bg: linear-gradient(135deg, #1f2937 0%, #2d3748 100%);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111418;
+        --panel: #191f26;
+        --text: #eef2f5;
+        --muted: #a7b0ba;
+        --line: #303944;
+        --accent: #26a69a;
+        --accent-strong: #4db6ac;
+        --chip: #1f3031;
+        --warn: #f1c46a;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .wrap {
+      width: min(1280px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    /* Brand bar — top dark bar matching the docs-site header. */
+    .brandbar {
+      background: var(--brand-bar-bg);
+      color: #fff;
+    }
+
+    .brandbar-inner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+    }
+
+    .brand-name {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.01em;
+    }
+
+    .brand-section {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-left: 6px;
+      padding-left: 10px;
+      border-left: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .brand-nav {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .brand-link {
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+
+    .brand-link:hover,
+    .brand-link:focus-visible {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      outline: none;
+    }
+
+    .brand-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      color: #fff;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+
+    .brand-icon:hover,
+    .brand-icon:focus-visible {
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+    }
+
+    .brand-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    @media (max-width: 700px) {
+      .brand-section {
+        display: none;
+      }
+      .brand-link {
+        display: none;
+      }
+    }
+
+    .topbar {
+      display: grid;
+      gap: 16px;
+      padding: 20px 0;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 180px 180px auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    input,
+    select,
+    button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 8px 10px;
+    }
+
+    button {
+      padding: 8px 12px;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 650;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .loader {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .loader input {
+      width: auto;
+      max-width: 100%;
+    }
+
+    main {
+      padding: 20px 0 36px;
+    }
+
+    .status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      max-width: 100%;
+      min-height: 26px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    button.nav-pill {
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    button.nav-pill:hover,
+    button.nav-pill:focus-visible {
+      border-color: var(--text);
+      outline: none;
+    }
+
+    .unlock-sources {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 12px 0 4px;
+    }
+
+    .unlock-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .unlock-group-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+      gap: 16px;
+      align-items: start;
+      min-width: 0;
+    }
+
+    .results {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .result {
+      display: grid;
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .result:hover,
+    .result.active {
+      border-color: var(--accent);
+    }
+
+    .result-head {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+    }
+
+    .result-head .pill {
+      flex: 0 1 auto;
+    }
+
+    .title {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .detail {
+      position: sticky;
+      top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      min-width: 0;
+      /* Pin the detail panel to the visible viewport so the inner
+         scrollbar handles long content instead of forcing the user to
+         scroll the entire page (past the entire result list) to reach
+         the bottom of e.g. Referenced By on a popular resource. The
+         max-height starts at a conservative "viewport minus 200px"
+         fallback; a JS observer further down tightens it to the real
+         header height on load, scroll, and resize. The single-column
+         responsive layout near the bottom of this stylesheet removes
+         both the sticky positioning and the height cap. */
+      max-height: calc(100vh - 200px);
+      overflow: hidden;
+    }
+
+    /* Header section stays visible while the scrollable body below moves.
+       Title row + meta pills always show which entity is selected and
+       keep the Back button reachable. */
+    .detail-header {
+      flex: 0 0 auto;
+      display: grid;
+      gap: 8px;
+    }
+
+    /* Everything from "Where to find this" onward (unlock sources,
+       fields, Referenced By) scrolls inside this child. min-height:0 is
+       required so the flex child can shrink below its intrinsic content
+       height — otherwise the overflow:auto never engages and the whole
+       parent grows again. */
+    .detail-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      /* Subtle visual separator and a hint of breathing room so the
+         scrolling area doesn't look glued to the header. */
+      padding-top: 4px;
+      border-top: 1px solid var(--line);
+    }
+
+    .detail h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .fields {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .field {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .field:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .field-key {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .field-value {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    /* Detail-panel header row: Back button + title side by side. The
+       button is the obvious in-app counterpart to the browser back
+       button, especially useful on machines where the user can't see the
+       browser chrome (full-screen, embedded view, touch). */
+    .detail-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .detail-title {
+      margin: 0;
+    }
+    .back-button {
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .back-button:hover {
+      border-color: var(--accent, #4c8bf5);
+      color: var(--accent, #4c8bf5);
+    }
+
+    /* Clickable references to other catalog entries. Uses accent colour so
+       the link affordance is obvious even inside the monospace field-value
+       blocks where users mostly expect static text. */
+    .entity-link {
+      color: var(--accent, #4c8bf5);
+      text-decoration: underline;
+      text-decoration-color: rgba(120, 160, 220, 0.45);
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
+    .entity-link:hover {
+      text-decoration-color: currentColor;
+    }
+    .entity-link-hint {
+      margin-left: 2px;
+      font-size: 10px;
+      vertical-align: super;
+    }
+
+    /* "Referenced by" inverse-lookup block, rendered below the regular
+       fields. Groups backlinks by source item type so a frequently-used
+       resource stays scannable. */
+    .backlinks {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--line);
+      display: grid;
+      gap: 10px;
+    }
+    .backlink-group {
+      display: grid;
+      gap: 6px;
+    }
+    .backlink-group-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .backlink-pill {
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .backlink-pill:hover {
+      border-color: var(--accent, #4c8bf5);
+    }
+
+    .empty,
+    .warning {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      color: var(--muted);
+    }
+
+    .warning {
+      border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+      color: var(--warn);
+    }
+
+    @media (max-width: 860px) {
+      .controls,
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .detail {
+        position: static;
+        max-height: none;
+        overflow: visible;
+      }
+      .detail-scroll {
+        overflow-y: visible;
+        min-height: 0;
+        border-top: none;
+        padding-top: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brandbar">
+      <div class="wrap brandbar-inner">
+        <a class="brand" href="index.html" aria-label="Pagonia Land Catalog Browser">
+          <img class="brand-logo" src="assets/icon-128.png" alt="" aria-hidden="true">
+          <span class="brand-name">Pagonia Land</span>
+          <span class="brand-section">Catalog Browser</span>
+        </a>
+        <nav class="brand-nav" aria-label="Project links">
+          <a class="brand-icon" href="https://pagonia.land" target="_blank" rel="noopener noreferrer" title="Pagonia Land website" aria-label="Pagonia Land website">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          </a>
+          <a class="brand-icon" href="https://discord.pagonia.land" target="_blank" rel="noopener noreferrer" title="Pagonia Land Discord" aria-label="Pagonia Land Discord">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05 0 .07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"/></svg>
+          </a>
+          <a class="brand-icon" href="https://github.com/pagonia-land/Pagonia-Land" target="_blank" rel="noopener noreferrer" title="Pagonia Land on GitHub" aria-label="Pagonia Land on GitHub">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12c0 5.303 3.438 9.8 8.205 11.385c.6.113.82-.258.82-.577c0-.285-.01-1.04-.015-2.04c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729c1.205.084 1.838 1.236 1.838 1.236c1.07 1.835 2.809 1.305 3.495.998c.108-.776.417-1.305.76-1.605c-2.665-.3-5.466-1.332-5.466-5.93c0-1.31.465-2.38 1.235-3.22c-.135-.303-.54-1.523.105-3.176c0 0 1.005-.322 3.3 1.23c.96-.267 1.98-.399 3-.405c1.02.006 2.04.138 3 .405c2.28-1.552 3.285-1.23 3.285-1.23c.645 1.653.24 2.873.12 3.176c.765.84 1.23 1.91 1.23 3.22c0 4.61-2.805 5.625-5.475 5.92c.42.36.81 1.096.81 2.22c0 1.606-.015 2.896-.015 3.286c0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          </a>
+        </nav>
+      </div>
+    </div>
+    <div class="wrap topbar">
+      <div class="subtle">Local search UI for generated catalog data. Extracted game files and generated indexes stay on your machine.</div>
+
+      <div class="loader">
+        <input id="fileInput" type="file" accept=".json,application/json" aria-label="Load a generated search-index.json">
+        <button id="loadDefault" type="button" class="secondary">Load default index</button>
+        <span id="loadStatus" class="subtle">Select `generated/catalog/search-index.json` or load the default relative path.</span>
+      </div>
+
+      <div class="controls">
+        <label>
+          Search
+          <input id="query" type="search" placeholder="Name, GUID, resource, recipe, file...">
+        </label>
+        <label>
+          Type
+          <select id="typeFilter">
+            <option value="">All types</option>
+          </select>
+        </label>
+        <label>
+          Package
+          <select id="packageFilter">
+            <option value="">All packages</option>
+          </select>
+        </label>
+        <label>
+          Scope
+          <select id="scopeFilter">
+            <option value="">All scopes</option>
+            <option value="main">Main GDB only</option>
+            <option value="campaigns">Campaigns &amp; map-specific</option>
+          </select>
+        </label>
+        <label>
+          Category
+          <select id="categoryFilter">
+            <option value="">All categories</option>
+          </select>
+        </label>
+        <label>
+          UI Group
+          <select id="uiGroupFilter">
+            <option value="">All UI groups</option>
+          </select>
+        </label>
+        <button id="clear" type="button">Clear</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="status" class="status"></div>
+    <div class="layout">
+      <section>
+        <div id="results" class="results"></div>
+      </section>
+      <aside id="detail" class="detail">
+        <h2>No item selected</h2>
+        <div class="subtle">Load an index and select a search result to inspect its fields.</div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const state = {
+      items: [],
+      filtered: [],
+      selected: null,
+      query: "",
+      type: "",
+      package: "",
+      scope: "",
+      category: "",
+      uiGroup: "",
+      generatedAt: "",
+      // Cross-references keyed by entity name (the catalog uses display
+      // names as join keys, not GUIDs, because the tech-tree and unlock-
+      // reward catalogs encode their target lists as
+      // "Building=Name; Building=Name" strings).
+      unlockedBy: { building: new Map(), unit: new Map(), recipe: new Map() },
+    };
+
+    const els = {
+      fileInput: document.querySelector("#fileInput"),
+      loadDefault: document.querySelector("#loadDefault"),
+      loadStatus: document.querySelector("#loadStatus"),
+      query: document.querySelector("#query"),
+      typeFilter: document.querySelector("#typeFilter"),
+      packageFilter: document.querySelector("#packageFilter"),
+      scopeFilter: document.querySelector("#scopeFilter"),
+      categoryFilter: document.querySelector("#categoryFilter"),
+      uiGroupFilter: document.querySelector("#uiGroupFilter"),
+      clear: document.querySelector("#clear"),
+      status: document.querySelector("#status"),
+      results: document.querySelector("#results"),
+      detail: document.querySelector("#detail"),
+    };
+
+    function normalize(value) {
+      return String(value || "").toLowerCase();
+    }
+
+    function uniqueSorted(values) {
+      return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    }
+
+    function formatType(type) {
+      return String(type || "unknown").replaceAll("-", " ");
+    }
+
+    function compactText(value, maxLength = 180) {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      if (text.length <= maxLength) return text;
+      return `${text.slice(0, maxLength - 1)}...`;
+    }
+
+    function normalizedFieldKey(key) {
+      const normalized = String(key || "").toLowerCase();
+      if (normalized === "guid") return "guid";
+      return normalized;
+    }
+
+    function getItemField(item, ...keys) {
+      const fields = item && item.fields;
+      if (!fields) return "";
+      for (const key of keys) {
+        const value = fields[key];
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+          return String(value);
+        }
+      }
+      return "";
+    }
+
+    function getItemCategory(item) {
+      return getItemField(item, "Category");
+    }
+
+    function getItemUiGroup(item) {
+      return getItemField(item, "UiGroup", "UIGroup", "UiBuildingGroup");
+    }
+
+    function parsePrefixedList(value) {
+      // The catalog encodes one-to-many references as semicolon-separated
+      // "Prefix=Name" strings, e.g. "Building=Brewery; Building=Treasury" or
+      // "Recipe=ClothRecipe; Recipe=RopeRecipe". Return just the names.
+      if (!value) return [];
+      const out = [];
+      for (const chunk of String(value).split(";")) {
+        const eq = chunk.indexOf("=");
+        if (eq < 0) continue;
+        const name = chunk.slice(eq + 1).trim();
+        if (name) out.push(name);
+      }
+      return out;
+    }
+
+    function addUnlockSource(map, names, sourceItem) {
+      for (const name of names) {
+        if (!map.has(name)) map.set(name, []);
+        map.get(name).push(sourceItem);
+      }
+    }
+
+    function buildUnlockReverseIndex() {
+      // Scan every item once and build building/unit/recipe -> [unlocker]
+      // maps. Two sources contribute:
+      //
+      //   1. type=tech-tree: an entity's Buildings / Units fields list the
+      //      buildings and units the tier unlocks once its objective is met.
+      //   2. type=unlock-reward: per-objective rewards. The
+      //      UnlockedBuildings / UnlockedProductionRecipes /
+      //      UnlockGathererFarmRecipes / UnlockedRecruitments fields each
+      //      hold the corresponding "Prefix=Name" list.
+      //
+      // The detail panel uses these maps to answer "where does this
+      // building / unit / recipe first become available?" without the
+      // modder having to grep three CSVs.
+      const b = new Map();
+      const u = new Map();
+      const r = new Map();
+      for (const item of state.items) {
+        if (item.type === "tech-tree") {
+          addUnlockSource(b, parsePrefixedList(getItemField(item, "Buildings")), item);
+          addUnlockSource(u, parsePrefixedList(getItemField(item, "Units")), item);
+        } else if (item.type === "unlock-reward") {
+          addUnlockSource(b, parsePrefixedList(getItemField(item, "UnlockedBuildings")), item);
+          addUnlockSource(u, parsePrefixedList(getItemField(item, "UnlockedRecruitments")), item);
+          addUnlockSource(r, parsePrefixedList(getItemField(item, "UnlockedProductionRecipes")), item);
+          addUnlockSource(r, parsePrefixedList(getItemField(item, "UnlockGathererFarmRecipes")), item);
+        }
+      }
+      state.unlockedBy = { building: b, unit: u, recipe: r };
+    }
+
+    function unlockSourcesFor(item) {
+      // Buildings, units, and recipes are surfaced as the typical
+      // "where does this come from?" join targets. Both type=entity and
+      // type=building rows can carry a building's display name as
+      // .title, so we look up by name and rely on the maps for routing.
+      const name = item.title;
+      if (!name) return [];
+      let bucket = null;
+      switch (item.type) {
+        case "building":
+        case "building-production":
+        case "building-dependency":
+          bucket = state.unlockedBy.building;
+          break;
+        case "unit":
+        case "unit-equipment":
+        case "npc-unit":
+          bucket = state.unlockedBy.unit;
+          break;
+        case "recipe":
+        case "building-production-recipe":
+        case "production-chain":
+          bucket = state.unlockedBy.recipe;
+          break;
+        case "entity":
+          // Plain entity row — try the building map first, then unit.
+          // Resource rows fall through and return [].
+          return [
+            ...(state.unlockedBy.building.get(name) || []),
+            ...(state.unlockedBy.unit.get(name) || []),
+          ];
+        default:
+          return [];
+      }
+      return bucket.get(name) || [];
+    }
+
+    function classifyScope(filePath) {
+      // Map the source XML file path to one of two coarse scopes so users
+      // can filter "main game content" vs "campaign + map-specific files".
+      //
+      // Campaign / map-specific signals observed in the catalog so far:
+      // - core/gdb/campaign map N - ....gd.xml + campaign test map.gd.xml +
+      //   campaignglobals.gd.xml (filename contains "campaign")
+      // - dlc1/maps/<...>.gd.xml (file path contains a /maps/ segment)
+      //
+      // Anything else (or no file) counts as "main".
+      const lower = String(filePath || "").toLowerCase().replaceAll("\\", "/");
+      if (!lower) return "main";
+      if (lower.includes("/campaign")) return "campaigns";
+      if (lower.includes("/maps/")) return "campaigns";
+      return "main";
+    }
+
+    function setLoadStatus(message, warning = false) {
+      els.loadStatus.textContent = message;
+      els.loadStatus.className = warning ? "warning" : "subtle";
+    }
+
+    function loadIndex(index, sourceLabel) {
+      if (!index || !Array.isArray(index.items)) {
+        throw new Error("Invalid search index: expected an object with an items array.");
+      }
+
+      state.items = index.items;
+      state.filtered = index.items;
+      state.selected = null;
+      state.generatedAt = index.generatedAt || "";
+      buildLookups();
+      buildUnlockReverseIndex();
+      buildBacklinks();
+      populateFilters();
+      applyFilters();
+      // If the page was opened with a #guid=... URL, restore that selection
+      // now that byGuid is built. fromHistory keeps us from pushing a new
+      // history entry for what is essentially the initial state.
+      applyHashSelection({ fromHistory: true });
+      setLoadStatus(`Loaded ${index.items.length.toLocaleString()} items from ${sourceLabel}.`);
+    }
+
+    // Item-type taxonomy: PROXY_TYPES are aggregate / lookup rows that
+    // share their GUID with a richer "primary" item. The catalog index
+    // emits both (e.g. a building also gets an "entity" row, an
+    // "asset-reference" row, a "building-dependency" row), and a naive
+    // first-wins lookup would surface the proxy when a click should land
+    // on the primary.
+    //
+    // Used for:
+    //   - byGuid: prefer the primary item so click-through links and
+    //     URL deep-links never land on a duplicate row.
+    //   - backlinks: skip proxy items as a source-of-reference so the
+    //     Referenced By section shows "building (47)" instead of
+    //     "building-dependency (47) · building (X)". The information
+    //     stays accessible — building-dependency's StorageResources
+    //     field is rolled up into the primary building's backlinks via
+    //     source canonicalisation in buildBacklinks().
+    const PROXY_TYPES = new Set([
+      "asset-reference",
+      "visual-audio-component",
+      "entity",
+      "building-dependency",
+      "building-production",
+      "production-chain",
+      "resource-usage",
+      "resource-flow",
+      "unit-equipment",
+    ]);
+
+    function buildLookups() {
+      // Two lookup tables that power the "click any reference to jump to
+      // that entity" navigation in the detail panel:
+      //
+      // - byGuid: every item carries a GUID; multiple items can share one
+      //   (a primary building plus its asset-reference / building-dependency
+      //   shadows). Prefer the primary item so the link lands on the
+      //   richest representation.
+      //
+      // - byTitleByType: many fields encode references as display names
+      //   ("4 Softwood Trunk" -> Resource named "Softwood Trunk"). Multiple
+      //   item types can share a title, so we scope by target type. The
+      //   values are arrays — first match wins on click; a hint shows
+      //   when there are more.
+      const byGuid = new Map();
+      const byTitleByType = new Map();
+      for (const item of state.items) {
+        if (item.guid) {
+          const existing = byGuid.get(item.guid);
+          // Two preference rules: (a) primary beats proxy, (b) if both
+          // are the same class, first wins. So a building inserted before
+          // its entity shadow keeps; a building inserted after its entity
+          // shadow replaces it.
+          if (!existing || (PROXY_TYPES.has(existing.type) && !PROXY_TYPES.has(item.type))) {
+            byGuid.set(item.guid, item);
+          }
+        }
+        const title = item.title;
+        if (!title) continue;
+        let typeBucket = byTitleByType.get(item.type);
+        if (!typeBucket) {
+          typeBucket = new Map();
+          byTitleByType.set(item.type, typeBucket);
+        }
+        const list = typeBucket.get(title);
+        if (list) {
+          list.push(item);
+        } else {
+          typeBucket.set(title, [item]);
+        }
+      }
+      state.byGuid = byGuid;
+      state.byTitleByType = byTitleByType;
+    }
+
+    // Registry: per item type, which fields hold references to other
+    // entities and how the value is encoded. Three encodings appear in the
+    // catalog:
+    //
+    //   amount-prefix:  "N <name>; N <name>; ..."   ("4 Softwood Trunk")
+    //   plain:          "<name>; <name>; ..."        no leading amount
+    //   prefixed:       "<Kind>=<name>; ..."         already understood by parsePrefixedList
+    //
+    // targets are the catalog item types we try to resolve each token
+    // against. Items at the top of the list are preferred when a name
+    // matches multiple types.
+    const LINKABLE_FIELDS = {
+      building: {
+        ConstructionCosts: { format: "amount-prefix", targets: ["resource"] },
+        Builder:           { format: "amount-prefix", targets: ["unit", "npc-unit"] },
+        ProductionRecipes: { format: "plain",         targets: ["recipe"] },
+        GatherOutputs:     { format: "amount-prefix", targets: ["resource"] },
+      },
+      unit: {
+        RecruitmentCosts:      { format: "amount-prefix", targets: ["resource"] },
+        SourceRecruitableUnit: { format: "plain",         targets: ["unit"] },
+      },
+      "npc-unit": {
+        RecruitmentCosts: { format: "amount-prefix", targets: ["resource"] },
+      },
+      recipe: {
+        Inputs:  { format: "amount-prefix", targets: ["resource"] },
+        Outputs: { format: "amount-prefix", targets: ["resource"] },
+      },
+      "building-production": {
+        Recipe:   { format: "plain", targets: ["recipe"] },
+        Building: { format: "plain", targets: ["building"] },
+      },
+      "tech-tree": {
+        Buildings:             { format: "prefixed", targets: ["building", "entity"] },
+        Units:                 { format: "prefixed", targets: ["unit", "npc-unit", "entity"] },
+        // PrimaryObjective is a single plain name, AlternativeObjectives
+        // uses the prefixed "AlternativeObjective=<name>" encoding.
+        PrimaryObjective:      { format: "plain",    targets: ["objective-flow", "entity"] },
+        AlternativeObjectives: { format: "prefixed", targets: ["objective-flow", "entity"] },
+      },
+      "unlock-reward": {
+        UnlockedBuildings:         { format: "prefixed", targets: ["building", "entity"] },
+        UnlockedRecruitments:      { format: "prefixed", targets: ["unit", "npc-unit", "entity"] },
+        UnlockedProductionRecipes: { format: "prefixed", targets: ["recipe", "entity"] },
+        UnlockGathererFarmRecipes: { format: "prefixed", targets: ["recipe", "entity"] },
+        UnlockShrineAbilities:     { format: "prefixed", targets: ["shrine-ability", "entity"] },
+        UnlockTechTreeTierGroups:  { format: "prefixed", targets: ["tech-tree", "entity"] },
+        ModifiedNPCBases:          { format: "prefixed", targets: ["npc-base", "encounter", "entity"] },
+        KilledUnits:               { format: "prefixed", targets: ["npc-unit", "unit", "encounter-combat", "entity"] },
+        OtherReferences:           { format: "prefixed", targets: ["building", "unit", "npc-unit", "recipe", "resource", "entity"] },
+      },
+      "objective-flow": {
+        // PreconditionObjectives ships values as "GeneralObjective=<name>; ..."
+        // — prefixed encoding, not plain (despite the field semantically
+        // being just a list of objectives).
+        PreconditionObjectives: { format: "prefixed", targets: ["objective-flow", "entity"] },
+        SkipObjectives:         { format: "prefixed", targets: ["objective-flow", "entity"] },
+        FailObjectives:         { format: "prefixed", targets: ["objective-flow", "entity"] },
+        // Trailing "entity" target lets us reach refs that have no
+        // dedicated typed view in the catalog (DepositTags, generic
+        // Tag-* objects, Road, etc.). resolve() prefers the typed match
+        // when both exist, so this is a fallback, not a downgrade.
+        ResourceRefs:           { format: "prefixed", targets: ["resource", "entity"] },
+        BuildingRefs:           { format: "prefixed", targets: ["building", "entity"] },
+        UnitRefs:               { format: "prefixed", targets: ["unit", "npc-unit", "encounter-combat", "entity"] },
+        PointOfInterestRefs:    { format: "prefixed", targets: ["entity"] },
+        // StartRewards/Rewards encode the directly-granted entity
+        // ("Building=Guard Post"), not a wrapping unlock-reward row, so
+        // resolve targets across the relevant primary kinds.
+        StartRewards:           { format: "prefixed", targets: ["building", "recipe", "unit", "npc-unit", "shrine-ability", "tech-tree", "resource", "entity"] },
+        Rewards:                { format: "prefixed", targets: ["building", "recipe", "unit", "npc-unit", "shrine-ability", "tech-tree", "resource", "entity"] },
+        // Notification refs encode as "<Trigger>=<notification-name>"; the
+        // notification entities live in the notification-narration type.
+        Notifications:          { format: "prefixed", targets: ["notification-narration", "entity"] },
+      },
+
+      // Deposit catalog rows carry HarvestResources in amount-prefix
+      // format ("2 Boar Meat; 1 Leather"). Linking these turns the
+      // resource detail's backlinks into "deposit (N)" instead of a
+      // generic resource-usage catch-all.
+      deposit: {
+        HarvestResources:    { format: "amount-prefix", targets: ["resource"] },
+        DepositResourceType: { format: "plain",         targets: ["deposit-resource-type"] },
+      },
+      "deposit-resource-type": {
+        SubDepositTypes: { format: "plain", targets: ["deposit"] },
+      },
+
+      // Treasure-hunter-recipe rows enumerate target resource (artifact)
+      // display names. The same names also appear in resource-usage
+      // (UsageType=TreasureHunterTarget); promoting them here lets us
+      // drop resource-usage as a backlink source entirely.
+      "treasure-hunter-recipe": {
+        Targets: { format: "plain", targets: ["resource", "artifact"] },
+      },
+
+      // Shrine-recipe rows carry Inputs in amount-prefix format. Same
+      // story: covers resource-usage's ShrineRecipeInput rows.
+      "shrine-recipe": {
+        Inputs: { format: "amount-prefix", targets: ["resource"] },
+      },
+
+      // Shrine-buildings glue together Worker units, the ability list,
+      // mana-input recipes, and mana resources. All four become
+      // clickable so the user can walk a shrine's whole stack. Worker
+      // values are amount-prefixed ("6 Smith") since multiple slots are
+      // common.
+      "shrine-building": {
+        Worker:          { format: "amount-prefix", targets: ["unit", "npc-unit", "entity"] },
+        SecondaryWorker: { format: "amount-prefix", targets: ["unit", "npc-unit", "entity"] },
+        Abilities:       { format: "plain", targets: ["shrine-ability", "entity"] },
+        ManaRecipes:     { format: "plain", targets: ["shrine-recipe", "recipe", "entity"] },
+        ManaResources:   { format: "plain", targets: ["resource", "entity"] },
+      },
+
+      // building-dependency is a proxy row but its StorageResources
+      // field is the only place in the catalog where the
+      // building -> storage-pile -> resource relationship lives.
+      // buildBacklinks canonicalises the source from the dependency row
+      // back to the primary building, so the resource's Referenced By
+      // shows "building (N) · StorageResources" pills.
+      "building-dependency": {
+        StorageResources:   { format: "plain", targets: ["resource"] },
+        DependencyResources: { format: "plain", targets: ["resource"] },
+        ProvidedResources:  { format: "plain", targets: ["resource"] },
+      },
+
+      // Mapgen rules can reference deposits, resources, buildings.
+      // Encoding is prefixed ("Building=...", "Deposit=...", "Resource=...").
+      mapgen: {
+        Deposits:  { format: "prefixed", targets: ["deposit", "deposit-resource-type", "entity"] },
+        Resources: { format: "prefixed", targets: ["resource", "entity"] },
+        Buildings: { format: "prefixed", targets: ["building", "entity"] },
+      },
+    };
+
+    function resolveByTitle(name, preferredTypes) {
+      if (!name) return null;
+      const trimmed = String(name).trim();
+      if (!trimmed) return null;
+      const byTitleByType = state.byTitleByType;
+      if (!byTitleByType) return null;
+      for (const type of preferredTypes) {
+        const bucket = byTitleByType.get(type);
+        if (!bucket) continue;
+        const matches = bucket.get(trimmed);
+        if (matches && matches.length) {
+          return { item: matches[0], multiple: matches.length > 1 };
+        }
+      }
+      return null;
+    }
+
+    function tokenizeFieldValue(value, format) {
+      // Returns an array of { prefix, name } tuples. `prefix` is whatever
+      // sits in front of the resolved name in the original text — kept so
+      // the rendered link still reads "4 Softwood Trunk" rather than just
+      // "Softwood Trunk".
+      const raw = String(value || "");
+      const out = [];
+      for (const chunk of raw.split(";")) {
+        const trimmed = chunk.trim();
+        if (!trimmed) continue;
+        if (format === "prefixed") {
+          const eq = trimmed.indexOf("=");
+          if (eq < 0) {
+            out.push({ prefix: "", name: trimmed });
+          } else {
+            out.push({ prefix: trimmed.slice(0, eq + 1) + " ", name: trimmed.slice(eq + 1).trim() });
+          }
+        } else if (format === "amount-prefix") {
+          const match = /^(\d+(?:\.\d+)?)\s+(.+)$/.exec(trimmed);
+          if (match) {
+            out.push({ prefix: match[1] + " ", name: match[2].trim() });
+          } else {
+            out.push({ prefix: "", name: trimmed });
+          }
+        } else {
+          out.push({ prefix: "", name: trimmed });
+        }
+      }
+      return out;
+    }
+
+    function buildBacklinks() {
+      // Build the inverse of LINKABLE_FIELDS so a selected entity can show
+      // "who points at me". Two important wrinkles:
+      //
+      //   1. Source canonicalisation: many proxy rows (building-dependency,
+      //      asset-reference, entity, etc.) share a GUID with a primary
+      //      item. We resolve the source through state.byGuid (which
+      //      prefers primaries) so backlinks show the user-meaningful row
+      //      instead of the aggregate shadow.
+      //
+      //   2. Proxy filter: after canonicalisation, sources whose type is
+      //      still in PROXY_TYPES (i.e. lookup rows with empty GUIDs:
+      //      resource-usage, building-production, production-chain,
+      //      resource-flow, unit-equipment) are skipped entirely. Their
+      //      relationships are already covered by the typed groups via
+      //      the LINKABLE_FIELDS extensions for deposit / shrine-recipe /
+      //      treasure-hunter-recipe / building-dependency, verified
+      //      against the live catalog by scripts/validate-catalog-browser-coverage.py.
+      const byGuid = new Map();
+      const guidRegex = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
+
+      const record = (targetGuid, source, field) => {
+        if (!targetGuid || targetGuid === "00000000-0000-0000-0000-000000000000") return;
+        if (source && source.guid === targetGuid) return; // self-references aren't useful
+
+        // Resolve building-dependency / entity / asset-reference shadows
+        // back to their primary entity so the user sees one canonical
+        // source instead of the same building rendered N different ways.
+        let canonicalSource = source;
+        if (source && source.guid) {
+          const primary = state.byGuid.get(source.guid);
+          if (primary) canonicalSource = primary;
+        }
+
+        // After canonicalisation, drop sources that have no primary to
+        // map to — these are lookup-only rows whose information is
+        // already exposed via richer typed groups.
+        if (canonicalSource && PROXY_TYPES.has(canonicalSource.type)) return;
+
+        let bucket = byGuid.get(targetGuid);
+        if (!bucket) {
+          bucket = [];
+          byGuid.set(targetGuid, bucket);
+        }
+        bucket.push({ source: canonicalSource, field });
+      };
+
+      for (const source of state.items) {
+        const typeRegistry = LINKABLE_FIELDS[source.type];
+        const fields = source.fields || {};
+        for (const [fieldName, rawValue] of Object.entries(fields)) {
+          if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") continue;
+          const value = String(rawValue);
+
+          // Title-based references via the registry
+          const meta = typeRegistry && typeRegistry[fieldName];
+          if (meta) {
+            for (const token of tokenizeFieldValue(value, meta.format)) {
+              const resolved = resolveByTitle(token.name, meta.targets);
+              if (resolved) record(resolved.item.guid, source, fieldName);
+            }
+          }
+
+          // GUID auto-detect — any GUID anywhere becomes a backlink, even
+          // for fields we don't know the schema of.
+          const guids = value.match(guidRegex);
+          if (guids) {
+            for (const guid of guids) {
+              const target = state.byGuid.get(guid);
+              if (target) record(guid, source, fieldName);
+            }
+          }
+        }
+      }
+
+      state.backlinksByGuid = byGuid;
+    }
+
+    function populateFilters() {
+      const types = uniqueSorted(state.items.map((item) => item.type));
+      const packages = uniqueSorted(state.items.map((item) => item.package));
+      fillSelect(els.typeFilter, "All types", types, formatType);
+      fillSelect(els.packageFilter, "All packages", packages, (value) => value);
+      refreshCategoryOptions();
+      refreshUiGroupOptions();
+    }
+
+    function refreshCategoryOptions() {
+      // Category cascades from Type. Without it the dropdown lists 100+
+      // values including objective-categories, ui-categories, etc.; with
+      // Type=building it narrows to ~15 sensible building categories. With
+      // no Type picked the dropdown still shows every Category.
+      const candidates = state.type
+        ? state.items.filter((item) => item.type === state.type)
+        : state.items;
+      const categories = uniqueSorted(candidates.map(getItemCategory));
+      fillSelect(els.categoryFilter, "All categories", categories, (value) => value);
+      if (state.category && !categories.includes(state.category)) {
+        state.category = "";
+        els.categoryFilter.value = "";
+      }
+    }
+
+    function refreshUiGroupOptions() {
+      // UI Group cascades from Category: when a Category is picked the UI
+      // Group dropdown only lists the groups that exist inside that category
+      // (e.g. picking "Storage & Trade" narrows UI Group to [Storage, Trade]).
+      // With no Category picked, every UI Group reachable under the current
+      // Type is listed.
+      let candidates = state.type
+        ? state.items.filter((item) => item.type === state.type)
+        : state.items;
+      if (state.category) {
+        candidates = candidates.filter((item) => getItemCategory(item) === state.category);
+      }
+      const groups = uniqueSorted(candidates.map(getItemUiGroup));
+      fillSelect(els.uiGroupFilter, "All UI groups", groups, (value) => value);
+      if (state.uiGroup && !groups.includes(state.uiGroup)) {
+        state.uiGroup = "";
+        els.uiGroupFilter.value = "";
+      }
+    }
+
+    function fillSelect(select, label, values, formatter) {
+      const current = select.value;
+      select.textContent = "";
+
+      const allOption = document.createElement("option");
+      allOption.value = "";
+      allOption.textContent = label;
+      select.appendChild(allOption);
+
+      for (const value of values) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = formatter(value);
+        select.appendChild(option);
+      }
+
+      if (values.includes(current)) {
+        select.value = current;
+      }
+    }
+
+    function applyFilters() {
+      state.query = els.query.value.trim();
+      state.type = els.typeFilter.value;
+      state.package = els.packageFilter.value;
+      state.scope = els.scopeFilter.value;
+      state.category = els.categoryFilter.value;
+      state.uiGroup = els.uiGroupFilter.value;
+
+      const tokens = normalize(state.query).split(/\s+/).filter(Boolean);
+
+      state.filtered = state.items.filter((item) => {
+        if (state.type && item.type !== state.type) return false;
+        if (state.package && item.package !== state.package) return false;
+        if (state.scope && classifyScope(item.file) !== state.scope) return false;
+        if (state.category && getItemCategory(item) !== state.category) return false;
+        if (state.uiGroup && getItemUiGroup(item) !== state.uiGroup) return false;
+        if (!tokens.length) return true;
+
+        const haystack = normalize([
+          item.type,
+          item.title,
+          item.subtitle,
+          item.package,
+          item.guid,
+          item.file,
+          item.terms,
+          Object.values(item.fields || {}).join(" "),
+        ].join(" "));
+
+        return tokens.every((token) => haystack.includes(token));
+      });
+
+      render();
+    }
+
+    function render() {
+      renderStatus();
+      renderResults();
+      renderDetail();
+    }
+
+    function renderStatus() {
+      const typeCount = uniqueSorted(state.items.map((item) => item.type)).length;
+      const packageCount = uniqueSorted(state.items.map((item) => item.package)).length;
+      const categoryCount = uniqueSorted(state.items.map(getItemCategory)).length;
+      const uiGroupCount = uniqueSorted(state.items.map(getItemUiGroup)).length;
+      els.status.textContent = "";
+      els.status.append(
+        makePill(`${state.filtered.length.toLocaleString()} shown`),
+        makePill(`${state.items.length.toLocaleString()} indexed`),
+        makePill(`${typeCount} types`),
+        makePill(`${packageCount} packages`)
+      );
+      if (categoryCount > 0) {
+        els.status.append(makePill(`${categoryCount} categories`));
+      }
+      if (uiGroupCount > 0) {
+        els.status.append(makePill(`${uiGroupCount} UI groups`));
+      }
+      if (state.generatedAt) {
+        els.status.append(makePill(`generated ${state.generatedAt}`));
+      }
+    }
+
+    function makePill(text) {
+      const span = document.createElement("span");
+      span.className = "pill";
+      span.textContent = text;
+      return span;
+    }
+
+    function renderResults() {
+      els.results.textContent = "";
+
+      if (!state.items.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No search index loaded yet.";
+        els.results.appendChild(empty);
+        return;
+      }
+
+      if (!state.filtered.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No matching entries.";
+        els.results.appendChild(empty);
+        return;
+      }
+
+      const visible = state.filtered.slice(0, 250);
+      for (const item of visible) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "result";
+        if (state.selected === item) button.classList.add("active");
+        button.addEventListener("click", () => {
+          selectItem(item);
+        });
+
+        const head = document.createElement("div");
+        head.className = "result-head";
+
+        const title = document.createElement("div");
+        title.className = "title";
+        title.textContent = item.title || "(untitled)";
+
+        const type = document.createElement("span");
+        type.className = "pill";
+        type.textContent = formatType(item.type);
+
+        head.append(title, type);
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        if (item.package) meta.append(makePill(item.package));
+        const itemCategory = getItemCategory(item);
+        if (itemCategory) meta.append(makePill(itemCategory));
+        const itemUiGroup = getItemUiGroup(item);
+        if (itemUiGroup && itemUiGroup !== itemCategory) meta.append(makePill(itemUiGroup));
+        if (item.guid) meta.append(makePill(item.guid));
+        if (item.subtitle) meta.append(makePill(compactText(item.subtitle)));
+        if (item.file) meta.append(makePill(compactText(item.file, 140)));
+
+        button.append(head, meta);
+        els.results.appendChild(button);
+      }
+
+      if (state.filtered.length > visible.length) {
+        const more = document.createElement("div");
+        more.className = "empty";
+        more.textContent = `Showing first ${visible.length} results. Narrow your search to inspect more.`;
+        els.results.appendChild(more);
+      }
+    }
+
+    function renderDetail() {
+      els.detail.textContent = "";
+
+      if (!state.selected) {
+        const title = document.createElement("h2");
+        title.textContent = state.items.length ? "No item selected" : "No index loaded";
+        const text = document.createElement("div");
+        text.className = "subtle";
+        text.textContent = state.items.length
+          ? "Select a result to inspect its fields."
+          : "Generate the catalog, then load generated/catalog/search-index.json.";
+        els.detail.append(title, text);
+        return;
+      }
+
+      const item = state.selected;
+
+      // Detail header row: a small "← Back" button next to the title so the
+      // user has an obvious control without having to find the browser's
+      // back button. history.back() walks the same #guid= stack the
+      // selection itself maintains, so it reverses click-through navigation
+      // and the entry-results-list clicks alike.
+      const titleRow = document.createElement("div");
+      titleRow.className = "detail-title-row";
+
+      const backButton = document.createElement("button");
+      backButton.type = "button";
+      backButton.className = "pill back-button";
+      backButton.textContent = "← Back";
+      backButton.title = "Go back to the previous selection (same as the browser back button)";
+      backButton.addEventListener("click", () => history.back());
+      titleRow.appendChild(backButton);
+
+      const title = document.createElement("h2");
+      title.textContent = item.title || "(untitled)";
+      title.className = "detail-title";
+      titleRow.appendChild(title);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.append(makePill(formatType(item.type)));
+      if (item.package) meta.append(makePill(item.package));
+      const detailCategory = getItemCategory(item);
+      if (detailCategory) meta.append(makePill(detailCategory));
+      const detailUiGroup = getItemUiGroup(item);
+      if (detailUiGroup && detailUiGroup !== detailCategory) meta.append(makePill(detailUiGroup));
+      if (item.guid) meta.append(makePill(item.guid));
+
+      const unlockSection = renderUnlockSources(item);
+
+      const fields = document.createElement("div");
+      fields.className = "fields";
+
+      const baseFields = {
+        Type: formatType(item.type),
+        Package: item.package,
+        GUID: item.guid,
+        File: item.file,
+        Subtitle: item.subtitle,
+      };
+
+      const seenFieldKeys = new Set();
+      appendFields(fields, baseFields, seenFieldKeys, item);
+      appendFields(fields, item.fields || {}, seenFieldKeys, item);
+
+      const backlinksSection = renderReferencedBy(item);
+
+      // Split the panel into a fixed header (title row + meta pills) and
+      // a scrollable body. The header stays visible while the user scrolls
+      // through long Where-to-find / fields / Referenced By sections, so
+      // they always see which entity they're inspecting and the back
+      // button stays reachable.
+      const detailHeader = document.createElement("div");
+      detailHeader.className = "detail-header";
+      detailHeader.append(titleRow, meta);
+
+      const detailScroll = document.createElement("div");
+      detailScroll.className = "detail-scroll";
+      if (unlockSection) detailScroll.append(unlockSection);
+      detailScroll.append(fields);
+      if (backlinksSection) detailScroll.append(backlinksSection);
+
+      els.detail.append(detailHeader, detailScroll);
+
+      // Reset the inner scroll position to the top whenever a new item is
+      // shown — otherwise navigating from a long entity to a short one
+      // leaves you mid-scroll in empty space.
+      detailScroll.scrollTop = 0;
+      // The newly-rendered detail might change layout in a way that
+      // shifts the panel's getBoundingClientRect().top; remeasure on the
+      // next frame so the inner scrollbar gets the right height
+      // immediately, not after the next user scroll.
+      requestAnimationFrame(updateDetailMaxHeight);
+    }
+
+    function updateDetailMaxHeight() {
+      // Skip on narrow viewports where the responsive layout un-pins the
+      // panel and lets the page flow naturally.
+      if (!els.detail || window.matchMedia("(max-width: 860px)").matches) {
+        els.detail.style.maxHeight = "";
+        return;
+      }
+      const top = els.detail.getBoundingClientRect().top;
+      // Clamp to a reasonable floor so a misread doesn't shrink the box
+      // to nothing; the sticky `top: 14px` rule keeps us at >= 14 in
+      // practice once the page is scrolled past the header.
+      const effectiveTop = Math.max(14, top);
+      const bottomMargin = 14;
+      els.detail.style.maxHeight = `calc(100vh - ${effectiveTop + bottomMargin}px)`;
+    }
+
+    function renderUnlockSources(item) {
+      const sources = unlockSourcesFor(item);
+      if (!sources.length) return null;
+
+      // Split tech-tree tiers from objective-reward unlocks so the
+      // "where in progression" and "which objective grants it" rows are
+      // visually distinct.
+      const techTree = sources.filter((s) => s.type === "tech-tree");
+      const rewards = sources.filter((s) => s.type === "unlock-reward");
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "unlock-sources";
+
+      const heading = document.createElement("div");
+      heading.className = "field-key";
+      heading.textContent = "Where to find this";
+      wrapper.appendChild(heading);
+
+      if (techTree.length) {
+        wrapper.appendChild(renderUnlockGroup("Tech tree tier", techTree));
+      }
+      if (rewards.length) {
+        wrapper.appendChild(renderUnlockGroup("Objective unlocks", rewards));
+      }
+
+      return wrapper;
+    }
+
+    function renderUnlockGroup(label, sources) {
+      const group = document.createElement("div");
+      group.className = "unlock-group";
+
+      const labelEl = document.createElement("div");
+      labelEl.className = "unlock-group-label subtle";
+      labelEl.textContent = label;
+      group.appendChild(labelEl);
+
+      const list = document.createElement("div");
+      list.className = "meta";
+      // Deduplicate by title — the same tier can show up twice if both
+      // Buildings and Units lists matched the entity.
+      const seen = new Set();
+      for (const source of sources) {
+        const key = `${source.type}:${source.title}:${source.guid || ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        list.appendChild(makeNavPill(source));
+      }
+      group.appendChild(list);
+      return group;
+    }
+
+    function makeNavPill(item) {
+      // Clickable pill: select the referenced item so the user can navigate
+      // tier -> tier -> unlock-reward -> objective entity without typing.
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "pill nav-pill";
+      const label = item.title || formatType(item.type);
+      button.textContent = `${formatType(item.type)}: ${label}`;
+      button.addEventListener("click", () => {
+        selectItem(item);
+      });
+      return button;
+    }
+
+    function appendFields(container, fields, seenFieldKeys = new Set(), owner = null) {
+      for (const [key, value] of Object.entries(fields)) {
+        if (value === undefined || value === null || String(value).trim() === "") continue;
+        const keyId = normalizedFieldKey(key);
+        if (seenFieldKeys.has(keyId)) continue;
+        seenFieldKeys.add(keyId);
+
+        const row = document.createElement("div");
+        row.className = "field";
+
+        const fieldKey = document.createElement("div");
+        fieldKey.className = "field-key";
+        fieldKey.textContent = key;
+
+        const fieldValue = document.createElement("div");
+        fieldValue.className = "field-value";
+        renderFieldValue(fieldValue, owner, key, String(value));
+
+        row.append(fieldKey, fieldValue);
+        container.appendChild(row);
+      }
+    }
+
+    function renderFieldValue(container, owner, fieldName, rawValue) {
+      // Tries to turn the field value into clickable links pointing at
+      // other catalog entries. Two layered strategies:
+      //
+      // 1. Registry lookup: if the owning item type + field name appear in
+      //    LINKABLE_FIELDS, tokenise using the declared encoding and
+      //    resolve each token against the by-title index.
+      // 2. GUID auto-detect: a generic fallback that finds any
+      //    well-formed GUID inside the raw string and links it via the
+      //    by-GUID index. Lets fields outside the registry (Components,
+      //    OtherReferences, ad-hoc strings) still navigate when the data
+      //    is GUID-shaped.
+      //
+      // If neither produces a link, falls back to plain text.
+      const typeRegistry = owner && LINKABLE_FIELDS[owner.type];
+      const meta = typeRegistry ? typeRegistry[fieldName] : null;
+      let rendered = false;
+
+      if (meta) {
+        const tokens = tokenizeFieldValue(rawValue, meta.format);
+        if (tokens.length) {
+          for (let i = 0; i < tokens.length; i++) {
+            if (i > 0) container.appendChild(document.createTextNode("; "));
+            const token = tokens[i];
+            if (token.prefix) container.appendChild(document.createTextNode(token.prefix));
+            const resolved = resolveByTitle(token.name, meta.targets);
+            if (resolved) {
+              appendLink(container, token.name, resolved.item, resolved.multiple);
+              rendered = true;
+            } else {
+              container.appendChild(document.createTextNode(token.name));
+            }
+          }
+        }
+      }
+
+      if (!rendered) {
+        // Either no registry entry, or no token resolved. Fall back to
+        // GUID auto-detect over the raw value.
+        const guidRegex = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
+        let cursor = 0;
+        let match;
+        let foundGuid = false;
+        while ((match = guidRegex.exec(rawValue)) !== null) {
+          if (match.index > cursor) {
+            container.appendChild(document.createTextNode(rawValue.slice(cursor, match.index)));
+          }
+          const guid = match[0];
+          const target = state.byGuid ? state.byGuid.get(guid) : null;
+          if (target && target !== owner) {
+            appendLink(container, guid, target, false);
+            foundGuid = true;
+          } else {
+            container.appendChild(document.createTextNode(guid));
+          }
+          cursor = match.index + guid.length;
+        }
+        if (cursor < rawValue.length) {
+          container.appendChild(document.createTextNode(rawValue.slice(cursor)));
+        }
+        if (!foundGuid && cursor === 0) {
+          container.textContent = rawValue;
+        }
+      }
+    }
+
+    function appendLink(container, label, targetItem, ambiguous) {
+      const link = document.createElement("a");
+      link.href = targetItem.guid ? "#guid=" + targetItem.guid : "#";
+      link.className = "entity-link";
+      link.textContent = label;
+      const targetTitle = targetItem.title || targetItem.guid || "(unknown)";
+      link.title = ambiguous
+        ? `Jump to ${formatType(targetItem.type)}: ${targetTitle} (multiple matches; first shown)`
+        : `Jump to ${formatType(targetItem.type)}: ${targetTitle}`;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        selectItem(targetItem);
+      });
+      container.appendChild(link);
+      if (ambiguous) {
+        const hint = document.createElement("span");
+        hint.className = "entity-link-hint subtle";
+        hint.textContent = "*";
+        hint.title = "multiple items share this name; first match shown";
+        container.appendChild(hint);
+      }
+    }
+
+    // -- Selection + history routing --------------------------------------------------------------
+    // All user-initiated selections funnel through selectItem() so the URL hash, browser history,
+    // and detail panel always agree. The hash format is `#guid=<entity-guid>`; popstate /
+    // hashchange events run the same routing path in reverse so Back / Forward work natively.
+
+    function selectItem(item, options = {}) {
+      const fromHistory = !!options.fromHistory;
+      const replace = !!options.replace;
+      const previous = state.selected;
+      state.selected = item;
+
+      if (!fromHistory) {
+        const targetHash = item && item.guid ? "#guid=" + item.guid : "";
+        const currentHash = window.location.hash || "";
+        if (currentHash !== targetHash) {
+          // pushState on a genuine navigation, replaceState when we're
+          // syncing the URL to an initial selection that didn't come from
+          // a user click (e.g. fresh load with no #guid=... in the URL).
+          if (replace || previous === null) {
+            history.replaceState({ guid: item && item.guid }, "", targetHash || window.location.pathname + window.location.search);
+          } else {
+            history.pushState({ guid: item && item.guid }, "", targetHash || window.location.pathname + window.location.search);
+          }
+        }
+      }
+
+      render();
+    }
+
+    function parseHashGuid() {
+      const hash = window.location.hash || "";
+      if (!hash.startsWith("#")) return null;
+      // Tiny query-string parser — only one key for now (`guid`), but the
+      // shape allows future additions like `#guid=...&tab=...`.
+      const body = hash.slice(1);
+      for (const part of body.split("&")) {
+        const eq = part.indexOf("=");
+        if (eq < 0) continue;
+        const key = decodeURIComponent(part.slice(0, eq));
+        const value = decodeURIComponent(part.slice(eq + 1));
+        if (key === "guid" && value) return value;
+      }
+      return null;
+    }
+
+    function applyHashSelection(options = {}) {
+      const guid = parseHashGuid();
+      if (!guid) {
+        if (state.selected !== null) {
+          state.selected = null;
+          render();
+        }
+        return;
+      }
+      const target = state.byGuid && state.byGuid.get(guid);
+      if (target) {
+        if (state.selected !== target) {
+          selectItem(target, { fromHistory: true, ...options });
+        }
+      } else {
+        // GUID in the URL doesn't match anything in the loaded index — keep
+        // the current selection and show the hash as-is. The user might be
+        // loading a different snapshot in a moment.
+      }
+    }
+
+    function renderReferencedBy(item) {
+      if (!item || !item.guid || !state.backlinksByGuid) return null;
+      const backlinks = state.backlinksByGuid.get(item.guid);
+      if (!backlinks || !backlinks.length) return null;
+
+      // Group by source type so the user sees "buildings (N): ...; recipes (M): ..."
+      // rather than a flat dump that scrolls forever on a popular resource.
+      // Dedupe by (source-item identity, field name) up front — the
+      // back-index can record the same pair multiple times (e.g. when a
+      // source mentions the target GUID in two different positions of the
+      // same list), and counting raw entries would inflate group counts.
+      const byType = new Map();
+      const seenPair = new Map(); // source -> Set<field>
+      let totalDeduped = 0;
+      for (const entry of backlinks) {
+        let fields = seenPair.get(entry.source);
+        if (!fields) {
+          fields = new Set();
+          seenPair.set(entry.source, fields);
+        }
+        if (fields.has(entry.field)) continue;
+        fields.add(entry.field);
+        totalDeduped++;
+
+        const t = entry.source.type;
+        let bucket = byType.get(t);
+        if (!bucket) {
+          bucket = [];
+          byType.set(t, bucket);
+        }
+        bucket.push(entry);
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "backlinks";
+
+      const heading = document.createElement("div");
+      heading.className = "field-key";
+      heading.textContent = `Referenced by (${totalDeduped})`;
+      wrapper.appendChild(heading);
+
+      // entries inside each byType bucket are already deduped by the
+      // (source, field) pass above, so we can render them directly.
+      for (const [type, entries] of Array.from(byType.entries()).sort((a, b) => b[1].length - a[1].length)) {
+        const group = document.createElement("div");
+        group.className = "backlink-group";
+
+        const label = document.createElement("div");
+        label.className = "backlink-group-label subtle";
+        label.textContent = `${formatType(type)} (${entries.length})`;
+        group.appendChild(label);
+
+        const list = document.createElement("div");
+        list.className = "meta";
+        // No per-group cap: the detail panel has its own scroll container
+        // (see .detail-scroll), so even Cloth's 60+ building backlinks
+        // fit naturally. The group count in the label and the rendered
+        // pill count always match.
+        for (const entry of entries) {
+          const pill = document.createElement("a");
+          pill.href = "#";
+          pill.className = "pill backlink-pill";
+          pill.textContent = `${entry.source.title || "(untitled)"} · ${entry.field}`;
+          pill.title = `${formatType(entry.source.type)} in ${entry.source.package || "?"} — click to open`;
+          pill.addEventListener("click", (event) => {
+            event.preventDefault();
+            selectItem(entry.source);
+          });
+          list.appendChild(pill);
+        }
+        group.appendChild(list);
+        wrapper.appendChild(group);
+      }
+
+      return wrapper;
+    }
+
+    // Persists "the user has successfully loaded the default index at least
+    // once" so subsequent visits / refreshes auto-load without a prompt.
+    // Resets only when the auto-load itself fails — that's the signal that
+    // the file moved or the snapshot was regenerated under a different path.
+    const AUTO_LOAD_KEY = "pagonia-catalog-browser:auto-load-default";
+    const safeStorageGet = (key) => { try { return window.localStorage.getItem(key); } catch (_) { return null; } };
+    const safeStorageSet = (key, value) => { try { window.localStorage.setItem(key, value); } catch (_) { /* private mode / disabled */ } };
+    const safeStorageRemove = (key) => { try { window.localStorage.removeItem(key); } catch (_) { /* ignore */ } };
+
+    // Where the browser looks for the catalog index, in order. The
+    // repo-relative path is the standard local layout; the sibling path
+    // covers the GitHub Pages deployment (or any other host that places
+    // a snapshot directly alongside index.html). First hit wins.
+    const DEFAULT_INDEX_CANDIDATES = [
+      "../../generated/catalog/search-index.json",
+      "./search-index.json",
+    ];
+
+    async function loadDefaultIndex(options = {}) {
+      const silent = !!options.silent;
+      const errors = [];
+      for (const candidate of DEFAULT_INDEX_CANDIDATES) {
+        try {
+          const response = await fetch(candidate, { cache: "no-store" });
+          if (!response.ok) {
+            errors.push(`${candidate}: HTTP ${response.status}`);
+            continue;
+          }
+          loadIndex(await response.json(), candidate);
+          safeStorageSet(AUTO_LOAD_KEY, "1");
+          return true;
+        } catch (error) {
+          errors.push(`${candidate}: ${error.message || error}`);
+        }
+      }
+      // file:// over CORS-strict browsers, missing snapshot, etc. Don't
+      // spam a warning on the silent first-load attempt; only surface
+      // the prompt when the user explicitly clicked Load default (or
+      // when they've successfully loaded before and the default is now
+      // missing).
+      if (!silent) {
+        setLoadStatus("Could not load the default index. Use the file picker and select your local generated/catalog/search-index.json.", true);
+      }
+      safeStorageRemove(AUTO_LOAD_KEY);
+      return false;
+    }
+
+    els.fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        loadIndex(JSON.parse(text), file.name);
+      } catch (error) {
+        setLoadStatus(`Could not read selected file: ${error.message}`, true);
+      }
+    });
+
+    els.loadDefault.addEventListener("click", loadDefaultIndex);
+    els.query.addEventListener("input", applyFilters);
+    els.typeFilter.addEventListener("change", () => {
+      // Type drives the Category set, which in turn drives UI Group. Refresh
+      // both cascades before the filter pass so the dropdowns stay
+      // consistent with the new Type.
+      state.type = els.typeFilter.value;
+      refreshCategoryOptions();
+      refreshUiGroupOptions();
+      applyFilters();
+    });
+    els.packageFilter.addEventListener("change", applyFilters);
+    els.scopeFilter.addEventListener("change", applyFilters);
+    els.categoryFilter.addEventListener("change", () => {
+      // Category drives UI Group's option set, so refresh it before
+      // re-running the filter pass.
+      state.category = els.categoryFilter.value;
+      refreshUiGroupOptions();
+      applyFilters();
+    });
+    els.uiGroupFilter.addEventListener("change", applyFilters);
+    els.clear.addEventListener("click", () => {
+      els.query.value = "";
+      els.typeFilter.value = "";
+      els.packageFilter.value = "";
+      els.scopeFilter.value = "";
+      els.categoryFilter.value = "";
+      els.uiGroupFilter.value = "";
+      state.type = "";
+      state.category = "";
+      state.uiGroup = "";
+      refreshCategoryOptions();
+      refreshUiGroupOptions();
+      selectItem(null);
+      applyFilters();
+    });
+
+    // Auto-load the default index on page load / refresh. Two cases:
+    //   - First visit or fresh install: try once silently. Success means we
+    //     also remember the choice in localStorage so future visits skip
+    //     the prompt.
+    //   - Subsequent visits where the user has loaded the default before:
+    //     try harder and surface any failure (the snapshot might have moved
+    //     or been deleted between sessions).
+    // The file picker remains the fallback for file:// + strict-CORS browsers
+    // and for users who want to inspect an alternative index.
+    const hasLoadedDefaultBefore = safeStorageGet(AUTO_LOAD_KEY) === "1";
+    loadDefaultIndex({ silent: !hasLoadedDefaultBefore });
+
+    // Back / Forward via browser history work natively because every selection
+    // pushes a #guid=... entry. hashchange covers manual URL edits too.
+    window.addEventListener("popstate", () => applyHashSelection({ fromHistory: true }));
+    window.addEventListener("hashchange", () => applyHashSelection({ fromHistory: true }));
+
+    // Keep the detail panel's max-height aligned with whatever vertical
+    // space is actually available below the page header. Pure CSS can only
+    // do `calc(100vh - <static>)`, which is too tall while the header is
+    // still on screen (the user would have to page-scroll past the entire
+    // result list to reach the bottom of a long detail panel). Measuring
+    // getBoundingClientRect().top on every scroll picks up both the
+    // natural-flow position (header visible) and the sticky position
+    // (header scrolled away) automatically. updateDetailMaxHeight is also
+    // called from renderDetail() so a newly selected item measures
+    // correctly before the user scrolls.
+    window.addEventListener("scroll", updateDetailMaxHeight, { passive: true });
+    window.addEventListener("resize", updateDetailMaxHeight);
+    requestAnimationFrame(updateDetailMaxHeight);
+
+    render();
+  </script>
+</body>
+</html>

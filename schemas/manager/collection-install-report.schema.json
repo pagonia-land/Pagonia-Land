@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/collection-install-report.schema.json",
+  "title": "Pagonia Land Manager — Collection Install Report",
+  "description": "JSON report emitted by `pagonia-manager collection install --json <out>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "outcome", "installedMods", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["collectionInstall"] },
+    "outcome": { "type": "string", "enum": ["Failed", "Installed", "AlreadyInstalled"] },
+    "collectionId": { "type": ["string", "null"] },
+    "collectionVersion": { "type": ["string", "null"] },
+    "collectionName": { "type": ["string", "null"] },
+    "profileName": { "type": ["string", "null"] },
+    "manifestPath": { "type": ["string", "null"] },
+    "lockfilePath": { "type": ["string", "null"] },
+    "installedMods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "version"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

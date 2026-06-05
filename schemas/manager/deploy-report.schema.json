@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagonia-land.github.io/Pagonia-Land/schemas/manager/deploy-report.schema.json",
+  "title": "Pagonia Land Manager — Deploy Report",
+  "description": "JSON report emitted by `pagonia-manager deploy --json <out>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportKind", "outcome", "modifiedFileCount", "addedFileCount", "rebuiltPakCount", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["0.1"] },
+    "reportKind": { "type": "string", "enum": ["deploy"] },
+    "outcome": { "type": "string", "enum": ["Failed", "Completed", "DryRun"] },
+    "gameFingerprint": { "type": ["string", "null"] },
+    "timestamp": { "type": ["string", "null"] },
+    "profile": { "type": ["string", "null"] },
+    "modifiedFileCount": { "type": "integer", "minimum": 0 },
+    "addedFileCount": { "type": "integer", "minimum": 0 },
+    "rebuiltPakCount": { "type": "integer", "minimum": 0, "description": "Number of canonical paks rebuilt during a live-install deploy. Zero for extracted-layout deploys, which use modifiedFileCount instead." },
+    "manifestPath": { "type": ["string", "null"] },
+    "backupDirectory": { "type": ["string", "null"] },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["Info", "Warning", "Error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

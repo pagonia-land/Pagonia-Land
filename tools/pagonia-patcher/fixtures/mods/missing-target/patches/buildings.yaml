@@ -1,0 +1,13 @@
+operations:
+  - id: missing-sawmill-target
+    operation: replaceValue
+    risk: low
+    reason: Fixture patch for testing missing entity diagnostics.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: 00000000-0000-0000-0000-000000000001
+      entityName: Missing Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    value: "3"

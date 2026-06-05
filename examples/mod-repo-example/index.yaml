@@ -1,0 +1,49 @@
+indexFormatVersion: "0.1"
+
+repo:
+  name: Pagonia Land Example Mods
+  description: Reference Git-distribution repo for Pagonia Land. Two small mods + one collection that ties them together; designed for modders to fork as a starting point.
+  author: Pagonia Land
+  homepage: https://github.com/pagonia-land/Pagonia-Land
+  license: MIT
+  tags:
+    - example
+    - reference
+
+mods:
+  - id: pagonia-land.example.cheaper-sawmill
+    path: mods/cheaper-sawmill
+    displayName: Cheaper Sawmill
+    description: Reduces the Sawmill's construction cost by one Softwood Trunk.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - qol
+      - balance
+      - sawmill
+    safetyFlags:
+      requiresNewGame: false
+      safeToRemove: unknown
+      multiplayerSafe: unknown
+      campaignSafe: unknown
+
+  - id: pagonia-land.example.apple-icon-test
+    path: mods/apple-icon-test
+    displayName: Apple Icon Test
+    description: Cosmetic DLC-pack icon swap; demonstrates the optional-package patch shape.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - visual
+      - dlc
+
+collections:
+  - id: pagonia-land.example.beginner-qol
+    path: collections/beginner-qol.collection.yaml
+    displayName: Beginner QoL Pack
+    description: Small safe quality-of-life preset wiring both example mods into one ready-to-play setup.
+    version: 0.1.0
+    gameDatabaseVersion: "1.3.1-11826+193733"
+    tags:
+      - qol
+      - preset

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PagoniaLand.Paker.Cli/PagoniaLand.Paker.Cli.csproj" />
+    <Project Path="src/PagoniaLand.Paker.Core/PagoniaLand.Paker.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PagoniaLand.Paker.Tests/PagoniaLand.Paker.Tests.csproj" />
+  </Folder>
+</Solution>

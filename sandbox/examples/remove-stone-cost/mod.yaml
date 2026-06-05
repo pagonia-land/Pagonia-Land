@@ -1,0 +1,25 @@
+patchFormatVersion: 0.1
+id: example.remove-stone-cost
+name: Remove Sawmill Stone Cost (Example)
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Example mod that removes the Stone Block construction cost from the
+  Sawmill via removeListItem. Targets real Meadowsong GUIDs (Sawmill
+  c732cb26-…, Stone Block d8dd765a-…) and applies to a 1.3.1-11826+193733
+  game-gdb/ unchanged. The expectedOldXml block must match the current XML
+  byte-for-byte after whitespace normalisation, so if the Sawmill cost list
+  shifts in a future game build, regenerate the snippet from your install.
+requiredPackages:
+  - core
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+patches:
+  - patches/buildings.yaml

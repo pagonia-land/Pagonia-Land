@@ -1,0 +1,25 @@
+patchFormatVersion: 0.1
+id: pagonia-land.example.apple-icon-test
+name: Apple Icon Test
+version: 0.1.0
+author: TheLavaBlock
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: Cosmetic DLC pack patch — swaps the Wine icon for the Grapes icon. Demonstrates how to ship a patch that only runs when the dlc1 package is installed.
+requiredPackages:
+  - core
+optionalPackages:
+  - dlc1
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+patchSets:
+  - id: dlc1-icon
+    optional: true
+    requiresPackages:
+      - dlc1
+    patches:
+      - patches/dlc1-icon.yaml
