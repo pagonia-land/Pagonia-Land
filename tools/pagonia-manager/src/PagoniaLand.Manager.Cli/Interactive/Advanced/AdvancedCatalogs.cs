@@ -36,7 +36,7 @@ internal static class AdvancedCatalogs
                 case "add":
                 {
                     AdvancedHelpers.Header("Catalogs → add");
-                    var spec = AdvancedHelpers.PromptText("Source [dim](gh:owner/repo[[#ref]][[/path]], https://host/.../catalog.yaml, or file:absolute-or-relative-path)[/]:");
+                    if (!AdvancedHelpers.TryPromptText("Source [dim](gh:owner/repo[[#ref]][[/path]], https://host/.../catalog.yaml, or file:absolute-or-relative-path)[/]:", out var spec)) { break; }
                     var result = new CatalogSubscriptionService().Add(layout, spec);
                     DiagnosticsRenderer.Render(result.Diagnostics);
                     Pause();
@@ -52,9 +52,7 @@ internal static class AdvancedCatalogs
                         Pause();
                         break;
                     }
-                    var canonical = AnsiConsole.Prompt(new SelectionPrompt<string>()
-                        .Title("Remove which subscription?")
-                        .AddChoices(subs.Select(s => s.Canonical)));
+                    var canonical = AdvancedHelpers.Pick("Remove which subscription?", subs.Select(s => s.Canonical));
                     var result = new CatalogSubscriptionService().Remove(layout, canonical);
                     DiagnosticsRenderer.Render(result.Diagnostics);
                     Pause();
@@ -104,7 +102,7 @@ internal static class AdvancedCatalogs
                 case "show":
                 {
                     AdvancedHelpers.Header("Catalogs → show");
-                    var spec = AdvancedHelpers.PromptText("Source [dim](gh:owner/repo[[#ref]][[/path]], https://host/.../catalog.yaml, or file:absolute-or-relative-path)[/]:");
+                    if (!AdvancedHelpers.TryPromptText("Source [dim](gh:owner/repo[[#ref]][[/path]], https://host/.../catalog.yaml, or file:absolute-or-relative-path)[/]:", out var spec)) { break; }
                     if (!CatalogSourceParser.TryParse(spec, out var src))
                     {
                         AnsiConsole.MarkupLine($"[red]'{Markup.Escape(spec)}' is not a recognised catalog source.[/]");

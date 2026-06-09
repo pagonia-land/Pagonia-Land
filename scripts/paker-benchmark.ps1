@@ -39,7 +39,7 @@ if (-not $paker) {
 }
 
 if (-not $WorkDir) {
-    $WorkDir = Join-Path $env:TEMP ("paker-bench-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+    $WorkDir = Join-Path ([System.IO.Path]::GetTempPath()) ("paker-bench-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
 }
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 Write-Host "Working directory: $WorkDir"

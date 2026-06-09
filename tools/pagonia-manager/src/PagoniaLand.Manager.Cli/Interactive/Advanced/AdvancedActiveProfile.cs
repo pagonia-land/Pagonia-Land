@@ -21,9 +21,7 @@ internal static class AdvancedActiveProfile
                     AdvancedHelpers.Header("Active Profile → enable");
                     var installed = new ModLister().List(layout);
                     if (installed.Count == 0) { AnsiConsole.MarkupLine("[yellow]No mods installed.[/]"); Pause(); break; }
-                    var modId = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Enable:")
-                            .AddChoices(installed.Select(m => m.Id).Distinct()));
+                    var modId = AdvancedHelpers.Pick("Enable:", installed.Select(m => m.Id).Distinct());
                     var r = svc.Enable(layout, modId, requestedVersion: null);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success && r.Profile is not null)
@@ -50,9 +48,7 @@ internal static class AdvancedActiveProfile
                     {
                         AnsiConsole.MarkupLine("[yellow]No enabled mods to disable.[/]"); Pause(); break;
                     }
-                    var modId = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Disable:")
-                            .AddChoices(choices));
+                    var modId = AdvancedHelpers.Pick("Disable:", choices);
                     var r = svc.Disable(layout, modId);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success && r.Profile is not null)
@@ -68,12 +64,11 @@ internal static class AdvancedActiveProfile
                     {
                         AnsiConsole.MarkupLine("[yellow]Need at least 2 enabled mods to reorder.[/]"); Pause(); break;
                     }
-                    var modId = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Move which mod:")
-                            .AddChoices(show.Profile.LoadOrder));
-                    var anchor = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Place it relative to:")
-                            .AddChoices(show.Profile.LoadOrder.Where(id => id != modId)));
+                    var modId = AdvancedHelpers.Pick("Move which mod:", show.Profile.LoadOrder);
+                    if (!AdvancedHelpers.TryPick("Place it relative to:", show.Profile.LoadOrder.Where(id => id != modId), out var anchor))
+                    {
+                        AnsiConsole.MarkupLine("[yellow]No other mod to place this relative to.[/]"); Pause(); break;
+                    }
                     var where = AnsiConsole.Prompt(
                         new SelectionPrompt<string>().Title("Before or after?")
                             .AddChoices("before", "after"));

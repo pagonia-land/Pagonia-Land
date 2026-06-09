@@ -1,6 +1,6 @@
 # Resource Icon Patch
 
-This example walks through the shipped [`apple-icon-test`](https://github.com/pagonia-land/Pagonia-Land/tree/main/examples/mod-repo-example/mods/apple-icon-test) example mod: a cosmetic resource-icon change that only runs when an optional DLC package is present. It builds on the worked example [Change A Resource Display Name Or Icon](../change-resource-display-icon.md), and demonstrates the **optional patch set** mechanism for DLC-gated content.
+This example walks through the shipped [`wine-icon-test`](https://github.com/pagonia-land/Pagonia-Land/tree/main/examples/mod-repo-example/mods/wine-icon-test) example mod: a cosmetic resource-icon change that only runs when an optional DLC package is present. It builds on the worked example [Change A Resource Display Name Or Icon](../change-resource-display-icon.md), and demonstrates the **optional patch set** mechanism for DLC-gated content.
 
 ## Mod Metadata
 
@@ -8,11 +8,11 @@ The mod requires only `core`, but declares `dlc1` as *optional*. The icon swap i
 
 ```yaml
 patchFormatVersion: 0.1
-id: pagonia-land.example.apple-icon-test
-name: Apple Icon Test
+id: pagonia-land.example.wine-icon-test
+name: Wine Icon Test
 version: 0.1.0
 author: TheLavaBlock
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 description: Cosmetic DLC pack patch — swaps the Wine icon for the Grapes icon. Demonstrates how to ship a patch that only runs when the dlc1 package is installed.
 requiredPackages:
   - core

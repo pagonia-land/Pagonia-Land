@@ -143,6 +143,13 @@ public sealed class PlanProfileService
             diagnostics.AddRange(ExpansionGate.Evaluate(loadedMods, expansions));
         }
 
+        // Cross-mod overlay conflict check: two enabled mods that destructively
+        // (Replace/Unload) target the same inherited entity collide — load order
+        // picks the winner and silently overrides the rest. Advisory (warnings),
+        // so it never blocks the plan. The per-mod authoring advisor can't see
+        // this; only the ordered enabled set can.
+        diagnostics.AddRange(new CrossModOverlayConflictDetector().Detect(loadedMods));
+
         if (diagnostics.Any(d => d.Severity == ManagerDiagnosticSeverity.Error))
         {
             return new PlanProfileResult

@@ -95,6 +95,8 @@ public sealed class PatchPlanner
                 TargetResolveResult? result = operation.Operation switch
                 {
                     PatchOperationTypes.ReplaceValue => _resolver.ResolveReplaceValue(gameRoot, operation),
+                    PatchOperationTypes.MultiplyValue => _resolver.ResolveMultiplyValue(gameRoot, operation),
+                    PatchOperationTypes.AddValue => _resolver.ResolveAddValue(gameRoot, operation),
                     PatchOperationTypes.ReplaceAttribute => _resolver.ResolveReplaceAttribute(gameRoot, operation),
                     PatchOperationTypes.ReplaceNode => _resolver.ResolveReplaceNode(gameRoot, operation),
                     PatchOperationTypes.AddListItem => _resolver.ResolveAddListItem(gameRoot, operation),
@@ -174,6 +176,28 @@ public sealed class PatchPlanner
                         $"Tweak '{mod.Manifest.Id}:{tweak.Id}' value '{value}' is outside the declared range; using it anyway."));
                 }
 
+                // The manager validates overrides before storing them, but a direct patcher
+                // `--tweak` (or a lockfile/collection value) reaches here unchecked. Mirror the
+                // type contract so an invalid enum / boolean value is flagged instead of being
+                // silently substituted (e.g. a bogus enum literal, or a non-bool the ternary
+                // would treat as false).
+                if (tweak.Type == "enum" && tweak.Values.Count > 0
+                    && !tweak.Values.Any(v => string.Equals(v.Value, value, StringComparison.Ordinal)))
+                {
+                    diagnostics.Add(new PatchDiagnostic(
+                        PatchDiagnosticSeverity.Warning,
+                        DiagnosticCodes.TweakValueInvalid,
+                        $"Tweak '{mod.Manifest.Id}:{tweak.Id}' value '{value}' is not one of its declared enum values; using it anyway."));
+                }
+
+                if (tweak.Type == "boolean" && !bool.TryParse(value, out _))
+                {
+                    diagnostics.Add(new PatchDiagnostic(
+                        PatchDiagnosticSeverity.Warning,
+                        DiagnosticCodes.TweakValueInvalid,
+                        $"Tweak '{mod.Manifest.Id}:{tweak.Id}' value '{value}' is not a valid boolean (true/false); a ternary on it resolves to the false branch."));
+                }
+
                 if (origin == TweakOrigins.Lockfile && !string.Equals(value, tweak.Default, StringComparison.Ordinal))
                 {
                     diagnostics.Add(new PatchDiagnostic(
@@ -246,6 +270,16 @@ public sealed class PatchPlanner
             Target = operation.Target,
             Attribute = operation.Attribute,
             Value = Resolve(operation.Value),
+            // Operands and clamp bounds carry tweak placeholders (one shared tweak can feed an
+            // operand and a clamp floor alike), so they're resolved too — an undeclared id then
+            // reports tweakUndeclared instead of failing later with a confusing "not numeric".
+            // Rounding stays literal: it's an enum (round/floor/ceil), schema-validated against
+            // a fixed set, so a placeholder there can't pass schema-validate in the first place.
+            Factor = Resolve(operation.Factor),
+            Delta = Resolve(operation.Delta),
+            Rounding = operation.Rounding,
+            ClampMin = Resolve(operation.ClampMin),
+            ClampMax = Resolve(operation.ClampMax),
             ExpectedOldValue = Resolve(operation.ExpectedOldValue),
             Xml = Resolve(operation.Xml),
             ExpectedOldXml = Resolve(operation.ExpectedOldXml),
@@ -265,6 +299,10 @@ public sealed class PatchPlanner
 
     private static bool HasPlaceholder(PatchOperation operation)
         => ContainsPlaceholder(operation.Value)
+            || ContainsPlaceholder(operation.Factor)
+            || ContainsPlaceholder(operation.Delta)
+            || ContainsPlaceholder(operation.ClampMin)
+            || ContainsPlaceholder(operation.ClampMax)
             || ContainsPlaceholder(operation.ExpectedOldValue)
             || ContainsPlaceholder(operation.Xml)
             || ContainsPlaceholder(operation.ExpectedOldXml);

@@ -40,7 +40,7 @@ Every page in this section uses synthetic placeholder values where examples need
 | Tool | When |
 |---|---|
 | **`pagonia-manager`** | Installing mods, managing profiles, deploying to a real game install with rollback. Most modders only need this. |
-| **`pagonia-patcher`** | Hand-authoring patches, validating `mod.yaml` files, schema-validating before publishing. |
+| **`pagonia-patcher`** | Hand-authoring patches, validating `mod.yaml` files, schema-validating before publishing. `validate-mod` also **advises on overlay conflict risk** — prefer additive `Incremental`/`Template` over destructive `Replace`/`Unload` so your mod stacks cleanly with others (see [Patch Conflict Model](mod-conflicts.md#gamedatabase-overlay-conflicts-authoring-advisor)). |
 | **`pagonia-paker`** | Inspecting `.pak` archives, building Pattern B overlay paks, classifying downloaded mods. |
 | **[Catalog Browser ↗](https://pagonia-land.github.io/Pagonia-Land/catalog/)** | Searching the extracted GameDatabase by entity / building / recipe / GUID — invaluable when figuring out what to patch. |
 

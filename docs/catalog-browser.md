@@ -38,10 +38,7 @@ The auto-load tries two paths, first-hit wins:
 1. `../../generated/catalog/search-index.json` — the standard local repo layout.
 2. `./search-index.json` — a sibling of `index.html`. Used by the GitHub Pages deployment (see below) and by anyone hosting the browser alongside a single index file.
 
-If both fail (some browsers block `fetch()` over the `file://` protocol; the snapshot may have moved or been removed), the page falls back to the manual controls:
-
-- click `Load default index` to retry the auto-load with a visible status, or
-- use the file picker and select `generated/catalog/search-index.json` (or any other index file).
+If both fail (some browsers block `fetch()` over the `file://` protocol; the snapshot may have moved or been removed), use the file picker to select `generated/catalog/search-index.json` (or any other index file).
 
 The file picker is also useful for inspecting an alternative index — e.g. a `snapshots/<version>/generated/catalog/search-index.json` from an older game version.
 
@@ -244,3 +241,7 @@ Coverage notes:
 The browser is intended to be safe for a public repository. It provides the tool, not the extracted or generated game-derived content.
 
 If permission is granted to publish derived catalog data later, the same browser can be used as the basis for a GitHub Pages version.
+
+## Changelog
+
+The catalog browser keeps its own [changelog](../tools/catalog-browser/CHANGELOG.md) — it ships continuously with this site rather than in the tagged tool releases, so it is tracked separately from the [manager / patcher / paker changelog](../tools/pagonia-manager/CHANGELOG.md).

@@ -41,6 +41,7 @@ public static class DiagnosticCodes
     public const string InvalidTweakAlias = "invalidTweakAlias";
     public const string TweakEnumMissingValues = "tweakEnumMissingValues";
     public const string TweakDefaultOutOfRange = "tweakDefaultOutOfRange";
+    public const string TweakDefaultNotInteger = "tweakDefaultNotInteger";
     public const string TweakDefaultNotEnumValue = "tweakDefaultNotEnumValue";
     public const string TweakMinGreaterThanMax = "tweakMinGreaterThanMax";
     public const string TweakDeclaredButUnused = "tweakDeclaredButUnused";
@@ -49,6 +50,7 @@ public static class DiagnosticCodes
     // Tweak templating ({{ tweaks.<id> }} resolution at plan time)
     public const string TweakValueResolved = "tweakValueResolved";
     public const string TweakValueOutOfRange = "tweakValueOutOfRange";
+    public const string TweakValueInvalid = "tweakValueInvalid";
     public const string TweakUndeclared = "tweakUndeclared";
     public const string TweakSyntaxError = "tweakSyntaxError";
     public const string TweakOverrideMalformed = "tweakOverrideMalformed";
@@ -61,6 +63,7 @@ public static class DiagnosticCodes
     public const string TargetEntityNameMismatch = "targetEntityNameMismatch";
     public const string TargetComponentMissing = "targetComponentMissing";
     public const string TargetPathMissing = "targetPathMissing";
+    public const string TargetPathMalformed = "targetPathMalformed";
     public const string ReplaceValueOnContainer = "replaceValueOnContainer";
     public const string TargetAttributeMissing = "targetAttributeMissing";
     public const string TargetListItemMissing = "targetListItemMissing";
@@ -73,6 +76,12 @@ public static class DiagnosticCodes
     public const string InvalidPatchOperationXml = "invalidPatchOperationXml";
     public const string TargetResolved = "targetResolved";
 
+    // Arithmetic operations (multiplyValue / addValue)
+    public const string ArithmeticTargetNotNumeric = "arithmeticTargetNotNumeric";
+    public const string ArithmeticOperandNotNumeric = "arithmeticOperandNotNumeric";
+    public const string ArithmeticResultClamped = "arithmeticResultClamped";
+    public const string ClampMinGreaterThanMax = "clampMinGreaterThanMax";
+
     // Planning
     public const string PatchPlanReady = "patchPlanReady";
     public const string CombinedPatchPlanReady = "combinedPatchPlanReady";
@@ -83,6 +92,7 @@ public static class DiagnosticCodes
 
     // Applying
     public const string ApplyBlocked = "applyBlocked";
+    public const string ApplyOutputOverlapsSource = "applyOutputOverlapsSource";
     public const string ApplyTargetMissing = "applyTargetMissing";
     public const string ApplyOldValueMismatch = "applyOldValueMismatch";
     public const string ApplyListItemMissing = "applyListItemMissing";
@@ -134,4 +144,15 @@ public static class DiagnosticCodes
     // Schema validation (mod.yaml / patch files / collection / lockfile against schemas/mod-patches/*.schema.json)
     public const string SchemaValidationOk = "schemaValidationOk";
     public const string SchemaValidationFailed = "schemaValidationFailed";
+
+    // Authoring advisor (Phase 5 — conflict-minimising lint over a mod's own overlay *.gd.xml)
+    public const string OverlayGdbFileMissing = "overlayGdbFileMissing";
+    public const string OverlayGdbUnreadable = "overlayGdbUnreadable";
+    public const string UsesDestructiveInheritanceMode = "usesDestructiveInheritanceMode";
+    public const string UnloadsReferencedEntity = "unloadsReferencedEntity";
+    public const string InheritanceConflictRisk = "inheritanceConflictRisk";
+    public const string ReplaceCouldBeIncremental = "replaceCouldBeIncremental";
+    // --game-root was supplied but loaded no *.gd.xml entities — the base-aware
+    // checks silently did nothing; warn so the user doesn't trust a false pass.
+    public const string ReferenceGameRootEmpty = "referenceGameRootEmpty";
 }

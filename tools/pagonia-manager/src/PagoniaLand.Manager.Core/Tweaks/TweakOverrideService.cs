@@ -18,11 +18,16 @@ public static class TweakValueOrigins
 }
 
 /// <summary>One tweak as the manager presents it: the mod's declaration, the current
-/// effective value, and where that value came from.</summary>
+/// effective value, and where that value came from. <see cref="Usages"/> lists the patch
+/// operations the tweak feeds (empty unless the caller asked the reader to scan them), so a UI
+/// can explain what setting the value actually does.</summary>
 public sealed record TweakValueView(
     TweakDeclaration Declaration,
     string Value,
-    string Origin);
+    string Origin)
+{
+    public IReadOnlyList<TweakUsage> Usages { get; init; } = [];
+}
 
 public sealed record TweakReadResult
 {
@@ -70,8 +75,15 @@ public sealed class TweakOverrideService
         // value the user changed reads as profile-override.
         var collectionTweaks = LoadCollectionCuratorTweaks(layout, ctx.Profile, modId);
 
+        var usagesByTweak = ctx.Usages
+            .GroupBy(u => u.TweakId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<TweakUsage>)g.ToList(), StringComparer.Ordinal);
+
         var views = ctx.Declarations
-            .Select(decl => new TweakValueView(decl, ResolveValue(ctx, decl), ResolveOrigin(ctx, decl, collectionTweaks)))
+            .Select(decl => new TweakValueView(decl, ResolveValue(ctx, decl), ResolveOrigin(ctx, decl, collectionTweaks))
+            {
+                Usages = usagesByTweak.TryGetValue(decl.Id, out var u) ? u : [],
+            })
             .ToList();
 
         return new TweakReadResult
@@ -113,7 +125,7 @@ public sealed class TweakOverrideService
             ctx.EnabledMod.Tweaks ?? new Dictionary<string, string>(),
             StringComparer.Ordinal)
         {
-            [declaration.Id] = value,
+            [declaration.Id] = NormalizeValue(declaration, value),
         };
 
         WriteTweaks(layout, ctx, updated);
@@ -199,7 +211,8 @@ public sealed class TweakOverrideService
         string ProfileName,
         ProfileFile Profile,
         ProfileEnabledMod EnabledMod,
-        IReadOnlyList<TweakDeclaration> Declarations);
+        IReadOnlyList<TweakDeclaration> Declarations,
+        IReadOnlyList<TweakUsage> Usages);
 
     private bool TryLoadContext(
         StoreLayout layout,
@@ -246,7 +259,7 @@ public sealed class TweakOverrideService
                 ManagerDiagnosticSeverity.Error,
                 ManagerDiagnosticCodes.ModInstallMissing,
                 $"Mod '{modId}' version '{enabledMod.Version}' is enabled in profile '{resolvedName}' but not installed at '{modDirectory}'."));
-            context = new Context(resolvedName, profile, enabledMod, []);
+            context = new Context(resolvedName, profile, enabledMod, [], []);
             return false;
         }
 
@@ -256,11 +269,15 @@ public sealed class TweakOverrideService
             .Select(ManagerDiagnostic.From));
         if (readResult.Value is null)
         {
-            context = new Context(resolvedName, profile, enabledMod, []);
+            context = new Context(resolvedName, profile, enabledMod, [], []);
             return false;
         }
 
         var declarations = readResult.Value.Manifest.Tweaks;
+
+        // The whole mod (manifest + patch files) is already loaded here, so scanning which ops each
+        // tweak feeds is free — it lets the reader hand the wizard an op-aware hint with no extra I/O.
+        var usages = TweakUsageScanner.Scan(readResult.Value);
 
         // Lazily migrate stored overrides keyed by a renamed tweak's old id to the
         // current id (the author lists the old id under `aliases:`). When anything
@@ -277,7 +294,7 @@ public sealed class TweakOverrideService
             _profileStore.Write(layout, profile);
         }
 
-        context = new Context(resolvedName, profile, enabledMod, declarations);
+        context = new Context(resolvedName, profile, enabledMod, declarations, usages);
         return true;
     }
 
@@ -453,6 +470,15 @@ public sealed class TweakOverrideService
     // Validate a user-supplied value against the tweak's declared type (and numeric range).
     // Type/enum-membership failures → tweakValueInvalid; a numeric value outside min..max →
     // tweakValueOutOfRange. Both are errors: at `tweak set` time the user can fix the value.
+    // Canonicalise a validated override before it is stored, so the patcher sees the exact
+    // string it expects: a boolean becomes lowercase "true"/"false" (the ternary does an exact
+    // match, so a stored " true " would otherwise resolve to the false branch), and every value
+    // is trimmed (e.g. a literal " 3 " must not land verbatim in an integer field).
+    private static string NormalizeValue(TweakDeclaration decl, string value)
+        => decl.Type == "boolean" && bool.TryParse(value, out var b)
+            ? b.ToString().ToLowerInvariant()
+            : value.Trim();
+
     private static bool TryValidateValue(string modId, TweakDeclaration decl, string value, List<ManagerDiagnostic> diagnostics)
     {
         switch (decl.Type)

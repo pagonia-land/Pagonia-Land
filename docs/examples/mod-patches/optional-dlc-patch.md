@@ -17,7 +17,7 @@ id: pagonia-land.example.production-tuning
 name: Production Tuning With Optional DLC Support
 version: 0.1.0
 author: TheLavaBlock
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 description: Demonstrates package-aware patch sets.
 
 requiredPackages:

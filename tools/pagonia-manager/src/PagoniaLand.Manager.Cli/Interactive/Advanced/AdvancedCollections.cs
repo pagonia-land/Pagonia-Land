@@ -18,7 +18,7 @@ internal static class AdvancedCollections
                 case "install":
                 {
                     AdvancedHelpers.Header("Collections → install");
-                    var from = AdvancedHelpers.PromptText("[bold]Collection source[/] [dim](.yaml file path or 'gh:owner/repo[[#ref]]/id')[/]:");
+                    if (!AdvancedHelpers.TryPromptText("[bold]Collection source[/] [dim](.yaml file path or 'gh:owner/repo[[#ref]]/id')[/]:", out var from)) { break; }
                     string? modsRoot = null;
                     Dictionary<string, string>? remoteModSources = null;
                     string? remoteTempDir = null;
@@ -49,7 +49,8 @@ internal static class AdvancedCollections
                     }
                     else
                     {
-                        modsRoot = AdvancedHelpers.PromptExistingPath("[bold]Mods root[/] [dim](folder containing the referenced mods)[/]:", mustBeDirectory: true);
+                        if (!AdvancedHelpers.TryPromptExistingPath("[bold]Mods root[/] [dim](folder containing the referenced mods)[/]:", out var mr, mustBeDirectory: true)) { break; }
+                        modsRoot = mr;
                     }
 
                     // Profile prompts. For remote-source installs we default to
@@ -59,7 +60,21 @@ internal static class AdvancedCollections
                     // leaving the active selection alone.
                     var customProfile = AdvancedHelpers.Confirm("Use a custom profile name?", defaultValue: false);
                     string? profileName = null;
-                    if (customProfile) { profileName = AdvancedHelpers.PromptText("Profile name:"); }
+                    if (customProfile)
+                    {
+                        if (!AdvancedHelpers.TryPromptText("Profile name:", out var pn))
+                        {
+                            // Backing out after a remote fetch would otherwise leak the
+                            // temp dir the install's finally normally cleans up.
+                            if (remoteTempDir is not null)
+                            {
+                                try { if (Directory.Exists(remoteTempDir)) { Directory.Delete(remoteTempDir, true); } }
+                                catch { /* best-effort cleanup */ }
+                            }
+                            break;
+                        }
+                        profileName = pn;
+                    }
                     var activate = AdvancedHelpers.Confirm(
                         "Activate the new profile after install? [dim](next plan / deploy targets it)[/]",
                         defaultValue: isRemote);
@@ -126,7 +141,7 @@ internal static class AdvancedCollections
                     AdvancedHelpers.Header("Collections → show");
                     var list = new CollectionLister().List(layout);
                     if (list.Count == 0) { AnsiConsole.MarkupLine("[dim](none)[/]"); Pause(); break; }
-                    var id = AnsiConsole.Prompt(new SelectionPrompt<string>().Title("Show:").AddChoices(list.Select(c => c.Id)));
+                    var id = AdvancedHelpers.Pick("Show:", list.Select(c => c.Id));
                     var c = list.First(x => x.Id == id);
                     AnsiConsole.MarkupLine($"[bold]{Markup.Escape(c.Id)}@{Markup.Escape(c.Version)}[/]");
                     if (!string.IsNullOrEmpty(c.Name)) AnsiConsole.MarkupLine($"  name: {Markup.Escape(c.Name)}");
@@ -143,7 +158,7 @@ internal static class AdvancedCollections
                     AdvancedHelpers.Header("Collections → uninstall");
                     var list = new CollectionLister().List(layout);
                     if (list.Count == 0) { AnsiConsole.MarkupLine("[dim](none)[/]"); Pause(); break; }
-                    var id = AnsiConsole.Prompt(new SelectionPrompt<string>().Title("Uninstall:").AddChoices(list.Select(c => c.Id)));
+                    var id = AdvancedHelpers.Pick("Uninstall:", list.Select(c => c.Id));
                     if (!AdvancedHelpers.Confirm($"Really uninstall [aqua]{Markup.Escape(id)}[/]? (mods + profile are kept)", defaultValue: false))
                     {
                         AnsiConsole.MarkupLine("[dim]Aborted.[/]"); Pause(); break;

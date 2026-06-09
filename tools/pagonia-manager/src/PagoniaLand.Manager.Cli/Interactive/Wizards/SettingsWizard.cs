@@ -89,7 +89,7 @@ internal static class SettingsWizard
     private static void RunAdd(StoreLayout layout)
     {
         AnsiConsole.WriteLine();
-        var spec = AdvancedHelpers.PromptText("Catalog source [dim](gh:owner/repo[[#ref]][[/path]], https://host/.../catalog.yaml, or file:absolute-or-relative-path)[/]:");
+        if (!AdvancedHelpers.TryPromptText("Catalog source [dim](gh:owner/repo[[#ref]][[/path]], https://host/.../catalog.yaml, or file:absolute-or-relative-path)[/]:", out var spec)) { return; }
         var r = new CatalogSubscriptionService().Add(layout, spec);
         DiagnosticsRenderer.Render(r.Diagnostics);
         Pause();
@@ -98,11 +98,7 @@ internal static class SettingsWizard
     private static void RunRemove(StoreLayout layout, IReadOnlyList<CatalogSource> subs)
     {
         AnsiConsole.WriteLine();
-        var canonical = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Remove which subscription?")
-                .HighlightStyle(new Style(foreground: Color.Aqua))
-                .AddChoices(subs.Select(s => s.Canonical)));
+        var canonical = AdvancedHelpers.Pick("Remove which subscription?", subs.Select(s => s.Canonical));
         var r = new CatalogSubscriptionService().Remove(layout, canonical);
         DiagnosticsRenderer.Render(r.Diagnostics);
         Pause();

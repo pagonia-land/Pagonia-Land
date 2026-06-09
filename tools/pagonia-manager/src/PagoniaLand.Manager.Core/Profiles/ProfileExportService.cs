@@ -26,7 +26,10 @@ public sealed class ProfileExportOptions
 /// enabled mods + load order become the collection's <c>mods</c> + <c>loadOrder</c>, each mod's
 /// per-profile tweak overrides fold into <c>mods[].tweaks</c>, and each mod's <c>source</c> is
 /// recovered from its install provenance (sidecar, then the originating collection lockfile),
-/// falling back to <c>"local"</c> with a warning. The local counterpart is
+/// falling back to <c>"local"</c> with a warning. Note this is a re-curation, not a byte-faithful
+/// round trip: the exported collection becomes the curator layer, so re-installing it seeds those
+/// tweak values as <c>collection-default</c> origin (not <c>external</c> user overrides) — by design.
+/// The local counterpart is
 /// <see cref="ProfileLifecycleService.Copy"/>; for a bit-identical reproduction the user shares
 /// the lockfile instead.
 /// </summary>
@@ -176,7 +179,7 @@ public sealed class ProfileExportService
                 Enabled = true,
                 RequiresPackages = baseMod.RequiresPackages,
                 Tweaks = tweaksById.TryGetValue(baseMod.Id, out var tweaks)
-                    ? new Dictionary<string, string>(tweaks)
+                    ? new Dictionary<string, string>(tweaks, StringComparer.Ordinal)
                     : null,
             });
         }

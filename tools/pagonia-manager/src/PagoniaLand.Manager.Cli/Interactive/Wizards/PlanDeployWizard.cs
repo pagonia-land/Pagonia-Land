@@ -19,7 +19,7 @@ internal static class PlanDeployWizard
             return;
         }
 
-        var gameRoot = AdvancedHelpers.PromptGameRoot(session);
+        if (!AdvancedHelpers.TryPromptGameRoot(session, out var gameRoot)) { return; }
 
         // First-deploy onboarding nudge: if an expansion is installed but we don't
         // know whether the player owns it, ask once before planning — so the gate

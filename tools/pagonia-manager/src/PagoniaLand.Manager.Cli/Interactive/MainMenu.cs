@@ -29,11 +29,16 @@ internal static class MainMenu
     public const string Advanced = "Advanced";
     public const string Quit = "Quit";
 
+    // Cursor lands on whatever was picked last time, so returning from a wizard
+    // drops you back on the same entry instead of resetting to the top.
+    private static string? _lastChoice;
+
     public static string Prompt()
     {
         var prompt = new SelectionPrompt<string>()
             .Title("[bold]What would you like to do?[/]")
             .PageSize(15)
+            .WrapAround()
             .HighlightStyle(new Style(foreground: Color.Aqua));
 
         prompt.AddChoiceGroup("[bold]Mods[/]", new[] { InstallMod, BrowseCatalogs, ManageActiveProfile });
@@ -41,6 +46,12 @@ internal static class MainMenu
         prompt.AddChoiceGroup("[bold]Status & Settings[/]", new[] { Status, Settings, CleanBackups });
         prompt.AddChoices(Advanced, Quit);
 
-        return AnsiConsole.Prompt(prompt);
+        if (_lastChoice is not null)
+        {
+            prompt.DefaultValue = _lastChoice;
+        }
+
+        _lastChoice = AnsiConsole.Prompt(prompt);
+        return _lastChoice;
     }
 }

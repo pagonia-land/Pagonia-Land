@@ -2,7 +2,7 @@
 
 This document records the known validation status for the currently extracted local game database. It is the reference point that distinguishes expected warnings from new problems introduced by a game update or a modding experiment.
 
-**Baseline:** `1.3.1-11826+193733` — 1.3.1 hotfix, 2026-06-02. See [CHANGELOG.md](CHANGELOG.md#131-11826193733-2026-06-02-hotfix) for the delta from the previous baseline (`1.3.0-11768+193445`, Meadowsong public release).
+**Baseline:** `1.3.2-11873+194094` — 1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09. See [CHANGELOG.md](CHANGELOG.md#132-11873194094-2026-06-09-hotfix) for the delta from the previous baseline (`1.3.1-11826+193733`, 1.3.1 hotfix).
 
 ## Current Status
 
@@ -17,10 +17,10 @@ Current result:
 | Check | Count |
 | --- | ---: |
 | XML files | 59 |
-| Entity definitions | 4,709 |
-| Unique entity GUIDs | 4,709 |
-| GUID-like references | 31,761 |
-| Resolved references | 24,420 |
+| Entity definitions | 4,711 |
+| Unique entity GUIDs | 4,711 |
+| GUID-like references | 31,763 |
+| Resolved references | 24,422 |
 | Null GUID references | 7,311 |
 | Other unresolved references | 30 |
 | Building recipe links | 95 |

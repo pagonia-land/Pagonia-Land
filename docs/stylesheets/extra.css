@@ -157,54 +157,64 @@
 }
 
 .hero__buttons {
+  margin-top: 1.7rem;
+}
+
+/* The `markdown` div wraps the three links in a single <p>, so the flex layout
+   has to live on that paragraph — .hero__buttons itself has only one child (the
+   <p>), which is why a gap set here never spaced the buttons. */
+.hero__buttons p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 1.25rem;
-  margin-top: 1.7rem;
+  margin: 0;
 }
 
-/* Secondary buttons (Download, Catalog Browser). Outline-only buttons washed
-   out against the dark hero, so give them a faint fill + a stronger border:
-   clearly tappable, but visibly subordinate to the solid primary CTA. */
+/* Hero CTA buttons — a stepped set of dark fills. "Get Started" is the darkest
+   at the top and each button below lightens by one step, but every shade stays
+   darker than the hero gradient's lightest end (#2d3748) so the last button
+   ("Catalog Browser") reads as a defined dark control, never an outline that
+   blends into the background. */
 .hero .md-button {
   margin: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.65);
-  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: white !important;
   font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
   transition:
     background-color 125ms ease,
     border-color 125ms ease,
-    color 125ms ease,
-    transform 125ms ease;
+    transform 125ms ease,
+    box-shadow 125ms ease,
+    filter 125ms ease;
+}
+
+/* The stepped shades, top -> bottom. Targeted by position so the gradation is
+   independent of Material's primary/secondary classes. */
+.hero__buttons p > a.md-button:nth-child(1) {
+  background: #10151d;
+} /* Get Started — darkest */
+.hero__buttons p > a.md-button:nth-child(2) {
+  background: #18212d;
+} /* Download */
+.hero__buttons p > a.md-button:nth-child(3) {
+  background: #202b3a;
+} /* Catalog Browser — still darker than the hero's #2d3748 */
+
+/* Keep "Get Started" the visual lead within the dark set: a brighter border. */
+.hero .md-button--primary {
+  border-color: rgba(255, 255, 255, 0.32);
+  font-weight: 700;
 }
 
 .hero .md-button:hover,
 .hero .md-button:focus {
-  background: rgba(255, 255, 255, 0.32);
-  border-color: white;
-  color: white;
+  border-color: rgba(255, 255, 255, 0.5);
+  color: white !important;
   transform: translateY(-1px);
-}
-
-/* Primary CTA — solid white with a soft lift so "Get Started" is unmistakably
-   the first click. */
-.hero .md-button--primary {
-  background: white;
-  color: #1f2937 !important;
-  border-color: white;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-}
-
-.hero .md-button--primary:hover,
-.hero .md-button--primary:focus {
-  background: #f3f4f6;
-  color: #1f2937 !important;
-  border-color: #f3f4f6;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.34);
+  filter: brightness(1.3);
 }
 
 /* Stack the icon/subtitle row on narrow viewports. */
@@ -232,7 +242,11 @@
     font-size: 1rem;
   }
 
-  .hero__buttons {
-    justify-content: center;
+  /* Stack the buttons in a centered column with real breathing room between
+     them (inline wrapping only gave line-height spacing, which read cramped). */
+  .hero__buttons p {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
   }
 }

@@ -60,6 +60,140 @@ public sealed class XmlTargetResolver
         return new TargetResolveResult(write, diagnostics);
     }
 
+    public TargetResolveResult ResolveMultiplyValue(string gameRoot, PatchOperation operation)
+        => ResolveArithmetic(gameRoot, operation, PatchOperationTypes.MultiplyValue, operation.Factor, "factor");
+
+    public TargetResolveResult ResolveAddValue(string gameRoot, PatchOperation operation)
+        => ResolveArithmetic(gameRoot, operation, PatchOperationTypes.AddValue, operation.Delta, "delta");
+
+    // Shared body for multiplyValue/addValue. The new value is computed at plan time from the
+    // declared expectedOldValue and the operand (factor/delta) — the file read only enforces the
+    // same expectedOldValue drift-guard replaceValue uses, so the result is deterministic and never
+    // depends on a prior mod's write. The math itself lives in ArithmeticPatchOps so a preview (the
+    // manager's tweak wizard) computes identical results; the write is stored as a literal new value
+    // so the apply step reuses ApplyReplaceValue verbatim.
+    private TargetResolveResult ResolveArithmetic(
+        string gameRoot,
+        PatchOperation operation,
+        string operationType,
+        string? operand,
+        string operandField)
+    {
+        if (string.IsNullOrWhiteSpace(operand))
+        {
+            return TargetResolveResult.Failed(Error(
+                DiagnosticCodes.MissingPatchOperationField,
+                $"Operation '{operation.Id}' requires '{operandField}' for {operationType}."));
+        }
+
+        var resolution = ResolveTargetNode(gameRoot, operation);
+        if (resolution.Failure is not null)
+        {
+            return resolution.Failure;
+        }
+
+        var diagnostics = new List<PatchDiagnostic>(resolution.Diagnostics);
+        var target = operation.Target;
+        var fullPath = resolution.FullPath;
+        var valueElement = resolution.TargetNode!;
+
+        // Same leaf-only guard as replaceValue: XElement.Value on a container concatenates descendant
+        // text, and writing it back would delete the children.
+        if (valueElement.HasElements)
+        {
+            return TargetResolveResult.Failed(Error(
+                DiagnosticCodes.ReplaceValueOnContainer,
+                $"{operationType} target '{target.Path}' has child elements — it must point at a leaf value.",
+                fullPath));
+        }
+
+        var oldValue = valueElement.Value;
+
+        if (!string.Equals(oldValue, operation.ExpectedOldValue, StringComparison.Ordinal))
+        {
+            return TargetResolveResult.Failed(Error(
+                DiagnosticCodes.ExpectedOldValueMismatch,
+                $"Expected old value '{operation.ExpectedOldValue}', but found '{oldValue}'.",
+                fullPath));
+        }
+
+        if (!ArithmeticPatchOps.TryParse(oldValue, out var oldNumber))
+        {
+            return TargetResolveResult.Failed(Error(
+                DiagnosticCodes.ArithmeticTargetNotNumeric,
+                $"{operationType} target value '{oldValue}' is not numeric.",
+                fullPath));
+        }
+
+        if (!ArithmeticPatchOps.TryParse(operand, out var operandNumber))
+        {
+            return TargetResolveResult.Failed(Error(
+                DiagnosticCodes.ArithmeticOperandNotNumeric,
+                $"{operationType} {operandField} '{operand}' is not numeric.",
+                fullPath));
+        }
+
+        double? clampMin = null;
+        if (operation.ClampMin is { } rawMin)
+        {
+            if (!ArithmeticPatchOps.TryParse(rawMin, out var parsedMin))
+            {
+                return TargetResolveResult.Failed(Error(
+                    DiagnosticCodes.ArithmeticOperandNotNumeric,
+                    $"{operationType} clampMin '{rawMin}' is not numeric.",
+                    fullPath));
+            }
+            clampMin = parsedMin;
+        }
+
+        double? clampMax = null;
+        if (operation.ClampMax is { } rawMax)
+        {
+            if (!ArithmeticPatchOps.TryParse(rawMax, out var parsedMax))
+            {
+                return TargetResolveResult.Failed(Error(
+                    DiagnosticCodes.ArithmeticOperandNotNumeric,
+                    $"{operationType} clampMax '{rawMax}' is not numeric.",
+                    fullPath));
+            }
+            clampMax = parsedMax;
+        }
+
+        var newValue = ArithmeticPatchOps.Compute(
+            operationType, oldNumber, operandNumber, operation.Rounding, clampMin, clampMax, out var clamped);
+
+        var write = new PatchWrite(
+            operation.Id,
+            operationType,
+            target.File,
+            target.EntityGuid,
+            target.EntityName,
+            target.Component,
+            target.Path,
+            null,
+            oldValue,
+            newValue);
+
+        diagnostics.Add(new PatchDiagnostic(
+            PatchDiagnosticSeverity.Info,
+            DiagnosticCodes.TargetResolved,
+            $"Resolved {target.EntityName}/{target.Component}/{target.Path}: {oldValue} -> {newValue}",
+            fullPath));
+
+        if (clamped)
+        {
+            var unclamped = ArithmeticPatchOps.Compute(
+                operationType, oldNumber, operandNumber, operation.Rounding, null, null, out _);
+            diagnostics.Add(new PatchDiagnostic(
+                PatchDiagnosticSeverity.Info,
+                DiagnosticCodes.ArithmeticResultClamped,
+                $"{operationType} result {unclamped} was clamped to {newValue} for operation '{operation.Id}'.",
+                fullPath));
+        }
+
+        return new TargetResolveResult(write, diagnostics);
+    }
+
     public TargetResolveResult ResolveReplaceAttribute(string gameRoot, PatchOperation operation)
     {
         if (string.IsNullOrWhiteSpace(operation.Attribute))
@@ -684,6 +818,17 @@ public sealed class XmlTargetResolver
                 fullPath)));
         }
 
+        // Catch a malformed path up front so the author gets a precise reason instead of the
+        // generic "did not resolve": an empty segment (a leading/trailing/doubled '/') or a
+        // predicate with no element name before '[' both otherwise silently match nothing.
+        if (TryFindMalformedPath(target.Path, out var malformedReason))
+        {
+            return TargetNodeResolution.Fail(TargetResolveResult.Failed(Error(
+                DiagnosticCodes.TargetPathMalformed,
+                $"Path '{target.Path}' is malformed: {malformedReason}.",
+                fullPath)));
+        }
+
         var targetNode = ResolvePath(component, target.Path);
 
         if (targetNode is null)
@@ -760,11 +905,40 @@ public sealed class XmlTargetResolver
             return null;
         }
 
-        var predicatePath = predicateParts[0];
-        var expectedValue = predicateParts[1].Trim('\'', '"');
+        // Trim whitespace around '=' so a naturally-formatted predicate like
+        // `Name = 'Widget'` resolves the same as `Name='Widget'`. The value is
+        // trimmed before stripping the surrounding quotes — otherwise a leading
+        // space would leave the opening quote in place (" 'Widget" survives a
+        // quote-only Trim).
+        var predicatePath = predicateParts[0].Trim();
+        var expectedValue = predicateParts[1].Trim().Trim('\'', '"');
 
         return current.Elements(elementName)
             .FirstOrDefault(element => ResolvePath(element, predicatePath)?.Value == expectedValue);
+    }
+
+    // Detect a structurally malformed path before resolution: an empty top-level segment
+    // (leading/trailing/doubled '/') or a predicate segment with no element name before '['.
+    // Both would otherwise resolve to null and surface as the generic "did not resolve".
+    private static bool TryFindMalformedPath(string path, out string reason)
+    {
+        foreach (var segment in SplitPath(path))
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+            {
+                reason = "it contains an empty path segment (a leading, trailing, or doubled '/')";
+                return true;
+            }
+
+            if (segment.IndexOf('[', StringComparison.Ordinal) == 0)
+            {
+                reason = $"the segment '{segment}' has a predicate with no element name before '['";
+                return true;
+            }
+        }
+
+        reason = string.Empty;
+        return false;
     }
 
     private static IEnumerable<string> SplitPath(string path)

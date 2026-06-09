@@ -21,7 +21,7 @@ internal static class GameExpansionsWizard
             return;
         }
 
-        var gameRoot = AdvancedHelpers.PromptGameRoot(session);
+        if (!AdvancedHelpers.TryPromptGameRoot(session, out var gameRoot)) { return; }
         var service = new ExpansionOwnershipService();
 
         while (true)

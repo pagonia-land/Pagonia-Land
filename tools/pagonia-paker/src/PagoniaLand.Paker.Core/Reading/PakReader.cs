@@ -46,7 +46,17 @@ public sealed class PakReader
             return new PakReadResult(null, diagnostics);
         }
 
-        var indexLength = (int)(footerOffset - indexBegin);
+        // footerOffset and indexBegin are both int64; for a >2.1 GB index region the difference
+        // would overflow a direct (int) cast and wrap negative. Validate against int.MaxValue first.
+        var indexLengthLong = footerOffset - indexBegin;
+        if (indexLengthLong > int.MaxValue)
+        {
+            diagnostics.Add(Error(
+                DiagnosticCodes.PakIndexOffsetInvalid,
+                $"Index region is {indexLengthLong} bytes, larger than the {int.MaxValue}-byte maximum this reader supports."));
+            return new PakReadResult(null, diagnostics);
+        }
+        var indexLength = (int)indexLengthLong;
         if (indexLength < PakFormatConstants.IndexHeaderSize)
         {
             diagnostics.Add(Error(
@@ -94,15 +104,18 @@ public sealed class PakReader
         var version = BinaryPrimitives.ReadUInt32LittleEndian(indexBuffer.AsSpan(0, 4));
         var count = BinaryPrimitives.ReadUInt32LittleEndian(indexBuffer.AsSpan(4, 8 - 4));
 
-        // A corrupt count (e.g. 0xFFFFFFFF) must not drive a multi-GB List allocation
-        // before a single entry is read. Each entry occupies at least one byte of index
-        // data, so the count can never exceed the index data area that follows the header.
+        // A corrupt count (e.g. 0xFFFFFFFF) must not drive a multi-GB List allocation or a
+        // ~2-billion-iteration read loop before a single entry is read. The smallest possible
+        // entry on disk is 18 bytes (1 compressed flag + 1-byte filename length + empty name +
+        // 8-byte begin + 8-byte size), so a count whose entries can't fit the index data area is
+        // corrupt — guard against count * minEntryBytes, not the looser count >= 1 byte bound.
+        const int minEntryBytes = 18;
         var indexDataLength = indexLength - PakFormatConstants.IndexHeaderSize;
-        if ((long)count > indexDataLength)
+        if ((long)count * minEntryBytes > indexDataLength)
         {
             diagnostics.Add(Error(
                 DiagnosticCodes.PakIndexTruncated,
-                $"Index header claims {count} entries but only {indexDataLength} byte(s) of index data follow it."));
+                $"Index header claims {count} entries (≥ {(long)count * minEntryBytes} bytes) but only {indexDataLength} byte(s) of index data follow it."));
             return new PakReadResult(null, diagnostics);
         }
 
@@ -268,11 +281,47 @@ public sealed class PakReader
             // GZipStream would happily continue into the next entry's gzip member.
             using var limited = new LimitedStream(pakStream, entry.SizeInPak);
             using var gzip = new GZipStream(limited, CompressionMode.Decompress, leaveOpen: true);
-            gzip.CopyTo(output);
+            // Bound the decompressed output to the index-declared uncompressed Size.
+            // SizeInPak only caps the *compressed* input; without an output cap a
+            // few MB of compressed zeros could inflate to gigabytes (decompression
+            // bomb). The declared Size is the contract — anything more (or less) is corrupt.
+            CopyDecompressedBounded(gzip, output, entry.Size, entry.Filename);
         }
         else
         {
             CopyExactly(pakStream, output, entry.Size);
+        }
+    }
+
+    /// <summary>
+    /// Copy exactly <paramref name="expectedSize"/> decompressed bytes from
+    /// <paramref name="source"/> (a <see cref="GZipStream"/>) to
+    /// <paramref name="destination"/>. Throws <see cref="InvalidDataException"/> if the
+    /// stream yields fewer bytes (truncated/corrupt) or even one more (the entry lies
+    /// about its uncompressed size — a decompression bomb or corrupt index).
+    /// </summary>
+    private static void CopyDecompressedBounded(Stream source, Stream destination, long expectedSize, string filename)
+    {
+        var buffer = new byte[81920];
+        var remaining = expectedSize;
+
+        while (remaining > 0)
+        {
+            var toRead = (int)Math.Min(buffer.Length, remaining);
+            var read = source.Read(buffer, 0, toRead);
+            if (read == 0)
+            {
+                throw new InvalidDataException(
+                    $"Entry '{filename}' decompressed to fewer bytes than its declared size ({expectedSize}); the pak index or entry data is corrupt.");
+            }
+            destination.Write(buffer, 0, read);
+            remaining -= read;
+        }
+
+        if (source.ReadByte() != -1)
+        {
+            throw new InvalidDataException(
+                $"Entry '{filename}' decompressed past its declared size ({expectedSize} bytes); refusing to continue (possible decompression bomb or corrupt index).");
         }
     }
 

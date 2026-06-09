@@ -3,7 +3,7 @@ id: pagonia-land.mods.cheaper-quarry
 name: Cheaper Quarry
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 description: Lowers the Quarry's construction cost by one Softwood Trunk, easing the early push into stone production. A small, safe early-game convenience edit.
 requiredPackages:
   - core

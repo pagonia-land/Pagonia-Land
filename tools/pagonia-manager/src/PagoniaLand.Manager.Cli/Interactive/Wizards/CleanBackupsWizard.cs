@@ -81,7 +81,8 @@ internal static class CleanBackupsWizard
         string? gameRoot = null;
         if (scoped)
         {
-            gameRoot = AdvancedHelpers.PromptGameRoot(session);
+            if (!AdvancedHelpers.TryPromptGameRoot(session, out var gr)) { return; }
+            gameRoot = gr;
         }
 
         var keep = AnsiConsole.Prompt(

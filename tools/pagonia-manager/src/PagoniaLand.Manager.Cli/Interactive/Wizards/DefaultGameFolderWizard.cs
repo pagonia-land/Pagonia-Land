@@ -72,9 +72,12 @@ internal static class DefaultGameFolderWizard
 
     private static void SetNewDefault(SessionState session, StoreLayout layout)
     {
-        var path = AdvancedHelpers.PromptExistingPath(
-            "[bold]New default game folder[/] (live [aqua]pak/[/] folder or extracted [aqua]game-gdb/[/]-style layout):",
-            mustBeDirectory: true);
+        if (!AdvancedHelpers.TryPromptExistingPath(
+                "[bold]New default game folder[/] (live [aqua]pak/[/] folder or extracted [aqua]game-gdb/[/]-style layout):",
+                out var path, mustBeDirectory: true))
+        {
+            return;
+        }
 
         session.GameRoot = path;
         var wrote = GameRootResolver.SetStoredDefault(layout, path);

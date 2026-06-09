@@ -13,7 +13,8 @@ Reference layout for a Git-hosted Pagonia Land mod repository. Two small example
 | Mod | Version | Description |
 |---|---|---|
 | [Cheaper Sawmill](mods/cheaper-sawmill/) | 0.1.0 | Reduces the Sawmill's Softwood Trunk construction cost by one. |
-| [Apple Icon Test](mods/apple-icon-test/) | 0.1.0 | Cosmetic DLC pack icon swap; demonstrates an optional `dlc1`-only patch set. |
+| [Wine Icon Test](mods/wine-icon-test/) | 0.1.0 | Cosmetic DLC pack icon swap; demonstrates an optional `dlc1`-only patch set. |
+| [Tweakable Economy](mods/tweakable-economy/) | 0.1.0 | Lowers the Sawmill cost via a `softwood-cost` **tweak** a player can adjust; the worked example for user-adjustable mods. |
 
 ### Presets / Modpacks (Collections)
 
@@ -70,7 +71,7 @@ Every push runs [`pagonia-patcher schema-validate`](.github/workflows/validate.y
 ```powershell
 pagonia-patcher schema-validate --repo-index .\index.yaml
 pagonia-patcher schema-validate --mod .\mods\cheaper-sawmill
-pagonia-patcher schema-validate --mod .\mods\apple-icon-test
+pagonia-patcher schema-validate --mod .\mods\wine-icon-test
 pagonia-patcher schema-validate --collection .\collections\beginner-qol.collection.yaml
 ```
 

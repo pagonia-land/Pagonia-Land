@@ -97,9 +97,17 @@ internal static class ConfigureModWizard
         const string ResetOne = "Reset to default";
         const string Cancel = "Cancel";
 
+        // Op-aware hint: when the tweak feeds a multiplyValue/addValue, explain that the value scales
+        // a vanilla amount and preview the effect of the current value (e.g. "multiplies 1 value: 4 -> 10").
+        var hint = TweakEffectHint.Detail(tweak, tweak.Value);
+        if (hint is not null)
+        {
+            AnsiConsole.MarkupLine($"[dim]{Markup.Escape(hint)}[/]");
+        }
+
         var action = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
-                .Title($"[bold]{Markup.Escape(tweak.Declaration.Id)}[/] — {Markup.Escape(tweak.Declaration.Label)} (current: [aqua]{Markup.Escape(tweak.Value)}[/])")
+                .Title($"[bold]{Markup.Escape(tweak.Declaration.Id)}[/] — {Markup.Escape(tweak.Declaration.Label ?? string.Empty)} (current: [aqua]{Markup.Escape(tweak.Value)}[/])")
                 .HighlightStyle(new Style(foreground: Color.Aqua))
                 .AddChoices(SetValue, ResetOne, Cancel));
 
@@ -109,7 +117,7 @@ internal static class ConfigureModWizard
                 var reset = service.Reset(layout, profileName: null, modId, tweak.Declaration.Id);
                 DiagnosticsRenderer.Render(reset.Diagnostics);
                 AnsiConsole.MarkupLine(reset.Mutated
-                    ? $"[green]'{Markup.Escape(tweak.Declaration.Id)}' reset to default ({Markup.Escape(tweak.Declaration.Default)}).[/]"
+                    ? $"[green]'{Markup.Escape(tweak.Declaration.Id)}' reset to default ({Markup.Escape(tweak.Declaration.Default ?? string.Empty)}).[/]"
                     : "[dim]No stored override to reset.[/]");
                 Pause();
                 return;
@@ -129,6 +137,13 @@ internal static class ConfigureModWizard
         if (result.Success)
         {
             AnsiConsole.MarkupLine($"[green]Set '{Markup.Escape(tweak.Declaration.Id)}' = {Markup.Escape(value)}.[/]");
+
+            // Echo what the new value does to the vanilla amount, so the effect is concrete.
+            var preview = TweakEffectHint.Detail(tweak, value);
+            if (preview is not null)
+            {
+                AnsiConsole.MarkupLine($"[dim]  -> {Markup.Escape(preview)}[/]");
+            }
         }
         Pause();
     }
@@ -203,6 +218,7 @@ internal static class ConfigureModWizard
         table.AddColumn("Value");
         table.AddColumn("Origin");
         table.AddColumn("Default");
+        table.AddColumn("Effect");
 
         foreach (var t in tweaks)
         {
@@ -210,7 +226,8 @@ internal static class ConfigureModWizard
                 Markup.Escape(t.Declaration.Id),
                 Markup.Escape(t.Value),
                 Markup.Escape(t.Origin),
-                Markup.Escape(t.Declaration.Default));
+                Markup.Escape(t.Declaration.Default),
+                Markup.Escape(TweakEffectHint.Summary(t, t.Value)));
         }
 
         AnsiConsole.Write(table);

@@ -267,9 +267,36 @@ public sealed class RollbackService
                     continue;
                 }
 
+                // Same integrity discipline as the RebuiltPaks branch above: if
+                // the backup's SHA-256 no longer matches what was recorded at
+                // deploy time, refuse rather than overwrite the live file with
+                // possibly-corrupt bytes.
+                var backupSha = ComputeFileSha256(backupPath);
+                if (!string.Equals(backupSha, entry.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    diagnostics.Add(new ManagerDiagnostic(
+                        ManagerDiagnosticSeverity.Error,
+                        ManagerDiagnosticCodes.RollbackHashMismatch,
+                        $"Backup file '{backupPath}' SHA-256 {backupSha} does not match the {entry.OriginalSha256} recorded at deploy time. Refusing to overwrite the live file with possibly-corrupt bytes."));
+                    continue;
+                }
+
                 AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(backupPath));
                 restored++;
             }
+        }
+
+        // If any canonical-pak / loose-XML restore failed (missing or corrupt backup),
+        // abort NOW — before touching the Pattern B overlay paks. Deleting overlays while
+        // the canonical paks are only partly restored would leave a mixed, unbootable
+        // install with no clean undo path.
+        if (diagnostics.Any(d => d.Severity == ManagerDiagnosticSeverity.Error))
+        {
+            return new RollbackResult
+            {
+                GameFingerprint = fingerprint,
+                Diagnostics = diagnostics,
+            };
         }
 
         // Pattern B addedFiles have no backup — they were created by deploy. Just delete them.
@@ -286,6 +313,20 @@ public sealed class RollbackService
                 added.RelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(targetPath))
             {
+                // Never destroy a foreign overlay. AddedFiles have no backup, so if the
+                // live bytes no longer match what we deployed, someone replaced this pak
+                // after deploy — leave it in place (even under --force) and warn, rather
+                // than silently discarding their file.
+                var liveSha = ComputeFileSha256(targetPath);
+                if (!string.IsNullOrEmpty(added.DeployedSha256)
+                    && !string.Equals(liveSha, added.DeployedSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    diagnostics.Add(new ManagerDiagnostic(
+                        ManagerDiagnosticSeverity.Warning,
+                        ManagerDiagnosticCodes.RollbackAddedFileChanged,
+                        $"Overlay '{targetPath}' changed since deploy '{latest.Timestamp}' (live SHA-256 {liveSha} != deployed {added.DeployedSha256}); left in place instead of deleted. Remove it manually if you no longer want it."));
+                    continue;
+                }
                 try
                 {
                     File.Delete(targetPath);
@@ -334,9 +375,14 @@ public sealed class RollbackService
         {
             Directory.Delete(layout.DeployTimestampDirectory(fingerprint, latest.Timestamp), recursive: true);
         }
-        catch (IOException)
+        catch (IOException ex)
         {
-            // Best-effort: history is already updated; leftover dir is harmless.
+            // History is already updated, so the leftover dir is harmless to rollback — but
+            // surface it so the user can reclaim the space and it isn't mistaken for a live backup.
+            diagnostics.Add(new ManagerDiagnostic(
+                ManagerDiagnosticSeverity.Warning,
+                ManagerDiagnosticCodes.RollbackLeftoverDirectory,
+                $"Rolled back, but could not remove the deploy directory for '{latest.Timestamp}': {ex.Message}. Remove it manually to reclaim space."));
         }
 
         diagnostics.Add(new ManagerDiagnostic(

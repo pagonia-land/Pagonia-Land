@@ -67,7 +67,7 @@ This is version-specific data. When the game database changes, regenerate the ca
 
 ## Current Local Snapshot
 
-The latest local catalog generation produced (as of `1.3.1-11826+193733`, 1.3.1 hotfix, 2026-06-02):
+The latest local catalog generation produced (as of `1.3.2-11873+194094`, 1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09):
 
 | Catalog | Count |
 | --- | ---: |
@@ -151,7 +151,7 @@ The latest local catalog generation produced (as of `1.3.1-11826+193733`, 1.3.1 
 | Shrine recipes | 35 |
 | Production graph edges | 277 |
 | Production chain graph edges | 450 |
-| Search index items | 26,856 |
+| Search index items | 26,858 |
 | Package filters | 4 |
 | Buildings with recipes | 26 |
 | Buildings with dependencies | 146 |

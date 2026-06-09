@@ -159,7 +159,7 @@ id: pagonia-land.collections.beginner-qol
 name: Beginner QoL Pack
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 description: Small safe quality-of-life patch set for new mod users.
 conflictPolicy: strict
 
@@ -170,9 +170,9 @@ mods:
     required: true
     enabled: true
 
-  - id: pagonia-land.example.apple-icon-test
+  - id: pagonia-land.example.wine-icon-test
     version: "0.1.0"
-    source: "https://example.invalid/apple-icon-test-0.1.0.zip"
+    source: "https://example.invalid/wine-icon-test-0.1.0.zip"
     required: false
     enabled: false
     requiresPackages:
@@ -180,7 +180,7 @@ mods:
 
 loadOrder:
   - pagonia-land.example.cheaper-sawmill
-  - pagonia-land.example.apple-icon-test
+  - pagonia-land.example.wine-icon-test
 ```
 
 The collection tells a mod manager what to fetch and enable. The patcher should still validate the individual mods and build the real patch plan.
@@ -212,7 +212,7 @@ mods:
     required: true
     enabled: true
     tweaks:
-      build-cost-multiplier: "1.5"   # curator dials this mod up for the "Hardcore" preset
+      softwood-cost: "6"   # curator dials this mod up for the "Hardcore" preset
       free-upkeep: false
 ```
 
@@ -243,7 +243,7 @@ Example:
 collectionLockVersion: "0.1"
 collectionId: pagonia-land.collections.beginner-qol
 collectionVersion: 0.1.0
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 
 mods:
   - id: pagonia-land.example.cheaper-sawmill
@@ -288,7 +288,7 @@ name: dlc1-testing
 collection: pagonia-land.collections.beginner-qol
 enabledMods:
   - pagonia-land.example.cheaper-sawmill
-  - pagonia-land.example.apple-icon-test
+  - pagonia-land.example.wine-icon-test
 disabledMods: []
 ```
 

@@ -28,12 +28,13 @@ internal static class AdvancedGameOps
     }
 
     // Thin alias around the cross-wizard helper so the local call sites stay terse.
-    private static string PromptGame(SessionState s) => AdvancedHelpers.PromptGameRoot(s);
+    // Returns false when the user backs out of the game-root prompt (empty line).
+    private static bool TryPromptGame(SessionState s, out string game) => AdvancedHelpers.TryPromptGameRoot(s, out game);
 
     private static void RunPlan(StoreLayout layout, SessionState s)
     {
         AdvancedHelpers.Header("Game Ops → plan");
-        var game = PromptGame(s);
+        if (!TryPromptGame(s, out var game)) { return; }
         var installVersion = GameVersionReader.TryRead(game, out var detectedVersion, out _) ? detectedVersion : null;
         // Resolve the install's expansion ownership so the plan's ownership gate fires
         // here too (parity with the scripted `plan`).
@@ -52,7 +53,7 @@ internal static class AdvancedGameOps
     private static void RunDeploy(StoreLayout layout, SessionState s)
     {
         AdvancedHelpers.Header("Game Ops → deploy");
-        var game = PromptGame(s);
+        if (!TryPromptGame(s, out var game)) { return; }
         var dryRun = AdvancedHelpers.Confirm("Dry-run only (no files written)?", defaultValue: false);
         var acceptWarnings = AdvancedHelpers.Confirm("Accept warnings (proceed despite blocking-warning diagnostics)?", defaultValue: false);
         DeployResult? r = null;
@@ -66,7 +67,7 @@ internal static class AdvancedGameOps
     private static void RunRollback(StoreLayout layout, SessionState s)
     {
         AdvancedHelpers.Header("Game Ops → rollback");
-        var game = PromptGame(s);
+        if (!TryPromptGame(s, out var game)) { return; }
         if (!AdvancedHelpers.Confirm("Roll back the latest deploy?", defaultValue: false))
         {
             AnsiConsole.MarkupLine("[dim]Aborted.[/]"); Pause(); return;
@@ -81,7 +82,7 @@ internal static class AdvancedGameOps
     private static void RunDeployStatus(StoreLayout layout, SessionState s)
     {
         AdvancedHelpers.Header("Game Ops → deploy-status");
-        var game = PromptGame(s);
+        if (!TryPromptGame(s, out var game)) { return; }
         var r = new DeployStatusService().List(layout, game);
         if (!r.HasDeploys) { AnsiConsole.MarkupLine("[dim]No deploys for this game install.[/]"); Pause(); return; }
         var latest = r.Deploys[0];
@@ -93,7 +94,7 @@ internal static class AdvancedGameOps
     private static void RunDeployList(StoreLayout layout, SessionState s)
     {
         AdvancedHelpers.Header("Game Ops → deploy-list");
-        var game = PromptGame(s);
+        if (!TryPromptGame(s, out var game)) { return; }
         var r = new DeployStatusService().List(layout, game);
         if (!r.HasDeploys) { AnsiConsole.MarkupLine("[dim]No deploys for this game install.[/]"); Pause(); return; }
         var t = new Table().Border(TableBorder.Rounded)

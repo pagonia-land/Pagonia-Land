@@ -2,6 +2,10 @@
 
 Short explanations for common terms used in this repository.
 
+## Arithmetic Operation
+
+A patch operation that computes a new value *relative* to the existing one rather than replacing it with a literal: `multiplyValue` (vanilla × factor) and `addValue` (vanilla + delta). The factor/delta can come from a [tweak](#tweak), so one shared multiplier scales many targets. See the [Patch Format → Arithmetic operations](mod-patch-format.md#arithmetic-operations-multiplyvalue-addvalue).
+
 ## Aspect
 
 A gameplay component attached to an entity.

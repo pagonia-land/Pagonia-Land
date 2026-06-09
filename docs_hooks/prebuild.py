@@ -57,6 +57,7 @@ IMPORTS = {
     "tools/pagonia-patcher/CLI.md": "_imported/tools/pagonia-patcher/cli.md",
     "tools/pagonia-paker/README.md": "_imported/tools/pagonia-paker/index.md",
     "tools/pagonia-paker/CLI.md": "_imported/tools/pagonia-paker/cli.md",
+    "tools/catalog-browser/CHANGELOG.md": "_imported/tools/catalog-browser/changelog.md",
     # Sandbox workshop docs — substantive READMEs only. The "your stuff goes
     # here" placeholders under sandbox/mods/ and sandbox/collections/ stay
     # local-only since they only make sense in a filesystem-tree context.

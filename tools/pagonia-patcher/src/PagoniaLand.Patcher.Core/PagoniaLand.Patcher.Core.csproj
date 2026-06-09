@@ -4,14 +4,21 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
-    <InformationalVersion>0.1.0-dev</InformationalVersion>
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <FileVersion>0.2.0.0</FileVersion>
+    <InformationalVersion>0.2.0-dev</InformationalVersion>
+    <!--
+      Keep InformationalVersion exactly as set: don't let the SDK auto-append
+      "+<git commit>". Locally that kept the version clean (0.1.0-dev), and in
+      the release workflow it prevents a double commit hash, since release.yml
+      already stamps "+<sha>" explicitly (otherwise: 0.1.0+<sha>.<sha>).
+    -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="YamlDotNet" Version="18.0.0" />
     <!--
       JsonSchema.Net is used by SchemaValidator to validate mod.yaml +
       patch files + collection / lockfile YAML against the canonical JSON
@@ -19,7 +26,7 @@
       package's published binaries are trimmable and the schema
       validation path does not need runtime code generation.
     -->
-    <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
+    <PackageReference Include="JsonSchema.Net" Version="9.2.1" />
   </ItemGroup>
 
   <!--
@@ -49,12 +56,12 @@
     copies it in. Manifest resource name: PagoniaLand.Patcher.Schemas.<file>.
   -->
   <ItemGroup>
-    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\mod.schema.json"             LogicalName="PagoniaLand.Patcher.Schemas.mod.schema.json" />
-    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\patch-file.schema.json"      LogicalName="PagoniaLand.Patcher.Schemas.patch-file.schema.json" />
-    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\collection.schema.json"      LogicalName="PagoniaLand.Patcher.Schemas.collection.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\mod.schema.json" LogicalName="PagoniaLand.Patcher.Schemas.mod.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\patch-file.schema.json" LogicalName="PagoniaLand.Patcher.Schemas.patch-file.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\collection.schema.json" LogicalName="PagoniaLand.Patcher.Schemas.collection.schema.json" />
     <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\collection-lock.schema.json" LogicalName="PagoniaLand.Patcher.Schemas.collection-lock.schema.json" />
-    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\repo-index.schema.json"      LogicalName="PagoniaLand.Patcher.Schemas.repo-index.schema.json" />
-    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\catalog.schema.json"         LogicalName="PagoniaLand.Patcher.Schemas.catalog.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\repo-index.schema.json" LogicalName="PagoniaLand.Patcher.Schemas.repo-index.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\mod-patches\catalog.schema.json" LogicalName="PagoniaLand.Patcher.Schemas.catalog.schema.json" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,22 @@
+patchFormatVersion: "0.1"
+id: pagonia-land.test.overlay-unload-dangling
+name: Overlay Unload Dangling Test
+version: "0.1.0"
+author: TheLavaBlock
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Artificial Pattern B overlay that Unloads one entity while another entity in
+  the same overlay still references its GUID — the reference would dangle.
+  Exercises the advisor's unload-dangling warning.
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: overlay-unload-test/gdb/units.gd.xml
+      source: entries/units.gd.xml
+pak:
+  name: overlay-unload-test
+  summary: Advisor fixture — unload of a still-referenced entity
+  author: TheLavaBlock
+  dependencies:
+    - core

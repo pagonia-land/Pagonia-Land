@@ -32,6 +32,19 @@ public sealed class PatchApplier
             ];
         }
 
+        // CopyGameRoot wipes outputGameRoot before writing. If output overlaps source (same dir,
+        // or one nested in the other) that wipe would destroy the source — refuse up front.
+        if (PathsOverlap(sourceGameRoot, outputGameRoot))
+        {
+            return
+            [
+                new PatchDiagnostic(
+                    PatchDiagnosticSeverity.Error,
+                    DiagnosticCodes.ApplyOutputOverlapsSource,
+                    $"Output game root '{outputGameRoot}' overlaps the source game root '{sourceGameRoot}'. Refusing to apply: the output is wiped before writing, which would destroy the source. Use a separate output directory.")
+            ];
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         CopyGameRoot(sourceGameRoot, outputGameRoot, cancellationToken);
 
@@ -206,6 +219,10 @@ public sealed class PatchApplier
             applied = write.OperationType switch
             {
                 PatchOperationTypes.ReplaceValue => ApplyReplaceValue(write, targetElement, outputPathForDiagnostics, diagnostics),
+                // Arithmetic ops resolve to a concrete OldValue->NewValue leaf write at plan time, so
+                // applying them is byte-for-byte the same as a replaceValue (old-value drift-check + set).
+                PatchOperationTypes.MultiplyValue => ApplyReplaceValue(write, targetElement, outputPathForDiagnostics, diagnostics),
+                PatchOperationTypes.AddValue => ApplyReplaceValue(write, targetElement, outputPathForDiagnostics, diagnostics),
                 PatchOperationTypes.ReplaceAttribute => ApplyReplaceAttribute(write, targetElement, outputPathForDiagnostics, diagnostics),
                 PatchOperationTypes.ReplaceNode => ApplyReplaceNode(write, targetElement, outputPathForDiagnostics, diagnostics),
                 PatchOperationTypes.AddListItem => ApplyAddListItem(write, targetElement, outputPathForDiagnostics, diagnostics),
@@ -597,6 +614,18 @@ public sealed class PatchApplier
     /// </summary>
     private static string EntryRelativePath(string entryPath)
         => entryPath.Replace('/', Path.DirectorySeparatorChar);
+
+    // True when the two roots are the same directory, or one is nested inside the other —
+    // any case where wiping the output would also remove (part of) the source.
+    private static bool PathsOverlap(string a, string b)
+    {
+        var fa = Path.TrimEndingDirectorySeparator(Path.GetFullPath(a));
+        var fb = Path.TrimEndingDirectorySeparator(Path.GetFullPath(b));
+        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return string.Equals(fa, fb, cmp)
+            || fa.StartsWith(fb + Path.DirectorySeparatorChar, cmp)
+            || fb.StartsWith(fa + Path.DirectorySeparatorChar, cmp);
+    }
 
     private static void CopyGameRoot(string sourceGameRoot, string outputGameRoot, CancellationToken cancellationToken)
     {

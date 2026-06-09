@@ -1,9 +1,9 @@
 collectionFormatVersion: 0.1
-id: example.qol-bundle
+id: pagonia-land.example.qol-bundle
 name: Sandbox Example Bundle
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 description: >-
   Bundles the two example mods so the patcher applies them together. Used by
   docs/first-mods.md to demonstrate how collections work. Copy this file into
@@ -11,17 +11,17 @@ description: >-
 conflictPolicy: strict
 
 mods:
-  - id: example.lower-sawmill-cost
+  - id: pagonia-land.example.lower-sawmill-cost
     version: "0.1.0"
     source: local
     required: true
     enabled: true
-  - id: example.remove-stone-cost
+  - id: pagonia-land.example.remove-stone-cost
     version: "0.1.0"
     source: local
     required: true
     enabled: true
 
 loadOrder:
-  - example.lower-sawmill-cost
-  - example.remove-stone-cost
+  - pagonia-land.example.lower-sawmill-cost
+  - pagonia-land.example.remove-stone-cost

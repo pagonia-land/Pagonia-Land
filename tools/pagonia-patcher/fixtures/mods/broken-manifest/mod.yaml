@@ -3,7 +3,8 @@ id: Bad Mod Id
 name: Broken Fixture Mod
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "beta-update"
+# Intentionally invalid: this fixture exercises the invalidGameDatabaseVersion validator.
+gameDatabaseVersion: "not-a-version"
 description: Fixture mod with intentional validation errors.
 requiredPackages:
   - core

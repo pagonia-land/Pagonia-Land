@@ -156,7 +156,10 @@ foreach ($rel in $versionFiles) {
 foreach ($rel in $valueFiles.Keys) {
     $text = Read-Doc $rel
     foreach ($value in $valueFiles[$rel]) {
-        if (-not $text.Contains($value)) {
+        # Digit-boundary match so a count like "811" isn't satisfied by a superstring such as
+        # "8110" (a stale-but-larger value Contains() would have happily accepted). Only digit
+        # adjacency is guarded, so a version followed by punctuation ("1.3.1.") still matches.
+        if ($text -notmatch ('(?<![0-9])' + [regex]::Escape($value) + '(?![0-9])')) {
             $problems.Add("$rel : missing canonical value '$value' (stale or not yet updated).")
         }
     }

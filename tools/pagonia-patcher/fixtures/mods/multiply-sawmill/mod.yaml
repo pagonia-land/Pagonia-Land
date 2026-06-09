@@ -1,0 +1,30 @@
+patchFormatVersion: 0.1
+id: pagonia-land.fixture.multiply-sawmill
+name: Fixture Multiply Sawmill
+version: 0.1.0
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Fixture mod that scales the Sawmill softwood cost with an arithmetic multiplyValue op.
+requiredPackages:
+  - core
+optionalPackages: []
+requiresNewGame: false
+safeToRemove: unknown
+multiplayerSafe: unknown
+campaignSafe: unknown
+loadAfter: []
+loadBefore: []
+incompatibleWith: []
+tags:
+  - tweakable
+patches:
+  - patches/buildings.yaml
+tweaks:
+  - id: cost-multiplier
+    type: number
+    label: Build-cost multiplier
+    description: Scales the Sawmill softwood trunk cost relative to its vanilla value.
+    default: 1.5
+    min: 0.1
+    max: 5
+    step: 0.1

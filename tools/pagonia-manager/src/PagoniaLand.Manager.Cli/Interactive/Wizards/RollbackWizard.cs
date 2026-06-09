@@ -18,7 +18,7 @@ internal static class RollbackWizard
             return;
         }
 
-        var gameRoot = AdvancedHelpers.PromptGameRoot(session);
+        if (!AdvancedHelpers.TryPromptGameRoot(session, out var gameRoot)) { return; }
 
         // Show what would be reverted BEFORE doing anything, so the user can
         // bail out without surprise.

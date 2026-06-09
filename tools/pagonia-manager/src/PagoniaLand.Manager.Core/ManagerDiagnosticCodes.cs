@@ -46,7 +46,15 @@ public static class ManagerDiagnosticCodes
     public const string ProfileEmpty = "manager.profileEmpty";
     public const string ProfileGameVersionMismatch = "manager.profileGameVersionMismatch";
     public const string ModInstallMissing = "manager.modInstallMissing";
+    // an enabled mod is installed on disk but its manifest could not be parsed —
+    // must not be silently dropped from health/plan roll-ups.
+    public const string ModManifestUnreadable = "manager.modManifestUnreadable";
     public const string GameRootMissing = "manager.gameRootMissing";
+
+    // two enabled mods destructively (Replace/Unload) target the same inherited
+    // GameDatabase entity — the engine resolves by load order (last-loaded wins),
+    // so the earlier mod's change is silently overridden. Advisory (warning).
+    public const string CrossModOverlayConflict = "manager.crossModOverlayConflict";
 
     public const string DeployBlockedByErrors = "manager.deployBlockedByErrors";
     public const string DeployBlockedByWarnings = "manager.deployBlockedByWarnings";
@@ -69,6 +77,9 @@ public static class ManagerDiagnosticCodes
     public const string RollbackCompleted = "manager.rollbackCompleted";
     public const string RollbackBackupMissing = "manager.rollbackBackupMissing";
     public const string DeployHistoryUnreadable = "manager.deployHistoryUnreadable";
+    // a write to the live install threw mid-deploy; the install was restored from the
+    // just-written backups (and any overlay paks removed) to its pre-deploy state.
+    public const string DeployMidWriteRolledBack = "manager.deployMidWriteRolledBack";
 
     public const string SchemaValidationOk = "manager.schemaValidationOk";
     public const string SchemaValidationFailed = "manager.schemaValidationFailed";
@@ -95,6 +106,16 @@ public static class ManagerDiagnosticCodes
     // live-install rollback from pak backups.
     public const string PakRollbackRestored = "manager.pakRollbackRestored";
     public const string RollbackHashMismatch = "manager.rollbackHashMismatch";
+    // rollback succeeded but its timestamp directory couldn't be deleted (e.g. a locked
+    // backup) — warn so the leftover isn't mistaken for a live backup.
+    public const string RollbackLeftoverDirectory = "manager.rollbackLeftoverDirectory";
+    // two source paks contain the same entry path while building the deploy owner map;
+    // the first discovered pak is patched. Surfaced so the overlap is visible.
+    public const string DuplicatePakEntryOwner = "manager.duplicatePakEntryOwner";
+    // a Pattern B overlay pak was replaced after deploy (live SHA-256 no longer
+    // matches the recorded deployedSha256) — rollback leaves it in place instead
+    // of deleting a file it no longer owns. Warning, non-blocking.
+    public const string RollbackAddedFileChanged = "manager.rollbackAddedFileChanged";
 
     // persistent default game folder.
     public const string DefaultGameRootStored = "manager.defaultGameRootStored";
@@ -139,12 +160,18 @@ public static class ManagerDiagnosticCodes
     public const string ModIoCollectionsUnsupported = "manager.modIoCollectionsUnsupported";
     public const string ModIoUnknownGameAlias = "manager.modIoUnknownGameAlias";
     public const string ModIoVersionPinNotImplemented = "manager.modIoVersionPinNotImplemented";
+    // mod.io returned a download URL whose scheme is not https — refuse rather than
+    // fetch UGC bytes over an unencrypted/unknown transport.
+    public const string ModIoInsecureDownloadUrl = "manager.modIoInsecureDownloadUrl";
 
     // direct-URL ZIP source — install --from https://example.com/<mod>.zip.
     public const string DirectUrlFetched = "manager.directUrlFetched";
     public const string DirectUrlFetchFailed = "manager.directUrlFetchFailed";
     public const string DirectUrlInsecureHttp = "manager.directUrlInsecureHttp";
     public const string DirectUrlTraversalRefused = "manager.directUrlTraversalRefused";
+    // a downloaded archive declares too many entries / too much uncompressed data to
+    // extract safely — refused as a possible zip bomb.
+    public const string DirectUrlArchiveTooLarge = "manager.directUrlArchiveTooLarge";
     public const string DirectUrlArchiveDrift = "manager.directUrlArchiveDrift";
 
     // catalogs — federated multi-subscription discovery.

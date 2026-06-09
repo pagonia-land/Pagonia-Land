@@ -59,7 +59,7 @@ Run the scripts under [`scripts/`](../scripts/) to regenerate machine-readable a
 | `generated/catalog/search-index.json` | Index that powers `tools/catalog-browser/index.html` |
 | `generated/diffs/<old>_to_<new>/` | Per-version diff reports produced by `scripts/diff_versions.ps1` |
 
-Current scan: **4,709 entities · 31,761 references · 24,420 resolved · 7,311 explicit null GUIDs · 30 other unresolved (12 known-stable engine wildcards + 18 transient `NoMVP.` orphans)**. Full breakdown in [Validation Baseline](../VALIDATION_BASELINE.md).
+Current scan: **4,711 entities · 31,763 references · 24,422 resolved · 7,311 explicit null GUIDs · 30 other unresolved (12 known-stable engine wildcards + 18 transient `NoMVP.` orphans)**. Full breakdown in [Validation Baseline](../VALIDATION_BASELINE.md).
 
 ## Local Snapshots And Version Updates
 

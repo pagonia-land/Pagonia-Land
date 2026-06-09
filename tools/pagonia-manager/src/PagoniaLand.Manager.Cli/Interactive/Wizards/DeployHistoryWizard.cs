@@ -23,7 +23,7 @@ internal static class DeployHistoryWizard
             return;
         }
 
-        var gameRoot = AdvancedHelpers.PromptGameRoot(session);
+        if (!AdvancedHelpers.TryPromptGameRoot(session, out var gameRoot)) { return; }
         var result = new DeployStatusService().List(layout, gameRoot);
         DiagnosticsRenderer.Render(result.Diagnostics);
 

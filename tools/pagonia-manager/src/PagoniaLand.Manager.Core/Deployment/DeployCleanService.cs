@@ -48,7 +48,8 @@ public sealed class DeployCleanResult
 /// command is the user-opt-in to reclaim disk space without changing that
 /// default. the current release does NOT auto-run it; the wizard surfaces a
 /// <c>manager.deploysStorageHigh</c> hint when the total store/deploys/
-/// size crosses ~5 GB, but the actual cleanup is always explicit.</para>
+/// size crosses ~15 GB (a single live deploy already backs up ~5 GB since
+/// core.pak is that large), but the actual cleanup is always explicit.</para>
 /// </summary>
 public sealed class DeployCleanService
 {
@@ -122,8 +123,15 @@ public sealed class DeployCleanService
             // history.Deploys is newest-first by construction (DeployService
             // prepends the new entry). Take the first `keep` to preserve;
             // everything past that is a candidate for removal.
-            var toKeep = history.Deploys.Take(keep).ToList();
-            var toMaybeRemove = history.Deploys.Skip(keep).ToList();
+            //
+            // Always retain the NEWEST deploy per fingerprint as the rollback anchor:
+            // `rollback` reverts Deploys[0], so removing it (e.g. `--keep 0` on a
+            // present but non-active install) would silently destroy that install's
+            // only undo path. The lastDeploy guard below only protects the *active*
+            // install; flooring the effective keep at 1 protects every fingerprint.
+            var effectiveKeep = Math.Max(keep, 1);
+            var toKeep = history.Deploys.Take(effectiveKeep).ToList();
+            var toMaybeRemove = history.Deploys.Skip(effectiveKeep).ToList();
 
             foreach (var entry in toKeep)
             {
@@ -133,7 +141,7 @@ public sealed class DeployCleanService
                     Timestamp: entry.Timestamp,
                     Profile: entry.Profile,
                     Action: DeployCleanAction.Kept,
-                    Reason: $"within keep-{keep} window"));
+                    Reason: keep == 0 ? "newest deploy retained as the rollback anchor" : $"within keep-{keep} window"));
             }
 
             var keptAfterProtection = new List<DeployHistoryEntry>(toKeep);
@@ -224,6 +232,28 @@ public sealed class DeployCleanService
             catch { /* best-effort */ }
         }
         return total;
+    }
+
+    /// <summary>Per-fingerprint byte usage under <c>&lt;store&gt;/deploys/</c>, largest
+    /// first. Each immediate subdirectory of the deploys folder is one game-install
+    /// fingerprint. Best-effort like <see cref="ComputeDeploysSize"/>; lets the status
+    /// dashboard break the total down by which install's backups dominate.</summary>
+    public static IReadOnlyList<(string Fingerprint, long Bytes)> ComputeDeploysSizeByFingerprint(StoreLayout layout)
+    {
+        if (!Directory.Exists(layout.DeploysDirectory)) return [];
+        var result = new List<(string Fingerprint, long Bytes)>();
+        foreach (var dir in Directory.EnumerateDirectories(layout.DeploysDirectory))
+        {
+            long bytes = 0;
+            foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                try { bytes += new FileInfo(file).Length; }
+                catch { /* best-effort */ }
+            }
+            result.Add((Path.GetFileName(dir), bytes));
+        }
+        result.Sort((a, b) => b.Bytes.CompareTo(a.Bytes));
+        return result;
     }
 
     private (string Fingerprint, string Timestamp)? ResolveActiveLastDeploy(StoreLayout layout)

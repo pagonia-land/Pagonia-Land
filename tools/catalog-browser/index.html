@@ -30,14 +30,18 @@
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #111418;
-        --panel: #191f26;
+        /* Aligned to the docs site's dark palette: the same blue-grey family as
+           the homepage hero (#1f2937 / #2d3748) and its stepped CTA buttons, so
+           the catalog reads as one site with the docs. Accent stays teal to
+           match the docs' `accent: teal`. */
+        --bg: #10151d;
+        --panel: #1f2937;
         --text: #eef2f5;
         --muted: #a7b0ba;
-        --line: #303944;
+        --line: #2d3748;
         --accent: #26a69a;
         --accent-strong: #4db6ac;
-        --chip: #1f3031;
+        --chip: #233143;
         --warn: #f1c46a;
       }
     }
@@ -574,8 +578,7 @@
 
       <div class="loader">
         <input id="fileInput" type="file" accept=".json,application/json" aria-label="Load a generated search-index.json">
-        <button id="loadDefault" type="button" class="secondary">Load default index</button>
-        <span id="loadStatus" class="subtle">Select `generated/catalog/search-index.json` or load the default relative path.</span>
+        <span id="loadStatus" class="subtle">Select your generated/catalog/search-index.json file.</span>
       </div>
 
       <div class="controls">
@@ -654,7 +657,6 @@
 
     const els = {
       fileInput: document.querySelector("#fileInput"),
-      loadDefault: document.querySelector("#loadDefault"),
       loadStatus: document.querySelector("#loadStatus"),
       query: document.querySelector("#query"),
       typeFilter: document.querySelector("#typeFilter"),
@@ -1874,7 +1876,6 @@
       }
     });
 
-    els.loadDefault.addEventListener("click", loadDefaultIndex);
     els.query.addEventListener("input", applyFilters);
     els.typeFilter.addEventListener("change", () => {
       // Type drives the Category set, which in turn drives UI Group. Refresh

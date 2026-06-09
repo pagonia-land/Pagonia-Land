@@ -10,6 +10,12 @@ public static class PatchOperationTypes
     /// <summary>Replace a single text value at a resolved XML path.</summary>
     public const string ReplaceValue = "replaceValue";
 
+    /// <summary>Multiply the resolved leaf value by a numeric <c>factor</c>. Computed at plan time from <c>expectedOldValue</c>.</summary>
+    public const string MultiplyValue = "multiplyValue";
+
+    /// <summary>Add a numeric <c>delta</c> to the resolved leaf value. Computed at plan time from <c>expectedOldValue</c>.</summary>
+    public const string AddValue = "addValue";
+
     /// <summary>Replace one attribute on a resolved XML node. Reserved for Operation Group 1.</summary>
     public const string ReplaceAttribute = "replaceAttribute";
 

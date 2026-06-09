@@ -1,0 +1,23 @@
+patchFormatVersion: "0.1"
+id: pagonia-land.test.overlay-unload-base-referenced
+name: Overlay Unload Base-Referenced Test
+version: "0.1.0"
+author: TheLavaBlock
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Artificial Pattern B overlay that Unloads a resource the base game's Sawmill
+  still references. Base-free this looks clean (the GUID appears only as the
+  unload pointer); with --game-root the advisor sees the dangling reference in
+  the shipped database. Tested against fixtures/game-gdb-mini.
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: overlay-unload-base-test/gdb/resources.gd.xml
+      source: entries/resources.gd.xml
+pak:
+  name: overlay-unload-base-test
+  summary: Advisor fixture — base-aware unload of a referenced resource
+  author: TheLavaBlock
+  dependencies:
+    - core

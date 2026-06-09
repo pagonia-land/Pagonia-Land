@@ -80,6 +80,11 @@ if (args.Length >= 1 && args[0] == "status")
     return RunStatus(args[1..]);
 }
 
+if (args.Length >= 1 && args[0] == "doctor")
+{
+    return RunDoctor(args[1..]);
+}
+
 if (args.Length >= 1 && args[0] == "plan")
 {
     return RunPlan(args[1..]);
@@ -1291,6 +1296,55 @@ static int RunProfileShow(string[] tail)
     return ManagerExitCodes.Success;
 }
 
+static int RunDoctor(string[] tail)
+{
+    string? storePath = null;
+    string? gamePath = null;
+    var i = 0;
+    while (i < tail.Length)
+    {
+        if (tail[i] == "--store" && i + 1 < tail.Length) { storePath = tail[i + 1]; i += 2; }
+        else if (tail[i] == "--game" && i + 1 < tail.Length) { gamePath = tail[i + 1]; i += 2; }
+        else
+        {
+            Console.Error.WriteLine("Usage: pagonia-manager doctor [--store <path>] [--game <game-root>]");
+            return ManagerExitCodes.Usage;
+        }
+    }
+
+    var resolution = StoreRootResolver.Resolve(storePath);
+    var layout = new StoreLayout(resolution.Root);
+    var resolvedGame = GameRootResolver.Resolve(layout, gamePath);
+    var report = new DoctorService().Run(layout, resolvedGame.HasPath ? resolvedGame.Path : null);
+
+    Console.WriteLine($"pagonia-manager doctor — store {layout.Root}");
+    if (resolvedGame.HasPath)
+    {
+        Console.WriteLine($"  game root: {resolvedGame.Path} ({resolvedGame.Source})");
+    }
+    Console.WriteLine();
+
+    foreach (var check in report.Checks)
+    {
+        var marker = check.Status switch
+        {
+            DoctorStatus.Ok => "OK  ",
+            DoctorStatus.Warning => "WARN",
+            DoctorStatus.Error => "FAIL",
+            _ => "SKIP",
+        };
+        Console.WriteLine($"[{marker}] {check.Name}: {check.Summary}");
+        PrintDiagnostics(check.Diagnostics);
+    }
+
+    Console.WriteLine();
+    var errors = report.Checks.Count(c => c.Status == DoctorStatus.Error);
+    var warnings = report.Checks.Count(c => c.Status == DoctorStatus.Warning);
+    Console.WriteLine($"Summary: {report.Checks.Count} checks, {errors} error(s), {warnings} warning(s).");
+
+    return report.HasErrors ? ManagerExitCodes.Error : ManagerExitCodes.Success;
+}
+
 static int RunPlan(string[] tail)
 {
     string? gameRoot = null;
@@ -1630,7 +1684,7 @@ static int RunDeploysClean(string[] tail)
     if (keep is null)
     {
         Console.Error.WriteLine("Usage: pagonia-manager deploys clean --keep <N> [--game <path>] [--dry-run] [--store <path>]");
-        Console.Error.WriteLine("       --keep is required (use 0 to remove every deploy under each fingerprint, subject to the lastDeploy guard)");
+        Console.Error.WriteLine("       --keep is required (use 0 to prune all but the newest deploy per fingerprint; the newest is always kept as the rollback anchor)");
         return ManagerExitCodes.Usage;
     }
 
@@ -2409,6 +2463,7 @@ static void PrintUsage()
     Console.WriteLine("  move <mod-id> (--position <n>|--before <id>|--after <id>) [--store <p>]");
     Console.WriteLine("                                             Reorder a mod in the active profile's load order");
     Console.WriteLine("  status [--store <path>]                    Show active profile + enabled mods in load order");
+    Console.WriteLine("  doctor [--store <path>] [--game <path>]    Health roll-up: store, profile, cross-mod conflicts, orphans, storage, expansions");
     Console.WriteLine("  plan --game <path> [--profile <n>] [--assume-owned <pkg>] [--assume-not-owned <pkg>] [--store <p>] [--json <out>] [--out <md>]");
     Console.WriteLine("                                             Dry-run plan for the active (or named) profile");
     Console.WriteLine("  deploy --game <path> [--profile <n>] [--accept-warnings] [--force] [--dry-run] [--assume-owned <pkg>] [--assume-not-owned <pkg>] [--store <p>]");

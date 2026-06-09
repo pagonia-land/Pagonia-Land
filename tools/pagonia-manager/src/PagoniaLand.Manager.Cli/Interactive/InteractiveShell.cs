@@ -196,8 +196,8 @@ internal static class InteractiveShell
                 .LeftJustified()
                 .Color(Color.Aqua));
         AnsiConsole.MarkupLine($"[bold]Manager[/] [aqua]{ManagerInfo.Version}[/]");
-        AnsiConsole.MarkupLine("[dim]Interactive mode. Use arrow keys to navigate, Enter to select, Ctrl+C to quit at any time.[/]");
-        AnsiConsole.MarkupLine("[dim]Pass --help or any CLI arg to skip this and use scripted mode instead.[/]");
+        AnsiConsole.MarkupLine("[dim]Interactive mode. Arrow keys to navigate, Enter to select. Submit an empty line to cancel a prompt, or pick \"Back\" in a menu; Ctrl+C quits.[/]");
+        AnsiConsole.MarkupLine("[dim]Pass a CLI command (e.g. --version, status, install ...) to skip this and use scripted mode instead.[/]");
         AnsiConsole.WriteLine();
     }
 }

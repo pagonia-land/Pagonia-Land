@@ -22,7 +22,7 @@ Then open `sandbox/mods/my-first-mod/mod.yaml` and the files under `patches/` an
 
 ## GUIDs In These Examples
 
-All examples target **real game GUIDs** from the Meadowsong public release (`1.3.0-11768+193445`). Specifically the Sawmill-based ones use:
+All examples target **real game GUIDs** from the current baseline (`1.3.1-11826+193733`), matching the `gameDatabaseVersion` each example's `mod.yaml` declares. Specifically the Sawmill-based ones use:
 
 - `c732cb26-7487-4a7b-b1ba-b65e094f9bac` — real Sawmill entity GUID.
 - `c22b4997-5563-44ab-8aa0-04a7b2c826be` — real Softwood Trunk resource GUID.

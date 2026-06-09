@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EntityGroup>
+  <Entities>
+    <Entity Name="Remove Lumberjack" Guid="33333333-3333-3333-3333-333333333333" InheritanceMode="Unload" InheritedGuid="44444444-4444-4444-4444-444444444444" />
+    <Entity Name="Still Needs The Lumberjack" Guid="55555555-5555-5555-5555-555555555555">
+      <Values>
+        <AspectWorkplace>
+          <Worker>44444444-4444-4444-4444-444444444444</Worker>
+        </AspectWorkplace>
+      </Values>
+    </Entity>
+  </Entities>
+</EntityGroup>

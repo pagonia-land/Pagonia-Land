@@ -86,9 +86,24 @@ This is a *very* clean property:
 - No "Template + Incremental on the same base" combination shipped.
 - No two extensions stacking on the same core entity.
 
-**Implication for modders.** In shipped content the engine never has to resolve "two mods both Replace the same entity" or "two mods both Incremental the same entity" — those scenarios are theoretical. When a third-party mod creates such a conflict, the engine's resolution rule is unobserved.
+**Implication for modders.** In shipped content the engine never has to resolve "two mods both Replace the same entity" or "two mods both Incremental the same entity" — those scenarios don't occur in EE's own data. **But the resolution rule is no longer unknown.** EE confirmed it on 2026-06-06 ([mod-distribution.md → Dev review follow-up](mod-distribution.md#dev-review-follow-up-2026-06-06)):
 
-This is the empirical reason **cross-mod conflict detection on entity-relation level** stays an open gap for our tooling. There's nothing in shipped content to learn from; community mods will be the first real test.
+- two mods `Replace` the same entity → **last-loaded mod wins** (load order decides);
+- two mods `Incremental` the same entity → **both apply** (additions stack, no clobber).
+
+So the rule is *settled*; what's still absent is *shipped example data* to regression-test against. That makes **cross-mod conflict detection on the entity-relation level** a now-buildable feature for our tooling (we can warn deterministically), not a blocked one — community mods are still the first real corpus to validate against.
+
+## `InheritanceMode="Unload"` ships but is unused
+
+A data scan of every shipped pak finds `InheritanceMode` in exactly three flavours — `Template` (18), `Replace` (14), `Incremental` (19) — and **zero** occurrences of `Unload`. For a while we read that absence literally: "the entity-level Unload mode doesn't ship; the encounter-level null-GUID `<ReplaceSelf>` pattern is the only removal mechanism."
+
+**That inference was wrong, and it's an instructive miss.** EE confirmed on 2026-06-06 that `InheritanceMode="Unload"` **has been implemented in the engine since Meadowsong** — it's simply never used in EE's own content. A pure data scan is *structurally* blind to an engine feature with no data uses: there's nothing in the bytes to find. The only way to learn it exists is a dev statement (or decompiling the loader).
+
+**What it does** (per the dev): a proxy entity A unloads another entity B, and the merged database then simply doesn't contain B — as if it never existed. The catch: it's only safe when **no other entity C still references B** (B's GUID must appear nowhere else). Because the game validates references in some subsystems but not others, an unsafe unload may crash in one place and silently dangle in another — so an *effective* unload usually means unloading B **and all its dependents together**, and finding the safe set is currently trial-and-error.
+
+**Implication for modders.** `Unload` is a real, available primitive — but the sharpest-edged one. Reach for `Incremental` / `Template` first; treat `Unload` (and `Replace`) as last resorts, and expect to test in-game. See [DLC Patch And Override Model → Patch Behaviour Patterns](dlc-patch-override-model.md#patch-behaviour-patterns).
+
+**Methodology lesson for this repo.** Where our docs infer a *negative* ("X doesn't exist") purely from a data scan, flag it as "not observed in shipped data" rather than "not supported" — the two are different, and `Unload` is the proof.
 
 ## Reference resolution rate drops with each new version
 
@@ -99,8 +114,9 @@ The fraction of references that resolve to a real entity is going **down** over 
 | 1.2.2-11216+189567 | 26,162 | 21,208 | 4,942 | 12 | 81.06% |
 | 1.3.0-11768+193445 | 31,776 | 24,451 | 7,313 | 12 | 76.95% |
 | 1.3.1-11826+193733 | 31,761 | 24,420 | 7,311 | 30 | 76.89% |
+| 1.3.2-11873+194094 | 31,763 | 24,422 | 7,311 | 30 | 76.89% |
 
-The null-GUID share grew from **18.89%** (1.2.2) to **23.01%** (1.3.0 Meadowsong) and held at **23.02%** in the 1.3.1 hotfix — Meadowsong added 2,371 new null-GUID references (+47%) while only adding 615 new entities (+15%); the 1.3.1 hotfix barely moved the totals. Note the "Other" unresolved column jumping 12 → 30 in 1.3.1 is *not* reference rot: the 1.3.1 `NoMVP.*` resource cleanup deleted six placeholder resource entities but left four of them still referenced by recipes, adding 18 dangling references. See [VALIDATION_BASELINE.md → Unresolved Non-Null GUID References](../VALIDATION_BASELINE.md#1-unresolved-non-null-guid-references-30).
+The null-GUID share grew from **18.89%** (1.2.2) to **23.01%** (1.3.0 Meadowsong) and held at **23.02%** in the 1.3.1 hotfix — Meadowsong added 2,371 new null-GUID references (+47%) while only adding 615 new entities (+15%); the 1.3.1 hotfix barely moved the totals, and the 1.3.2 "Free Beer" update moved them less still (+2 entities, +2 resolved refs, the "Other" column steady at 30, resolution rate flat at 76.89%). Note the "Other" unresolved column jumping 12 → 30 in 1.3.1 is *not* reference rot: the 1.3.1 `NoMVP.*` resource cleanup deleted six placeholder resource entities but left four of them still referenced by recipes, adding 18 dangling references. See [VALIDATION_BASELINE.md → Unresolved Non-Null GUID References](../VALIDATION_BASELINE.md#1-unresolved-non-null-guid-references-30).
 
 **Likely meaning.** Meadowsong-era XML uses more optional-with-default-null fields than 1.2.2 XML did. The encounter-level `<ReplaceSelf><ReplaceWithEntity>null</ReplaceWithEntity></ReplaceSelf>` "unload" pattern is one example, but the bulk of the increase is probably new component shapes that ship with empty-by-default sub-fields.
 

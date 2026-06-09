@@ -101,10 +101,10 @@ if ($PSBoundParameters.ContainsKey("Jobs")) {
 
 if ($BasePak) {
     # --- patch mode ---
-    $baseFull = (Resolve-Path -LiteralPath $BasePak).Path
-    if (-not (Test-Path -LiteralPath $baseFull)) {
-        throw "Base pak not found: $baseFull"
+    if (-not (Test-Path -LiteralPath $BasePak)) {
+        throw "Base pak not found: $BasePak"
     }
+    $baseFull = (Resolve-Path -LiteralPath $BasePak).Path
 
     $candidates = @($entries | ForEach-Object { Get-EntryName $_ $sourceFull })
     $deletions = Read-Deletions $sourceFull

@@ -8,7 +8,7 @@ The game database is built as a package-based layered system.
 
 This matters for modding because a package usually does not need to replace core files directly. It can add new entities and connect them to existing core systems through GUID references — and, since Meadowsong shipped, also through the `InheritanceMode` + `InheritedGuid` primitives that the engine resolves at load time.
 
-For a focused explanation of additive patches, variants, the Meadowsong inheritance primitives (Template / Replace / Incremental / encounter-level Unload), and why same-GUID byte-level override is still not a thing, see [DLC Patch And Override Model](dlc-patch-override-model.md). The complete Meadowsong picture lives in [Cross-Pak Entity Merging (Meadowsong)](mod-distribution.md#cross-pak-entity-merging-meadowsong).
+For a focused explanation of additive patches, variants, the Meadowsong inheritance primitives (Template / Replace / Incremental / entity-level Unload — the last EE-confirmed as engine-implemented but unused in shipped data — plus the separate encounter-level null-GUID unload), and why same-GUID byte-level override is still not a thing, see [DLC Patch And Override Model](dlc-patch-override-model.md). The complete Meadowsong picture lives in [Cross-Pak Entity Merging (Meadowsong)](mod-distribution.md#cross-pak-entity-merging-meadowsong).
 
 ## Main Idea
 
@@ -40,18 +40,18 @@ When packages are active, their XML entities appear to be combined into one usab
 
 ## Evidence From The Current Data
 
-Current scan (`1.3.1-11826+193733`, regenerated 2026-06-02):
+Current scan (`1.3.2-11873+194094`, regenerated 2026-06-09):
 
 | Observation | Count |
 | --- | ---: |
-| Total entities | 4,709 |
+| Total entities | 4,711 |
 | Duplicate entity GUIDs | 0 |
 | `core` entities | 4,147 |
-| `dlc1` entities | 517 |
+| `dlc1` entities | 519 |
 | `decorations1` entities | 19 |
 | `tools` entities | 26 |
-| `<Entity InheritanceMode="...">` uses (across packages) | 49 |
-| `<InheritedIndex>` list-merge markers | 4,366 |
+| `<Entity InheritanceMode="...">` uses (across packages) | 51 |
+| `<InheritedIndex>` list-merge markers | 4,447 |
 
 There are no duplicate entity GUIDs. `dlc1` does not override core entities by redefining the same GUID — that pattern is **not** how overrides work. Instead, two distinct strategies show up:
 
@@ -200,7 +200,10 @@ The three strategies coexist in DLC1's XMLs. For a modder, the choice is usually
 - "Brand-new content that hooks into existing systems" → pure addition + GUID references.
 - "Extend an existing entity's lists (add a recipe to the Toolmaker)" → `InheritanceMode="Incremental"`.
 - "Replace an existing entity wholesale for one campaign/scenario" → `InheritanceMode="Replace"`.
+- "Remove an entity from the merged dataset entirely" → `InheritanceMode="Unload"` (engine-implemented since Meadowsong, unused in shipped content; safe only when nothing else references the target — usually unload its dependents too).
 - "Provide an alternative entity that scenarios/unlocks can opt into" → variant by reference (no inheritance attribute).
+
+**Conflict-minimisation guidance (EE, 2026-06-06).** When several gdb mods may run together, prefer the *additive, stackable* modes (`Incremental`, `Template`) over the *destructive, last-loaded-wins* ones (`Replace`, `Unload`). Two mods that `Incremental` the same entity both apply; two mods that `Replace` the same entity fight, and only the last-loaded one survives. The fewer entities a mod `Replace`s or `Unload`s, the more cleanly it co-exists in a player's mod set.
 
 ## Scenario Overlays
 
@@ -286,14 +289,20 @@ Mostly resolved by Meadowsong's release:
 - ~~whether non-DLC community packages can be loaded by the game without replacing official files.~~ **Yes**, via Pattern B overlay paks. See [`tools/pagonia-paker/CLI.md`](../tools/pagonia-paker/CLI.md) and [`docs/mod-patch-format.md`](mod-patch-format.md#standalone-overlay-paks-pak-block) for the four-file module scaffold.
 - ~~which fields are required for a fully valid custom package.~~ Documented in [mod-distribution.md → The Pak Loading Model](mod-distribution.md#the-pak-loading-model).
 
+> The consolidated cross-doc register is [What We Know About the Engine](engine-claims.md); the list below is this page's slice.
+
+Resolved by EE dev review (2026-06-06, see [mod-distribution.md → Dev review follow-up](mod-distribution.md#dev-review-follow-up-2026-06-06)):
+
+- ~~what happens when two mods target the same `InheritedGuid`.~~ **Load order decides: last-loaded `Replace` wins; `Incremental` stacks.**
+- ~~whether a dedicated Entity-level `Unload` `InheritanceMode` ships.~~ **It already ships** (engine-implemented since Meadowsong, unused in shipped data).
+
 Still open:
 
-- exact package load order, particularly when two mods target the same `InheritedGuid`.
+- exact package load *order* determination (which module loads when), even though the collision-*winner* rule is now known.
 - whether `DLC/Package` names are used directly by the loader or routed through the `manifest.json`.
 - whether `tools` is loaded only for editor/debug contexts.
-- whether a future patch adds a dedicated Entity-level `Unload` `InheritanceMode` (the dev statements imply it, but 1.3.0 ships only Template / Replace / Incremental at the Entity level).
 
-The combined model — additive base + Meadowsong inheritance primitives — fits the current XML structure end-to-end. Runtime behaviour at the override-precedence level still needs in-game testing for multi-mod scenarios.
+The combined model — additive base + Meadowsong inheritance primitives — fits the current XML structure end-to-end. The override-precedence rule for multi-mod scenarios is now EE-confirmed (load order, last-loaded-wins for destructive modes); only the exact load-*order* determination still wants in-game confirmation.
 
 ## Practical Advice
 

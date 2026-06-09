@@ -35,6 +35,8 @@ public sealed class PakWriter
 
         Span<byte> headerBuf = stackalloc byte[PakFormatConstants.IndexHeaderSize];
         BinaryPrimitives.WriteUInt32LittleEndian(headerBuf[..4], version);
+        // entries is an in-memory List, so Count is bounded well below uint.MaxValue
+        // (a List holds < 2^31 items); the (uint) cast is safe for any real archive.
         BinaryPrimitives.WriteUInt32LittleEndian(headerBuf[4..8], (uint)entries.Count);
         indexBuffer.Write(headerBuf);
 

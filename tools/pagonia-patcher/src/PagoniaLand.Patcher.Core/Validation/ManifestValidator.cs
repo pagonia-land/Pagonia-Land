@@ -80,6 +80,8 @@ public sealed partial class ManifestValidator
             {
                 diagnostics.Add(Error(DiagnosticCodes.DuplicateOperationId, $"Duplicate patch operation id '{operation.Id}'."));
             }
+
+            ValidateArithmeticClamp(operation, diagnostics);
         }
 
         ValidateTweaks(mod, diagnostics);
@@ -93,6 +95,25 @@ public sealed partial class ManifestValidator
         }
 
         return diagnostics;
+    }
+
+    // A clampMin above clampMax can't be expressed as a JSON Schema cross-field rule and is an easy
+    // slip — every result would be forced down to clampMax. Warn explicitly; literal placeholders are
+    // skipped (they resolve at plan time, not here). Mirrors the tweak min>max lint.
+    private static void ValidateArithmeticClamp(PatchOperation operation, List<PatchDiagnostic> diagnostics)
+    {
+        if (operation.ClampMin is null || operation.ClampMax is null)
+        {
+            return;
+        }
+
+        if (double.TryParse(operation.ClampMin, NumberStyles.Float, CultureInfo.InvariantCulture, out var min)
+            && double.TryParse(operation.ClampMax, NumberStyles.Float, CultureInfo.InvariantCulture, out var max)
+            && min > max)
+        {
+            diagnostics.Add(Warning(DiagnosticCodes.ClampMinGreaterThanMax,
+                $"operation '{operation.Id}' has clampMin {min.ToString(CultureInfo.InvariantCulture)} greater than clampMax {max.ToString(CultureInfo.InvariantCulture)}."));
+        }
     }
 
     private static void ValidateTweaks(LoadedMod mod, List<PatchDiagnostic> diagnostics)
@@ -165,8 +186,8 @@ public sealed partial class ManifestValidator
     }
 
     // Speculative author-lint over the patch operations that reference tweaks. These are warnings,
-    // not errors: they flag likely typos that still parse + resolve. Only the operations actually
-    // loaded (the top-level `patches:`) are scanned.
+    // not errors: they flag likely typos that still parse + resolve. Both top-level `patches:` and
+    // `patchSets:` operations (everything loaded into mod.PatchFiles) are scanned.
     private static void LintTweakUsage(LoadedMod mod, List<PatchDiagnostic> diagnostics)
     {
         var tweaks = mod.Manifest.Tweaks;
@@ -184,7 +205,7 @@ public sealed partial class ManifestValidator
 
         foreach (var operation in mod.PatchFiles.SelectMany(file => file.PatchFile.Operations))
         {
-            foreach (var field in new[] { operation.Value, operation.ExpectedOldValue, operation.Xml, operation.ExpectedOldXml })
+            foreach (var field in new[] { operation.Value, operation.Factor, operation.Delta, operation.ExpectedOldValue, operation.Xml, operation.ExpectedOldXml })
             {
                 foreach (var reference in resolver.ExtractReferences(field))
                 {
@@ -210,12 +231,12 @@ public sealed partial class ManifestValidator
                 continue;
             }
 
-            // A tweak may be referenced by its current id OR by any of its declared
-            // aliases (the planner follows aliases forward), so only warn when neither
-            // the id nor any alias appears in a placeholder.
-            var referencedByIdOrAlias = referencedIds.Contains(tweak.Id)
-                || tweak.Aliases.Any(alias => !string.IsNullOrWhiteSpace(alias) && referencedIds.Contains(alias));
-            if (!referencedByIdOrAlias)
+            // A {{ tweaks.* }} placeholder only resolves by the tweak's CURRENT id — aliases are
+            // followed for stored override *values* (ResolveFromSelection), not for placeholders,
+            // where an alias throws tweakUndeclared at plan time. So the unused-lint counts only
+            // the current id; a tweak "used" solely via an alias placeholder is genuinely broken.
+            var referenced = referencedIds.Contains(tweak.Id);
+            if (!referenced)
             {
                 diagnostics.Add(Warning(DiagnosticCodes.TweakDeclaredButUnused,
                     $"tweak '{tweak.Id}' is declared but never referenced by a {{{{ tweaks.{tweak.Id} }}}} placeholder."));
@@ -230,6 +251,14 @@ public sealed partial class ManifestValidator
             // The schema already enforces a numeric default; skip the range check when the literal
             // can't be parsed so we don't double-report what schema-validate already flags.
             return;
+        }
+
+        // An `integer` tweak's default must be a whole number — the float parse above happily
+        // accepts "3.5", which would substitute a fractional value into an integer game field.
+        if (tweak.Type == "integer" && value != Math.Floor(value))
+        {
+            diagnostics.Add(Error(DiagnosticCodes.TweakDefaultNotInteger,
+                $"integer tweak '{label}' default {tweak.Default} is not a whole number."));
         }
 
         var belowMin = tweak.Min is { } min && value < min;

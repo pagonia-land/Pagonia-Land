@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EntityGroup>
+  <Entities>
+    <Entity Name="Remove Softwood" Guid="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" InheritanceMode="Unload" InheritedGuid="c22b4997-5563-44ab-8aa0-04a7b2c826be" />
+  </Entities>
+</EntityGroup>

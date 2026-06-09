@@ -92,7 +92,12 @@ public class CatalogFetcher
             return CatalogFetchResult.Failure(source, diagnostics);
         }
 
-        var url = $"https://raw.githubusercontent.com/{source.Owner}/{source.Repo}/{commitSha}/{source.Path}";
+        // source.Path is already restricted to a URL-safe charset at parse time
+        // (CatalogSourceParser.IsValidRepoPath); escape each segment anyway so a
+        // future parser change can't silently produce a malformed URL. Splitting
+        // on '/' keeps the path separators intact while escaping the segments.
+        var escapedPath = string.Join('/', Array.ConvertAll(source.Path.Split('/'), Uri.EscapeDataString));
+        var url = $"https://raw.githubusercontent.com/{source.Owner}/{source.Repo}/{commitSha}/{escapedPath}";
         RemoteFetchedContent? content;
         try
         {

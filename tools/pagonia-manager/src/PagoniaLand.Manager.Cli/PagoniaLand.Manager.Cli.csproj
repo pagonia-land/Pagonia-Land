@@ -15,7 +15,7 @@
     shell paths are validated by manual smoke against the published binary.
   -->
   <ItemGroup>
-    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    <PackageReference Include="Spectre.Console" Version="0.55.2" />
   </ItemGroup>
 
   <PropertyGroup>

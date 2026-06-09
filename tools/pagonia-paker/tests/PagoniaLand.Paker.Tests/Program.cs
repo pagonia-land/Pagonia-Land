@@ -23,8 +23,10 @@ var tests = new (string Name, Func<bool> Run)[]
     ("crc mismatch reports a diagnostic", CrcMismatchReportsDiagnostic),
     ("uncompressed entry extracts byte-identical", UncompressedEntryExtracts),
     ("compressed entry extracts decompressed payload", CompressedEntryExtracts),
+    ("compressed entry refuses to inflate past its declared size (decompression bomb)", CompressedEntryRejectsDecompressionBomb),
     ("pakinfo.json round-trips through the source-gen context", PakInfoJsonRoundTrip),
     ("gzip compress + decompress round-trips arbitrary bytes", GzipRoundTrip),
+    ("gzip decompress refuses to exceed its output cap (decompression bomb)", GzipDecompressHonoursOutputCap),
     ("pack writes an archive that PakReader can extract", PackProducesReadableArchive),
     ("pack reports a diagnostic for invalid pakinfo json", PackInvalidJsonDiagnostic),
     ("pack reports a diagnostic for a missing source file", PackMissingSourceDiagnostic),
@@ -230,6 +232,34 @@ bool CompressedEntryExtracts()
     return extracted.SequenceEqual(payload);
 }
 
+bool CompressedEntryRejectsDecompressionBomb()
+{
+    // A corrupt/malicious index can under-declare an entry's uncompressed Size so a
+    // small compressed blob inflates far beyond it. ExtractEntry must cap output at
+    // the declared Size and refuse the overflow rather than stream unbounded bytes.
+    var payload = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("A", 5000)));
+    var pak = BuildPak(("bomb.dat", payload, Compressed: true));
+
+    using var pakStream = new MemoryStream(pak, writable: false);
+    var result = reader.OpenIndex(pakStream);
+    if (!result.Success || result.Index is null || result.Index.Entries.Count == 0) { return false; }
+
+    // Claim only 16 uncompressed bytes while the gzip member really holds 5000.
+    var tampered = result.Index.Entries[0] with { Size = 16 };
+
+    using var outStream = new MemoryStream();
+    try
+    {
+        reader.ExtractEntry(pakStream, tampered, outStream);
+        return false; // should have thrown
+    }
+    catch (InvalidDataException)
+    {
+        // Output must be capped at the declared size, not the full 5000.
+        return outStream.Length <= 16;
+    }
+}
+
 bool PakInfoJsonRoundTrip()
 {
     var entries = new[]
@@ -341,6 +371,31 @@ bool GzipRoundTrip()
     GzipCompressor.Decompress(compressedStream, decompressedStream);
 
     return decompressedStream.ToArray().SequenceEqual(payload);
+}
+
+bool GzipDecompressHonoursOutputCap()
+{
+    // A highly compressible payload (lots of zeros) inflates well past a small cap; Decompress
+    // must abort with InvalidDataException rather than stream the whole thing into output.
+    var payload = new byte[200_000]; // all zeros → compresses tiny, decompresses to 200 KB
+    var compressedStream = new MemoryStream();
+    using (var input = new MemoryStream(payload, writable: false))
+    {
+        GzipCompressor.Compress(input, compressedStream);
+    }
+    compressedStream.Position = 0;
+
+    var decompressedStream = new MemoryStream();
+    try
+    {
+        GzipCompressor.Decompress(compressedStream, decompressedStream, maxOutputBytes: 1024);
+        return false; // should have thrown
+    }
+    catch (InvalidDataException)
+    {
+        // Output is bounded near the cap, not the full 200 KB.
+        return decompressedStream.Length <= 1024 + 81920;
+    }
 }
 
 bool PackProducesReadableArchive()
@@ -1723,8 +1778,8 @@ bool ValidateAgainstSchema(string json, string schemaFileName)
     }
 
     var schema = JsonSchema.FromFile(schemaPath);
-    var node = JsonNode.Parse(json);
-    var results = schema.Evaluate(node, new EvaluationOptions { OutputFormat = OutputFormat.Hierarchical });
+    using var doc = System.Text.Json.JsonDocument.Parse(json);
+    var results = schema.Evaluate(doc.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.Hierarchical });
 
     if (results.IsValid)
     {
@@ -1755,7 +1810,7 @@ void DumpErrors(EvaluationResults result, int depth)
         }
     }
 
-    foreach (var child in result.Details)
+    foreach (var child in result.Details ?? [])
     {
         DumpErrors(child, depth + 1);
     }

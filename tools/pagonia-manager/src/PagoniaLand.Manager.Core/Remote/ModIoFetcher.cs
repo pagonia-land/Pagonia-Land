@@ -76,6 +76,10 @@ public sealed class ModIoFetcher
         // (1) header Authorization: Bearer <key>, (2) ?api_key=<key> query
         // string. Read-only ops conventionally use the query-string form.
         var url = $"{ApiBase}/games/{gameId}/mods/{source.ModId}?api_key={Uri.EscapeDataString(_apiKey!)}";
+        // The api_key rides in the query string but must never reach a
+        // diagnostic — those surface to the console and into --json reports.
+        // Identify the endpoint by its path only when reporting failures.
+        var displayUrl = $"{ApiBase}/games/{gameId}/mods/{source.ModId}";
         RemoteFetchedContent? response;
         try
         {
@@ -90,11 +94,11 @@ public sealed class ModIoFetcher
             if (ex is HttpRequestException httpEx && httpEx.StatusCode is System.Net.HttpStatusCode.TooManyRequests)
             {
                 diagnostics.Add(Warning(ManagerDiagnosticCodes.ModIoRateLimited,
-                    $"mod.io rate-limited the request to '{url}'. Try again later, or use your own key via {ApiKeyEnvironmentVariable} for an isolated rate-limit bucket."));
+                    $"mod.io rate-limited the request to '{displayUrl}'. Try again later, or use your own key via {ApiKeyEnvironmentVariable} for an isolated rate-limit bucket."));
                 return ModIoFetchResult.Failure(diagnostics);
             }
             diagnostics.Add(Error(ManagerDiagnosticCodes.ModIoApiError,
-                $"mod.io API call to '{url}' failed: {ex.Message}"));
+                $"mod.io API call to '{displayUrl}' failed: {ex.Message}"));
             return ModIoFetchResult.Failure(diagnostics);
         }
 

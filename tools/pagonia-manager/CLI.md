@@ -95,7 +95,7 @@ pagonia-manager schema-validate --kind <k> --report <path>  # validate a JSON re
                                                            #        expansionsList, expansionsSet
 ```
 
-`--json <out>` is supported on `install`, `uninstall`, `deploy`, `rollback`, `collection install`, `status`, `deploy-status`, `deploy-list`, `plan`, the three `tweak` verbs, and the two `expansions` verbs. Each writes its report to the given path atomically.
+`--json <out>` is supported on `install`, `uninstall`, `deploy`, `rollback`, `collection install`, `status`, `deploy-status`, `deploy-list`, `plan`, the three `tweak` verbs, and the two `expansions` verbs. Each writes its report to the given path atomically. (`deploy-list --json` emits a `deployStatus`-kind report — its `deploys[]` array carries every retained deploy — so validate it with `schema-validate --kind deployStatus`.)
 
 `--info` is useful when diagnosing a build to confirm which Patcher.Core / Paker.Core versions a given `pagonia-manager.exe` was linked against.
 
@@ -152,13 +152,13 @@ The sidecar is not part of the mod itself — it's the manager's own bookkeeping
 
 ### Install Sources
 
-`install --from <source>` accepts five forms:
+`install --from <source>` accepts these source forms:
 
 | Form | Status | Behaviour |
 |---|---|---|
 | `<folder>` | available | Folder kept in place; pipeline runs against it directly. |
 | `<file.zip>` | available | Extracted to a temp directory, then the temp dir feeds the same pipeline as a folder. Cleaned up after install. |
-| `gh:<owner>/<repo>[#<ref>]/<mod-id-or-path>` | available | Fetched from GitHub via `raw.githubusercontent.com`. The `<ref>` (branch, tag, or commit SHA; defaults to `HEAD`) is resolved to a concrete commit SHA up front so the sidecar's `source` field pins exact code even after the branch moves. If the repo ships an `index.yaml` catalog, `<mod-id-or-path>` is looked up as a mod id first, then as a repo-relative folder path; without an `index.yaml`, the value is treated as a folder path verbatim. |
+| `gh:<owner>/<repo>[:<base>][#<ref>]/<mod-id-or-path>` | available | Fetched from GitHub via `raw.githubusercontent.com`. The optional `:<base>` scopes lookups to a repo subdirectory (so a repo can host its mod tree under a subpath); see the command synopsis above and the lockfile section below. The `<ref>` (branch, tag, or commit SHA; defaults to `HEAD`) is resolved to a concrete commit SHA up front so the sidecar's `source` field pins exact code even after the branch moves. If the repo ships an `index.yaml` catalog, `<mod-id-or-path>` is looked up as a mod id first, then as a repo-relative folder path; without an `index.yaml`, the value is treated as a folder path verbatim. |
 | `https://github.com/<owner>/<repo>/tree/<ref>[/<path>]` | available | Long form of `gh:` — the URL copied from GitHub's web UI. Parsed into the same `GitHubSource` as the short form. |
 | `https://example.com/<mod>.zip` (any HTTP host) | available | Direct-URL ZIP source. The URL is the source identity; no auth, no rate limit, no registry lookup. The download is streamed straight into a temp file while being hashed (SHA-256); zip-slip path-traversal entries are refused at extract time; a nested-folder heuristic drills into a single top-level wrapper directory if the ZIP has one. The sidecar records `source: url:<url>#<sha256>` so the installer's drift detection can warn on re-install when the same URL serves different bytes than before. URLs whose path doesn't end in `.zip` are rejected to avoid false positives on repo landing pages and documentation links. |
 | `http://example.com/<mod>.zip` | opt-in | Same as above but plain HTTP. Always emits the `manager.directUrlInsecureHttp` warning; install only proceeds when `state.yaml.allowInsecureSources: true` is set explicitly. Useful for locked-down corporate / LAN deployments with known-trusted internal hosts; never on by default. |
@@ -180,8 +180,9 @@ The interactive **Install a Mod** wizard accepts these same source forms (local 
 2. `ManifestReader.ReadMod(stagingRoot)` — typed YAML parse.
 3. `ManifestValidator.ValidateMod(loadedMod)` — field-level checks.
 4. `SchemaValidator.ValidateMod(stagingRoot)` — JSON Schema conformance against [`schemas/mod-patches/mod.schema.json`](../../schemas/mod-patches/mod.schema.json).
+5. **Conflict-minimising authoring advisor** — for a mod that ships its own GameDatabase overlay (`*.gd.xml`), the manager runs the patcher's `EntityRelationAdvisor` over it and surfaces conflict-risk findings (`usesDestructiveInheritanceMode`, `unloadsReferencedEntity`, `inheritanceConflictRisk`). These are **advisory** — Info notices plus an unload-dangling Warning, never an Error — so they inform without blocking. Install runs the base-free checks; the base-aware ones (cross-database unload, `replaceCouldBeIncremental`) are available interactively under *Advanced → Mods → advise*, which can take a game root.
 
-Any error diagnostic from any stage aborts the install — nothing is written to `<store>/mods/`. Patcher diagnostics surface **verbatim** through the manager's report (see the diagnostic-code conventions below). A duplicate install (same `id@version`) is a `manager.modAlreadyInstalled` **warning**, not an error — the existing install is preserved untouched.
+Any error diagnostic from stages 1–4 aborts the install — nothing is written to `<store>/mods/`. Patcher diagnostics (validation **and** advisor) surface **verbatim** through the manager's report (see the diagnostic-code conventions below). A duplicate install (same `id@version`) is a `manager.modAlreadyInstalled` **warning**, not an error — the existing install is preserved untouched.
 
 ## Profiles
 
@@ -489,9 +490,29 @@ pagonia-patcher schema-validate --catalog .\catalog.yaml
 
 The schema lives at [`schemas/mod-patches/catalog.schema.json`](../../schemas/mod-patches/catalog.schema.json) — the public contract for any tool that wants to produce, consume, or audit Pagonia Land catalogs.
 
+## Doctor
+
+`pagonia-manager doctor [--store <path>] [--game <path>]` is a read-only health roll-up — one first-stop command that bundles checks the manager already implements, so a confused user doesn't have to know which verb to reach for. It writes nothing; it's the scriptable form of the interactive Status dashboard.
+
+It runs, in order:
+
+| Check | Needs game root | What it reports |
+| --- | --- | --- |
+| Store | no | initialised? (a hard gate — fails the rest if not) |
+| Active profile | no | active profile name + enabled-mod count (warns when empty) |
+| Enabled mods installed | no | every enabled mod has an install on disk (errors on a missing one) |
+| Cross-mod overlay conflicts | no | reuses the [cross-mod detector](#plan) — two enabled mods destructively targeting the same entity |
+| Orphaned deploys | no | deploy records whose game install moved or updated |
+| Deploy-backup storage | no | total `<store>/deploys/` size (warns past ~15 GB) |
+| Expansion ownership | **yes** | present / owned / effective expansions (skipped when no game root resolves) |
+
+The game root is resolved the usual way (`--game` > stored default > platform default), so on a configured machine `doctor` needs no arguments. Each check prints `[OK]` / `[WARN]` / `[FAIL]` / `[SKIP]` plus any diagnostics, then a summary line. Exit code is non-zero only when a check is an **error** (warnings don't fail it) — so it's safe to drop into CI or a pre-deploy script.
+
 ## Plan
 
 `pagonia-manager plan --game <path>` produces a dry-run patch plan for the active profile (or `--profile <name>`) against a real game install. Nothing is written to the game; the report shows what *would* be applied. This is the read-only inspection step before `deploy`.
+
+The plan also runs a **cross-mod overlay-conflict check** across the enabled mods *in load order*: when two enabled mods both `Replace` or `Unload` the same inherited GameDatabase entity, the engine resolves them by load order (last-loaded wins), so the earlier mod is silently overridden. The plan surfaces this as a `manager.crossModOverlayConflict` **warning** naming the winner and the overridden mods — advisory, so it never blocks the plan. This is the cross-mod companion to the patcher's per-mod [authoring advisor](../../docs/mod-conflicts.md#gamedatabase-overlay-conflicts-authoring-advisor): that lints one mod in isolation; this catches the collision only an installed set in load order can have.
 
 ### Pipeline
 
@@ -506,6 +527,10 @@ per-mod install dir lookup -> ManifestReader.ReadMod -> LoadedMod[]
     |
     v
 cross-mod gameDatabaseVersion check (manager warning if mods disagree)
+    |
+    v
+cross-mod overlay-conflict check (manager.crossModOverlayConflict warning when
+    two enabled mods Replace/Unload the same inherited entity — load order wins)
     |
     v
 PatchPlanner.Plan(gameRoot, mods)
@@ -728,7 +753,7 @@ Listing is read-only; use `deploys clean` to actually remove orphans.
 pagonia-manager deploys clean --keep <N> [--game <path>] [--dry-run] [--store <path>]
 ```
 
-Per-fingerprint, keeps the N most recent timestamp directories and removes older ones (manifests + backups). `--keep 0` means "remove everything"; the lastDeploy guard below still applies.
+Per-fingerprint, keeps the N most recent timestamp directories and removes older ones (manifests + backups). `--keep 0` prunes all but the **newest** deploy per fingerprint — the newest is always retained as that install's rollback anchor (`rollback` reverts it), so a clean can never leave an install with no undo path. The lastDeploy guard below applies on top of that.
 
 Flags:
 
@@ -740,7 +765,7 @@ Flags:
 
 After clean, `history.yaml` is rewritten with the trimmed deploy list. One-step rollback always operates on `Deploys[0]` (newest-first), so trimming the tail doesn't affect current-and-recent rollback semantics; it only takes away the option to roll back further than N steps.
 
-The interactive status dashboard surfaces a **Deploy backups storage** warning panel when `<store>/deploys/` exceeds ~5 GB, with a hint to run this command (`manager.deploysStorageHigh`). Below the threshold the panel stays hidden.
+The interactive status dashboard surfaces a **Deploy backups storage** warning panel when `<store>/deploys/` exceeds ~15 GB, with a hint to run this command (`manager.deploysStorageHigh`). Below the threshold the panel stays hidden.
 
 Default behaviour up to this release was "keep all backups forever"; this command is the user-opt-in to reclaim space without the manager auto-deleting anything behind the user's back.
 
@@ -763,7 +788,7 @@ Every command listed above accepts `--json <out>` and writes a stable, schema-va
 
 - `schemaVersion`: `"0.1"` on every report. Each schema versions independently; a future bump signals a shape change to that one report.
 - `reportKind`: discriminator, one of `install`, `uninstall`, `deploy`, `rollback`, `collectionInstall`, `status`, `deployStatus`, `tweakList`, `tweakSet`, `tweakReset`, `expansionsList`, `expansionsSet`.
-- `gameProductVersion` (on `deployStatus`): the live install's game version, read from the executable's Win32 **ProductVersion** — byte-for-byte the same string mods declare as `gameDatabaseVersion` (e.g. `1.3.1-11826+193733`). `null` when no readable exe (extracted layout / fixture); the human-readable output renders that as `(unknown)`. The same version drives the game-vs-mod compatibility check below.
+- `gameProductVersion` (on `deployStatus`): the live install's game version, read from the executable's Win32 **ProductVersion** — byte-for-byte the same string mods declare as `gameDatabaseVersion` (e.g. `1.3.2-11873+194094`). `null` when no readable exe (extracted layout / fixture); the human-readable output renders that as `(unknown)`. The same version drives the game-vs-mod compatibility check below.
 - `diagnostics`: always an array of `{ severity, code, message, path? }`.
 - The plan report (`plan --json`) uses its own `{ manager, patcher }` envelope shape — its embedded patcher payload uses the patcher's PascalCase property names.
 
@@ -904,7 +929,7 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.deployCleanRemoved` | info | `deploys clean` removed (or would have removed on `--dry-run`) one timestamp directory. Message names the fingerprint + timestamp. |
 | `manager.deployCleanKept` | info | `deploys clean` kept one timestamp within the `--keep N` window. |
 | `manager.deployCleanRefusedLatest` | warning | `deploys clean` refused to remove a timestamp because `state.yaml.lastDeploy` currently references it. Removing it would orphan the user's "current deploy" with no rollback path. |
-| `manager.deploysStorageHigh` | info | Status dashboard surfaced the deploy-backups-storage panel because `<store>/deploys/` exceeded the soft ~5 GB threshold. Hint pointed the user at `deploys clean`. |
+| `manager.deploysStorageHigh` | info | Status dashboard surfaced the deploy-backups-storage panel because `<store>/deploys/` exceeded the soft ~15 GB threshold. Hint pointed the user at `deploys clean`. |
 | `manager.defaultGameRootStored` | info | Interactive wizard persisted a new value to `state.yaml.defaultGameRoot`. Subsequent wizard launches will suggest this path by default. |
 | `manager.defaultGameRootCleared` | info | The "Change default game folder" wizard cleared `state.yaml.defaultGameRoot`. Next wizard launch falls back to the platform default (Windows Steam path if it exists) or the bare text prompt. |
 | `manager.remoteResolvedToCommit` | info | Remote install resolved the user-supplied ref (branch/tag/SHA) to a concrete commit SHA. The SHA — not the ref — is what the sidecar's `source` field records, so the install trail stays stable when the branch moves later. |

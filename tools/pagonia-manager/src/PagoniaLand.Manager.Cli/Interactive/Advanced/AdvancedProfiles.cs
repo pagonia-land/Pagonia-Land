@@ -19,10 +19,12 @@ internal static class AdvancedProfiles
                 case "create":
                 {
                     AdvancedHelpers.Header("Profiles → create");
-                    var name = AnsiConsole.Prompt(
-                        new TextPrompt<string>("Profile name:")
-                            .Validate(n => ProfileNameValidator.IsValid(n, out var why)
-                                ? ValidationResult.Success() : ValidationResult.Error(why)));
+                    if (!AdvancedHelpers.TryPromptText("Profile name:", out var name,
+                            n => ProfileNameValidator.IsValid(n, out var why)
+                                ? ValidationResult.Success() : ValidationResult.Error(why)))
+                    {
+                        break;
+                    }
                     var r = svc.Create(layout, name);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success) AnsiConsole.MarkupLine($"[green]Created[/] [aqua]{Markup.Escape(name)}[/]");
@@ -50,8 +52,7 @@ internal static class AdvancedProfiles
                     AdvancedHelpers.Header("Profiles → use");
                     var list = svc.List(layout);
                     if (list.Profiles.Count == 0) { AnsiConsole.MarkupLine("[yellow]No profiles.[/]"); Pause(); break; }
-                    var name = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Switch to:").AddChoices(list.Profiles.Select(p => p.Name)));
+                    var name = AdvancedHelpers.Pick("Switch to:", list.Profiles.Select(p => p.Name));
                     var r = svc.Use(layout, name);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success) AnsiConsole.MarkupLine($"[green]Active profile is now[/] [aqua]{Markup.Escape(name)}[/]");
@@ -63,12 +64,13 @@ internal static class AdvancedProfiles
                     AdvancedHelpers.Header("Profiles → copy");
                     var list = svc.List(layout);
                     if (list.Profiles.Count == 0) { AnsiConsole.MarkupLine("[yellow]No profiles.[/]"); Pause(); break; }
-                    var source = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Copy which profile:").AddChoices(list.Profiles.Select(p => p.Name)));
-                    var target = AnsiConsole.Prompt(
-                        new TextPrompt<string>("New profile name:")
-                            .Validate(n => ProfileNameValidator.IsValid(n, out var why)
-                                ? ValidationResult.Success() : ValidationResult.Error(why)));
+                    var source = AdvancedHelpers.Pick("Copy which profile:", list.Profiles.Select(p => p.Name));
+                    if (!AdvancedHelpers.TryPromptText("New profile name:", out var target,
+                            n => ProfileNameValidator.IsValid(n, out var why)
+                                ? ValidationResult.Success() : ValidationResult.Error(why)))
+                    {
+                        break;
+                    }
                     var activate = AdvancedHelpers.Confirm("Activate the copy?", defaultValue: false);
                     var r = svc.Copy(layout, source, target, activate);
                     DiagnosticsRenderer.Render(r.Diagnostics);
@@ -90,9 +92,8 @@ internal static class AdvancedProfiles
                         Pause();
                         break;
                     }
-                    var name = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Export which profile:").AddChoices(exportable));
-                    var outPath = AdvancedHelpers.PromptText("Write collection to file path:");
+                    var name = AdvancedHelpers.Pick("Export which profile:", exportable);
+                    if (!AdvancedHelpers.TryPromptText("Write collection to file path:", out var outPath)) { break; }
                     var id = AdvancedHelpers.PromptText("Collection id (optional):", allowEmpty: true);
                     var displayName = AdvancedHelpers.PromptText("Collection name (optional):", allowEmpty: true);
                     var version = AdvancedHelpers.PromptText("Collection version (optional):", allowEmpty: true);
@@ -119,7 +120,7 @@ internal static class AdvancedProfiles
                         Pause();
                         break;
                     }
-                    var name = AnsiConsole.Prompt(new SelectionPrompt<string>().Title("Delete:").AddChoices(deletable));
+                    var name = AdvancedHelpers.Pick("Delete:", deletable);
                     if (!AdvancedHelpers.Confirm($"Really delete [aqua]{Markup.Escape(name)}[/]?", defaultValue: false))
                     {
                         AnsiConsole.MarkupLine("[dim]Aborted.[/]"); Pause(); break;
@@ -135,8 +136,7 @@ internal static class AdvancedProfiles
                     AdvancedHelpers.Header("Profiles → show");
                     var list = svc.List(layout);
                     if (list.Profiles.Count == 0) { AnsiConsole.MarkupLine("[yellow]No profiles.[/]"); Pause(); break; }
-                    var name = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Show:").AddChoices(list.Profiles.Select(p => p.Name)));
+                    var name = AdvancedHelpers.Pick("Show:", list.Profiles.Select(p => p.Name));
                     var r = svc.Show(layout, name);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success && r.Profile is not null)

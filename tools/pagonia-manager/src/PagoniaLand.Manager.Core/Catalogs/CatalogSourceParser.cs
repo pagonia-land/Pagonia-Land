@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
+using System.Net.Sockets;
 
 namespace PagoniaLand.Manager;
 
@@ -73,8 +75,40 @@ public static class CatalogSourceParser
         {
             return false;
         }
+        // SSRF guard: no legitimate catalog lives on loopback or a link-local address
+        // (the 169.254.169.254 cloud-metadata endpoint being the classic target). Refuse
+        // those; private LAN ranges stay allowed for legitimate internal mirrors.
+        if (IsBlockedHost(uri))
+        {
+            return false;
+        }
         source = new UrlCatalogSource(uri);
         return true;
+    }
+
+    private static bool IsBlockedHost(Uri uri)
+    {
+        if (uri.IsLoopback)
+        {
+            return true;
+        }
+        if (IPAddress.TryParse(uri.Host, out var ip))
+        {
+            if (IPAddress.IsLoopback(ip))
+            {
+                return true;
+            }
+            var bytes = ip.GetAddressBytes();
+            if (ip.AddressFamily == AddressFamily.InterNetwork && bytes[0] == 169 && bytes[1] == 254)
+            {
+                return true; // IPv4 link-local 169.254/16
+            }
+            if (ip.AddressFamily == AddressFamily.InterNetworkV6 && ip.IsIPv6LinkLocal)
+            {
+                return true; // IPv6 link-local fe80::/10
+            }
+        }
+        return false;
     }
 
     private static bool TryParseGitHub(string rest, [NotNullWhen(true)] out CatalogSource? source)
@@ -138,7 +172,43 @@ public static class CatalogSourceParser
             return false;
         }
 
+        // Defence in depth before any fetch: reject path-traversal / absolute /
+        // scheme'd path specs at parse time, the same grounds RemoteSourceParser
+        // rejects a base path on. Otherwise 'gh:o/r#ref/../../etc' would flow
+        // into the raw.githubusercontent.com URL unsanitised.
+        if (pathSpec is not null && !IsValidRepoPath(pathSpec))
+        {
+            return false;
+        }
+
         source = new GitHubCatalogSource(owner, repo, refSpec ?? DefaultRef, pathSpec ?? DefaultCatalogFileName);
+        return true;
+    }
+
+    private static bool IsValidRepoPath(string value)
+    {
+        // A safe repo-relative file path: no absolute paths, no backslashes, no
+        // drive/scheme colon, no '.'/'..' segments. Mirrors
+        // RemoteSourceParser.IsValidBasePath.
+        if (value.Length == 0 || value[0] == '/' || value[^1] == '/'
+            || value.Contains('\\') || value.Contains(':'))
+        {
+            return false;
+        }
+        foreach (var segment in value.Split('/'))
+        {
+            if (segment.Length == 0 || segment == "." || segment == "..")
+            {
+                return false;
+            }
+            foreach (var c in segment)
+            {
+                if (!(char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '.'))
+                {
+                    return false;
+                }
+            }
+        }
         return true;
     }
 

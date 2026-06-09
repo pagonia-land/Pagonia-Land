@@ -11,6 +11,12 @@ var applyReporter = new PatchApplyReporter();
 var collectionResolver = new CollectionResolver();
 var collectionExporter = new CollectionExporter();
 var schemaValidator = new SchemaValidator();
+var advisor = new EntityRelationAdvisor();
+
+// JsonSchema.Net auto-registers a schema by its $id on FromFile and refuses to
+// register the same $id twice in a process. Cache by path so multiple tests can
+// validate against the same schema file without "Overwriting registered schemas".
+var schemaCache = new Dictionary<string, Json.Schema.JsonSchema>();
 
 var tests = new (string Name, Func<bool> Run)[]
 {
@@ -99,9 +105,14 @@ var tests = new (string Name, Func<bool> Run)[]
     ("schema-validate rejects catalog repo entry with invalid owner chars", SchemaValidateRejectsCatalogBadOwner),
     ("schema roundtrip: patch-plan-report", SchemaRoundtripPatchPlanReport),
     ("schema roundtrip: patch-apply-report", SchemaRoundtripPatchApplyReport),
+    ("schema roundtrip: patch-plan-report carries arithmetic ops (multiplyValue)", SchemaRoundtripPatchPlanReportArithmetic),
+    ("schema roundtrip: patch-apply-report carries arithmetic ops (multiplyValue)", SchemaRoundtripPatchApplyReportArithmetic),
     ("tweaks: tweakable fixture parses number/boolean/enum declarations", TweakableFixtureParsesTweaks),
     ("tweaks: tweakable fixture passes validation", TweakableFixturePassesValidation),
     ("tweaks: default outside min..max fails validation", TweakDefaultOutOfRangeFailsValidation),
+    ("tweaks: a fractional integer default fails validation", IntegerTweakFractionalDefaultFailsValidation),
+    ("apply: output overlapping the source game root is refused before any wipe", ApplyRefusesOutputOverlappingSource),
+    ("plan: a malformed target path (empty segment / no predicate element) fails with targetPathMalformed", MalformedPathFailsWithSpecificDiagnostic),
     ("tweaks: duplicate id via alias collision fails validation", TweakDuplicateIdFailsValidation),
     ("tweaks: schema-validate passes the tweakable fixture", SchemaValidateAcceptsTweakableFixture),
     ("tweaks: schema-validate rejects a malformed tweak block", SchemaValidateRejectsMalformedTweaks),
@@ -116,6 +127,21 @@ var tests = new (string Name, Func<bool> Run)[]
     ("templating: out-of-range external override warns but still resolves", TweakOutOfRangeOverrideWarnsButResolves),
     ("templating: undeclared placeholder fails planning with tweakUndeclared", UndeclaredPlaceholderFailsPlanning),
     ("templating: end-to-end plan to apply produces the tweaked XML", TemplatedFixtureAppliesTweakedXml),
+    ("arithmetic: multiplyValue fixture plans and applies the scaled value", MultiplyValueFixturePlansAndApplies),
+    ("arithmetic: multiplyValue clamps a low result up to clampMin", MultiplyValueClampsLowResult),
+    ("tweaks: an undeclared placeholder in clampMin is detected (tweakUndeclared), not a 'not numeric' failure", ClampMinPlaceholderDetectsUndeclared),
+    ("tweaks: an out-of-set enum / non-boolean CLI override warns tweakValueInvalid", CliTweakInvalidEnumOrBoolWarns),
+    ("arithmetic: parser rejects NaN/Infinity, Format guards overflow, clamp bounds round", ArithmeticOpsGuardParseFormatClamp),
+    ("arithmetic: addValue adds a delta to the vanilla value", AddValuePlansAndApplies),
+    ("arithmetic: ceil rounding rounds a fractional result up", ArithmeticCeilRoundingRoundsUp),
+    ("arithmetic: a non-numeric operand fails planning", ArithmeticNonNumericOperandFailsPlanning),
+    ("arithmetic: expectedOldValue drift fails planning", ArithmeticExpectedOldValueMismatchFailsPlanning),
+    ("arithmetic: schema-validate passes the multiplyValue fixture", SchemaValidateAcceptsMultiplyFixture),
+    ("arithmetic: multiplyValue and replaceValue on same target conflict", MultiplyAndReplaceSameTargetConflict),
+    ("arithmetic: clampMin greater than clampMax warns", LintWarnsOnClampMinGreaterThanMax),
+    ("arithmetic: shared Compute rounds, clamps, and adds identically to apply", ArithmeticPatchOpsComputeBehaves),
+    ("arithmetic: usage scanner reports the multiplier wiring for a tweak", TweakUsageScannerReportsMultiplier),
+    ("predicate: whitespace around '=' resolves the same as no spaces", PredicateWithWhitespaceResolves),
     ("templating: plan JSON report carries resolvedTweaks", PlanReportCarriesResolvedTweaks),
     ("collection tweaks: selection precedence is lockfile > cli > collection", TweakSelectionPrecedence),
     ("collection tweaks: a curator override resolves and applies", CollectionTweakOverrideResolvesAndApplies),
@@ -130,6 +156,15 @@ var tests = new (string Name, Func<bool> Run)[]
     ("apply: a cancelled token aborts Apply before writing the staging tree", ApplyHonoursCancellationToken),
     ("patchSets: an optional set is skipped when its package is absent", OptionalPatchSetSkippedWhenPackageAbsent),
     ("patchSets: a set is applied when its required package is present", PatchSetAppliedWhenPackagePresent),
+    ("advisor: a Replace overlay is flagged Info, never Error", AdvisorFlagsReplaceAsInfo),
+    ("advisor: unloading a still-referenced entity warns", AdvisorWarnsOnUnloadOfReferencedEntity),
+    ("advisor: an additive Incremental overlay is silent", AdvisorIsSilentOnAdditiveIncremental),
+    ("advisor: shipped dlc1 produces no warnings (calibration)", AdvisorIsQuietOnShippedDlc1),
+    ("advisor base-aware: unload of a base-referenced entity warns with --game-root", AdvisorBaseAwareWarnsUnloadReferencedInBaseGame),
+    ("advisor base-aware: that same unload is clean base-free (no game-root)", AdvisorBaseFreeSilentOnBaseOnlyReference),
+    ("advisor base-aware: a purely additive Replace is flagged as Incremental-able", AdvisorBaseAwareFlagsAdditiveReplace),
+    ("advisor base-aware: a modifying Replace is not flagged", AdvisorBaseAwareSilentOnModifyingReplace),
+    ("advisor base-aware: shipped dlc1 stays warning-free against the full game-gdb (calibration)", AdvisorBaseAwareQuietOnShippedDlc1),
 };
 
 var failed = 0;
@@ -283,6 +318,116 @@ bool TweakableFixturePassesValidation()
 
     var diagnostics = validator.ValidateMod(result.Value);
     return diagnostics.All(diagnostic => diagnostic.Severity != PatchDiagnosticSeverity.Error);
+}
+
+bool IntegerTweakFractionalDefaultFailsValidation()
+{
+    var tempRoot = Path.Combine(Path.GetTempPath(), $"pagonia-tweak-int-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(tempRoot);
+    File.WriteAllText(Path.Combine(tempRoot, "mod.yaml"), """
+patchFormatVersion: "0.1"
+id: pagonia-land.test.tweak-int
+name: Tweak Integer Test
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11768+193445"
+description: An integer tweak whose default is fractional.
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: core/textures/placeholder.bc.texture
+      source: entries/placeholder.bc.texture
+tweaks:
+  - id: cost
+    type: integer
+    label: Cost
+    default: 3.5
+    min: 1
+    max: 8
+""");
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+        var diagnostics = validator.ValidateMod(result.Value);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.TweakDefaultNotInteger);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool MalformedPathFailsWithSpecificDiagnostic()
+{
+    // A doubled '/' (empty segment) and a predicate with no element name must each fail planning
+    // with the specific targetPathMalformed, not the generic targetPathMissing.
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var guid = "c732cb26-7487-4a7b-b1ba-b65e094f9bac";
+
+    bool Fails(string path)
+    {
+        var tempRoot = WriteTempArithmeticMod("badpath", $"""
+operations:
+  - id: bad-path
+    operation: replaceValue
+    risk: low
+    reason: malformed-path test
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: {guid}
+      entityName: Sawmill
+      component: AspectBuildup
+      path: "{path}"
+    expectedOldValue: "4"
+    value: "9"
+""");
+        try
+        {
+            var read = reader.ReadMod(tempRoot);
+            if (!read.Success || read.Value is null) { return false; }
+            var plan = planner.Plan(gameRoot, [read.Value]);
+            return !plan.Success
+                && plan.ModPlans.SelectMany(p => p.Diagnostics).Any(d => d.Code == DiagnosticCodes.TargetPathMalformed);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+        }
+    }
+
+    return Fails("Costs//Item")
+        && Fails("[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount");
+}
+
+bool ApplyRefusesOutputOverlappingSource()
+{
+    // Apply wipes the output before writing, so output == source (or one nested in the other)
+    // must be refused up front — otherwise the wipe destroys the source. Use a temp dir as both
+    // source and output with a sentinel file; the refusal must leave the sentinel intact.
+    var tempRoot = Path.Combine(Path.GetTempPath(), $"pagonia-overlap-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(tempRoot);
+    try
+    {
+        var sentinel = Path.Combine(tempRoot, "sentinel.txt");
+        File.WriteAllText(sentinel, "keep me");
+
+        var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+        var read = reader.ReadMod(Path.Combine(patcherRoot, "fixtures", "mods", "cheaper-sawmill"));
+        if (!read.Success || read.Value is null) { return false; }
+        var plan = planner.Plan(gameRoot, [read.Value]);
+        if (!plan.Success) { return false; }
+
+        var diagnostics = applier.Apply(tempRoot, tempRoot, plan);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.ApplyOutputOverlapsSource
+                && d.Severity == PatchDiagnosticSeverity.Error)
+            && File.Exists(sentinel);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
 }
 
 bool TweakDefaultOutOfRangeFailsValidation()
@@ -575,6 +720,67 @@ operations:
     }
 }
 
+bool PredicateWithWhitespaceResolves()
+{
+    // Regression: a naturally-formatted predicate with spaces around '='
+    // (`Content/Resource = '...'`) must resolve the same as the no-space form.
+    // Before the trim fix, the leading space left the opening quote in place
+    // so the value comparison never matched and the target didn't resolve.
+    var tempRoot = Path.Combine(Path.GetTempPath(), $"pagonia-predicate-ws-{Guid.NewGuid():N}");
+    var outputRoot = Path.Combine(Path.GetTempPath(), $"pagonia-predicate-ws-out-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(Path.Combine(tempRoot, "patches"));
+    File.WriteAllText(Path.Combine(tempRoot, "mod.yaml"), """
+patchFormatVersion: "0.1"
+id: pagonia-land.test.predicate-whitespace
+name: Predicate Whitespace
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Predicate formatted with spaces around the equals sign.
+requiredPackages:
+  - core
+patches:
+  - patches/buildings.yaml
+""");
+    File.WriteAllText(Path.Combine(tempRoot, "patches", "buildings.yaml"), """
+operations:
+  - id: spaced-predicate-op
+    operation: replaceValue
+    risk: low
+    reason: Predicate with whitespace around '='.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource = 'c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    value: "7"
+""");
+
+    try
+    {
+        var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+
+        var (overrides, _) = TweakOverrides.Parse([]);
+        var plan = planner.Plan(gameRoot, [result.Value], TweakSelection.ForCli(overrides));
+        var diagnostics = applier.Apply(gameRoot, outputRoot, plan);
+        var outputXml = File.ReadAllText(Path.Combine(outputRoot, "core", "gdb", "buildings.gd.xml"));
+
+        // The spaced predicate resolved + the value changed (no ExpectedOldValue
+        // mismatch). A failed resolution would leave Amount at 4.
+        return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+            && outputXml.Contains("<Amount>7</Amount>", StringComparison.Ordinal);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+        if (Directory.Exists(outputRoot)) { Directory.Delete(outputRoot, recursive: true); }
+    }
+}
+
 bool TemplatedFixtureAppliesTweakedXml()
 {
     var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
@@ -599,6 +805,385 @@ bool TemplatedFixtureAppliesTweakedXml()
     {
         if (Directory.Exists(outputRoot)) { Directory.Delete(outputRoot, recursive: true); }
     }
+}
+
+bool ArithmeticOpsGuardParseFormatClamp()
+{
+    // NaN / ±Infinity are rejected by the shared parser (so they surface as
+    // "not numeric" rather than computing garbage); ordinary + exponent forms still parse.
+    if (ArithmeticPatchOps.TryParse("NaN", out _)) { return false; }
+    if (ArithmeticPatchOps.TryParse("Infinity", out _)) { return false; }
+    if (ArithmeticPatchOps.TryParse("-Infinity", out _)) { return false; }
+    if (!ArithmeticPatchOps.TryParse("1E3", out var exp) || exp != 1000) { return false; }
+    if (!ArithmeticPatchOps.TryParse("4", out var four) || four != 4) { return false; }
+
+    // a whole value beyond long range formats as a plain integer (no overflow, no exponent).
+    var big = ArithmeticPatchOps.Format(9.3e18);
+    if (big.Contains('E') || big.Contains('.')) { return false; }
+    if (ArithmeticPatchOps.Format(6.0) != "6") { return false; }
+
+    // a fractional clamp bound is rounded with the same policy, so the clamped result
+    // stays integral — 4 * 0.1 = 0.4 rounds to 0, clampMin "1.5" rounds to 2, result "2".
+    var clampedResult = ArithmeticPatchOps.Compute(PatchOperationTypes.MultiplyValue, 4, 0.1, "round", 1.5, null, out var didClamp);
+    return clampedResult == "2" && didClamp;
+}
+
+bool ClampMinPlaceholderDetectsUndeclared()
+{
+    // A {{ tweaks.* }} in clampMin used to be copied through verbatim (never resolved, never
+    // flagged), failing later with a confusing "not numeric". It must now be treated as a
+    // placeholder: an undeclared id reports tweakUndeclared up front.
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var tempRoot = WriteTempArithmeticMod("clampph", """
+operations:
+  - id: clamp-op
+    operation: multiplyValue
+    risk: low
+    reason: Scale the Sawmill cost with a tweak-driven floor.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    factor: "0.1"
+    clampMin: "{{ tweaks.nope }}"
+""");
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+
+        var plan = planner.Plan(gameRoot, [result.Value]);
+        return !plan.Success
+            && plan.ModPlans.SelectMany(p => p.Diagnostics)
+                .Any(d => d.Code == DiagnosticCodes.TweakUndeclared);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool CliTweakInvalidEnumOrBoolWarns()
+{
+    // A direct patcher --tweak (unlike the manager) reaches the planner unchecked. An out-of-set
+    // enum value and a non-boolean must each surface a tweakValueInvalid warning.
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "tweakable-sawmill");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var (overrides, _) = TweakOverrides.Parse([
+        "pagonia-land.fixture.tweakable-sawmill:difficulty=banana",
+        "pagonia-land.fixture.tweakable-sawmill:free-upkeep=maybe"]);
+    var plan = planner.Plan(gameRoot, [result.Value], TweakSelection.ForCli(overrides));
+
+    return plan.ModPlans.SelectMany(p => p.Diagnostics)
+        .Count(d => d.Code == DiagnosticCodes.TweakValueInvalid) == 2;
+}
+
+string WriteTempArithmeticMod(string idSuffix, string operationsYaml)
+{
+    var tempRoot = Path.Combine(Path.GetTempPath(), $"pagonia-arith-{idSuffix}-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(Path.Combine(tempRoot, "patches"));
+    File.WriteAllText(Path.Combine(tempRoot, "mod.yaml"), $"""
+patchFormatVersion: "0.1"
+id: pagonia-land.test.arith-{idSuffix}
+name: Arithmetic Test {idSuffix}
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11694+192849"
+description: Inline arithmetic-op fixture for {idSuffix}.
+requiredPackages:
+  - core
+patches:
+  - patches/buildings.yaml
+""");
+    File.WriteAllText(Path.Combine(tempRoot, "patches", "buildings.yaml"), operationsYaml);
+    return tempRoot;
+}
+
+bool MultiplyValueFixturePlansAndApplies()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var outputRoot = Path.Combine(Path.GetTempPath(), $"pagonia-multiply-apply-{Guid.NewGuid():N}");
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "multiply-sawmill");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    try
+    {
+        // Default cost-multiplier is 1.5: 4 * 1.5 = 6, rounded, above clampMin 1.
+        var plan = planner.Plan(gameRoot, [result.Value]);
+        if (!plan.Success
+            || plan.Writes.Single() is not { OldValue: "4", NewValue: "6", OperationType: "multiplyValue" })
+        {
+            return false;
+        }
+
+        var diagnostics = applier.Apply(gameRoot, outputRoot, plan);
+        var outputXml = File.ReadAllText(Path.Combine(outputRoot, "core", "gdb", "buildings.gd.xml"));
+        return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+            && outputXml.Contains("<Amount>6</Amount>", StringComparison.Ordinal);
+    }
+    finally
+    {
+        if (Directory.Exists(outputRoot)) { Directory.Delete(outputRoot, recursive: true); }
+    }
+}
+
+bool MultiplyValueClampsLowResult()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "multiply-sawmill");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    // 4 * 0.1 = 0.4, rounds to 0, then clampMin 1 floors it back up to 1.
+    var (overrides, _) = TweakOverrides.Parse(["pagonia-land.fixture.multiply-sawmill:cost-multiplier=0.1"]);
+    var plan = planner.Plan(gameRoot, [result.Value], TweakSelection.ForCli(overrides));
+    return plan.Success
+        && plan.Writes.Single().NewValue == "1"
+        && plan.ModPlans.Single().Diagnostics.Any(d => d.Code == DiagnosticCodes.ArithmeticResultClamped);
+}
+
+bool AddValuePlansAndApplies()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var outputRoot = Path.Combine(Path.GetTempPath(), $"pagonia-add-apply-{Guid.NewGuid():N}");
+    var tempRoot = WriteTempArithmeticMod("addvalue", """
+operations:
+  - id: add-op
+    operation: addValue
+    risk: low
+    reason: Add two softwood to the Sawmill cost.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    delta: "2"
+""");
+
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+
+        var plan = planner.Plan(gameRoot, [result.Value]);
+        if (!plan.Success || plan.Writes.Single() is not { OldValue: "4", NewValue: "6", OperationType: "addValue" })
+        {
+            return false;
+        }
+
+        var diagnostics = applier.Apply(gameRoot, outputRoot, plan);
+        var outputXml = File.ReadAllText(Path.Combine(outputRoot, "core", "gdb", "buildings.gd.xml"));
+        return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+            && outputXml.Contains("<Amount>6</Amount>", StringComparison.Ordinal);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+        if (Directory.Exists(outputRoot)) { Directory.Delete(outputRoot, recursive: true); }
+    }
+}
+
+bool ArithmeticCeilRoundingRoundsUp()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var tempRoot = WriteTempArithmeticMod("ceil", """
+operations:
+  - id: ceil-op
+    operation: multiplyValue
+    risk: low
+    reason: 4 * 1.6 = 6.4, ceil rounds to 7.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    factor: "1.6"
+    rounding: ceil
+""");
+
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+
+        var plan = planner.Plan(gameRoot, [result.Value]);
+        return plan.Success && plan.Writes.Single().NewValue == "7";
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool ArithmeticNonNumericOperandFailsPlanning()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var tempRoot = WriteTempArithmeticMod("nonnumeric", """
+operations:
+  - id: bad-factor-op
+    operation: multiplyValue
+    risk: low
+    reason: A factor that is not a number must fail planning.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    factor: "abc"
+""");
+
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+
+        var plan = planner.Plan(gameRoot, [result.Value]);
+        return !plan.Success
+            && plan.ModPlans.Single().Diagnostics.Any(d => d.Code == DiagnosticCodes.ArithmeticOperandNotNumeric);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool ArithmeticExpectedOldValueMismatchFailsPlanning()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var tempRoot = WriteTempArithmeticMod("drift", """
+operations:
+  - id: drift-op
+    operation: multiplyValue
+    risk: low
+    reason: expectedOldValue 9 does not match the vanilla 4.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "9"
+    factor: "2"
+""");
+
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+
+        var plan = planner.Plan(gameRoot, [result.Value]);
+        return !plan.Success
+            && plan.ModPlans.Single().Diagnostics.Any(d => d.Code == DiagnosticCodes.ExpectedOldValueMismatch);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool SchemaValidateAcceptsMultiplyFixture()
+{
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "multiply-sawmill");
+    var diagnostics = schemaValidator.ValidateMod(modPath);
+    return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+        && diagnostics.Any(d => d.Code == DiagnosticCodes.SchemaValidationOk);
+}
+
+bool MultiplyAndReplaceSameTargetConflict()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var multiply = reader.ReadMod(Path.Combine(patcherRoot, "fixtures", "mods", "multiply-sawmill"));
+    var replace = reader.ReadMod(Path.Combine(patcherRoot, "fixtures", "mods", "templated-sawmill"));
+    if (!multiply.Success || multiply.Value is null || !replace.Success || replace.Value is null) { return false; }
+
+    // Both write the same Sawmill softwood Amount: a multiplyValue and a replaceValue collide as a
+    // single-target conflict regardless of the differing computed values.
+    var plan = planner.Plan(gameRoot, [multiply.Value, replace.Value]);
+    return !plan.Success
+        && plan.Diagnostics.Any(d => d.Code == DiagnosticCodes.DuplicateWriteTarget);
+}
+
+bool LintWarnsOnClampMinGreaterThanMax()
+{
+    var tempRoot = WriteTempArithmeticMod("clamp-order", """
+operations:
+  - id: clamp-op
+    operation: multiplyValue
+    risk: low
+    reason: clampMin above clampMax should warn.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    factor: "2"
+    clampMin: "10"
+    clampMax: "2"
+""");
+
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+
+        var diagnostics = validator.ValidateMod(result.Value);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.ClampMinGreaterThanMax
+            && d.Severity == PatchDiagnosticSeverity.Warning);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool ArithmeticPatchOpsComputeBehaves()
+{
+    var multiply = ArithmeticPatchOps.Compute(PatchOperationTypes.MultiplyValue, 4, 2.5, "round", null, null, out var mClamped);
+    var add = ArithmeticPatchOps.Compute(PatchOperationTypes.AddValue, 4, 2, null, null, null, out _);
+    var ceil = ArithmeticPatchOps.Compute(PatchOperationTypes.MultiplyValue, 4, 1.6, "ceil", null, null, out _);
+    var floor = ArithmeticPatchOps.Compute(PatchOperationTypes.MultiplyValue, 4, 1.6, "floor", null, null, out _);
+    var clampedLow = ArithmeticPatchOps.Compute(PatchOperationTypes.MultiplyValue, 4, 0.1, "round", 1, null, out var cClamped);
+
+    return multiply == "10" && !mClamped
+        && add == "6"
+        && ceil == "7"
+        && floor == "6"
+        && clampedLow == "1" && cClamped
+        && ArithmeticPatchOps.IsArithmetic(PatchOperationTypes.MultiplyValue)
+        && !ArithmeticPatchOps.IsArithmetic(PatchOperationTypes.ReplaceValue);
+}
+
+bool TweakUsageScannerReportsMultiplier()
+{
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "multiply-sawmill");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var usages = TweakUsageScanner.Scan(result.Value);
+    var usage = usages.SingleOrDefault(u => u.TweakId == "cost-multiplier");
+
+    return usage is
+    {
+        OperationType: "multiplyValue",
+        OperandField: "factor",
+        ExpectedOldValue: "4",
+    }
+    && !string.IsNullOrWhiteSpace(usage.Reason);
 }
 
 bool OptionalPatchSetSkippedWhenPackageAbsent()
@@ -862,6 +1447,161 @@ bool LintWarnsOnUnusedTweak()
         && diagnostics.Any(d => d.Code == DiagnosticCodes.TweakDeclaredButUnused
             && d.Severity == PatchDiagnosticSeverity.Warning
             && d.Message.Contains("softwood-cost", StringComparison.Ordinal));
+}
+
+bool AdvisorFlagsReplaceAsInfo()
+{
+    // overlay-replace ships one Replace entity and references nothing else: the
+    // advisor emits the destructive-mode Info + a risk Info, no Warning/Error.
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "overlay-replace");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    var diagnostics = advisor.Advise(overlay);
+
+    return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+        && diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Warning)
+        && diagnostics.Any(d => d.Code == DiagnosticCodes.UsesDestructiveInheritanceMode
+            && d.Severity == PatchDiagnosticSeverity.Info)
+        && diagnostics.Any(d => d.Code == DiagnosticCodes.InheritanceConflictRisk);
+}
+
+bool AdvisorWarnsOnUnloadOfReferencedEntity()
+{
+    // overlay-unload-dangling Unloads 4444… while another entity still points a
+    // Worker at it — the reference would dangle, so the advisor warns.
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "overlay-unload-dangling");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    var diagnostics = advisor.Advise(overlay);
+
+    return diagnostics.Any(d => d.Code == DiagnosticCodes.UnloadsReferencedEntity
+        && d.Severity == PatchDiagnosticSeverity.Warning
+        && d.Message.Contains("44444444-4444-4444-4444-444444444444", StringComparison.OrdinalIgnoreCase));
+}
+
+bool AdvisorIsSilentOnAdditiveIncremental()
+{
+    // overlay-incremental uses only the additive Incremental mode: no destructive
+    // notice, no risk score, no warning — the advisor stays quiet.
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "overlay-incremental");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    var diagnostics = advisor.Advise(overlay);
+
+    return diagnostics.Count == 0;
+}
+
+bool AdvisorIsQuietOnShippedDlc1()
+{
+    // Calibration: run the advisor over the real shipped dlc1 gd.xml. EE authored
+    // it deliberately, so the advisor must not cry wolf — Info notices are fine,
+    // but zero Warning/Error. game-gdb/ is local-only (gitignored, absent in CI);
+    // skip cleanly when it isn't present.
+    var dlc1Gdb = Path.Combine(root, "game-gdb", "dlc1", "gdb");
+    if (!Directory.Exists(dlc1Gdb)) { return true; }
+
+    var files = Directory.GetFiles(dlc1Gdb, "*.gd.xml", SearchOption.AllDirectories);
+    if (files.Length == 0) { return true; }
+
+    var overlay = OverlayGdbReader.ReadFiles(files);
+    var diagnostics = advisor.Advise(overlay);
+
+    return overlay.Diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+        && diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Warning
+            && d.Severity != PatchDiagnosticSeverity.Error);
+}
+
+bool AdvisorBaseAwareWarnsUnloadReferencedInBaseGame()
+{
+    // overlay-unload-base-referenced unloads c22b4997…, which the mini game-gdb's
+    // Sawmill still lists as a Cost. With --game-root the advisor sees the dangle.
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "overlay-unload-base-referenced");
+    var miniGameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    var reference = ReferenceGdbIndex.Load(miniGameRoot);
+    var diagnostics = advisor.Advise(overlay, reference);
+
+    return diagnostics.Any(d => d.Code == DiagnosticCodes.UnloadsReferencedEntity
+        && d.Severity == PatchDiagnosticSeverity.Warning
+        && d.Message.Contains("base game database", StringComparison.OrdinalIgnoreCase));
+}
+
+bool AdvisorBaseFreeSilentOnBaseOnlyReference()
+{
+    // Same overlay, but base-free (no game root): the GUID appears only as the
+    // unload pointer, so there is nothing to warn about without the reference DB.
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "overlay-unload-base-referenced");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    var diagnostics = advisor.Advise(overlay);
+
+    return !diagnostics.Any(d => d.Code == DiagnosticCodes.UnloadsReferencedEntity);
+}
+
+bool AdvisorBaseAwareFlagsAdditiveReplace()
+{
+    // overlay-replace-additive keeps the base Sawmill verbatim and only adds a
+    // third Cost item, so the advisor should suggest Incremental.
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "overlay-replace-additive");
+    var miniGameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    var reference = ReferenceGdbIndex.Load(miniGameRoot);
+    var diagnostics = advisor.Advise(overlay, reference);
+
+    return diagnostics.Any(d => d.Code == DiagnosticCodes.ReplaceCouldBeIncremental
+        && d.Severity == PatchDiagnosticSeverity.Warning);
+}
+
+bool AdvisorBaseAwareSilentOnModifyingReplace()
+{
+    // overlay-replace-modifying changes the building name: a genuine rewrite, not
+    // additive — must NOT be flagged as Incremental-able.
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "overlay-replace-modifying");
+    var miniGameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    var reference = ReferenceGdbIndex.Load(miniGameRoot);
+    var diagnostics = advisor.Advise(overlay, reference);
+
+    return !diagnostics.Any(d => d.Code == DiagnosticCodes.ReplaceCouldBeIncremental);
+}
+
+bool AdvisorBaseAwareQuietOnShippedDlc1()
+{
+    // Calibration with full base context: index the whole local game-gdb and run
+    // the advisor over dlc1 as the overlay. EE's 14 Replaces genuinely modify
+    // their targets, so replaceCouldBeIncremental must not fire, and dlc1 has no
+    // Unload — zero Warning/Error. game-gdb/ is local-only; skip when absent.
+    var gameGdb = Path.Combine(root, "game-gdb");
+    var dlc1Gdb = Path.Combine(gameGdb, "dlc1", "gdb");
+    if (!Directory.Exists(dlc1Gdb)) { return true; }
+
+    var files = Directory.GetFiles(dlc1Gdb, "*.gd.xml", SearchOption.AllDirectories);
+    if (files.Length == 0) { return true; }
+
+    var overlay = OverlayGdbReader.ReadFiles(files);
+    var reference = ReferenceGdbIndex.Load(gameGdb);
+    var diagnostics = advisor.Advise(overlay, reference);
+
+    return overlay.Diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+        && diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Warning
+            && d.Severity != PatchDiagnosticSeverity.Error);
 }
 
 bool LintAllowsReferencedTweak()
@@ -3051,6 +3791,58 @@ bool SchemaRoundtripPatchApplyReport()
     }
 }
 
+bool SchemaRoundtripPatchPlanReportArithmetic()
+{
+    // The arithmetic ops (multiplyValue/addValue) must be in the report's
+    // OperationType enum. Plan the multiply-sawmill fixture and validate the
+    // emitted plan report against the public schema — guards the regression
+    // where an arithmetic-op report failed its own schema.
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "multiply-sawmill");
+    var outputRoot = Path.Combine(Path.GetTempPath(), $"pagonia-schema-plan-arith-{Guid.NewGuid():N}");
+    var jsonPath = Path.Combine(outputRoot, "plan.json");
+
+    try
+    {
+        var read = reader.ReadMod(modPath);
+        if (!read.Success || read.Value is null) { return false; }
+
+        var plan = planner.Plan(gameRoot, [read.Value]);
+        if (plan.Writes.Single() is not { OperationType: "multiplyValue" }) { return false; }
+
+        reporter.WriteReports(plan, markdownPath: null, jsonPath: jsonPath);
+        return ValidateAgainstSchema(File.ReadAllText(jsonPath), "patch-plan-report.schema.json");
+    }
+    finally
+    {
+        if (Directory.Exists(outputRoot)) { Directory.Delete(outputRoot, recursive: true); }
+    }
+}
+
+bool SchemaRoundtripPatchApplyReportArithmetic()
+{
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "multiply-sawmill");
+    var workRoot = Path.Combine(Path.GetTempPath(), $"pagonia-schema-apply-arith-{Guid.NewGuid():N}");
+    var outputGameRoot = Path.Combine(workRoot, "game");
+    var jsonPath = Path.Combine(workRoot, "apply.json");
+
+    try
+    {
+        var read = reader.ReadMod(modPath);
+        if (!read.Success || read.Value is null) { return false; }
+
+        var plan = planner.Plan(gameRoot, [read.Value]);
+        var diagnostics = applier.Apply(gameRoot, outputGameRoot, plan);
+        applyReporter.WriteReports(plan, diagnostics, outputGameRoot, markdownPath: null, jsonPath: jsonPath, planSource: "directMods");
+        return ValidateAgainstSchema(File.ReadAllText(jsonPath), "patch-apply-report.schema.json");
+    }
+    finally
+    {
+        if (Directory.Exists(workRoot)) { Directory.Delete(workRoot, recursive: true); }
+    }
+}
+
 bool ValidateAgainstSchema(string json, string schemaFileName)
 {
     var schemaPath = Path.Combine(root, "schemas", "patcher", schemaFileName);
@@ -3060,9 +3852,13 @@ bool ValidateAgainstSchema(string json, string schemaFileName)
         return false;
     }
 
-    var schema = Json.Schema.JsonSchema.FromFile(schemaPath);
-    var node = System.Text.Json.Nodes.JsonNode.Parse(json);
-    var results = schema.Evaluate(node, new Json.Schema.EvaluationOptions { OutputFormat = Json.Schema.OutputFormat.Hierarchical });
+    if (!schemaCache.TryGetValue(schemaPath, out var schema))
+    {
+        schema = Json.Schema.JsonSchema.FromFile(schemaPath);
+        schemaCache[schemaPath] = schema;
+    }
+    using var doc = System.Text.Json.JsonDocument.Parse(json);
+    var results = schema.Evaluate(doc.RootElement, new Json.Schema.EvaluationOptions { OutputFormat = Json.Schema.OutputFormat.Hierarchical });
 
     if (results.IsValid)
     {
@@ -3086,7 +3882,7 @@ void DumpSchemaErrors(Json.Schema.EvaluationResults result, int depth)
             Console.Error.WriteLine($"{indent}schema error at {locationHint}: {message} [{keyword}]");
         }
     }
-    foreach (var child in result.Details)
+    foreach (var child in result.Details ?? [])
     {
         DumpSchemaErrors(child, depth + 1);
     }

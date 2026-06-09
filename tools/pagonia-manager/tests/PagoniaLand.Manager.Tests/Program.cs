@@ -49,6 +49,12 @@ var tests = new (string Name, Func<bool> Run)[]
     ("ManagerDiagnostic.From preserves code + maps severity", DiagnosticFromPreservesCodeAndSeverity),
     ("install: folder source happy path installs + writes sidecar", InstallFolderHappyPath),
     ("install: zip source happy path extracts + installs + writes sidecar", InstallZipHappyPath),
+    ("install: a GDB-overlay mod surfaces conflict advisor findings", InstallSurfacesOverlayAdvisorFindings),
+    ("plan: two enabled mods that Replace the same entity surface a cross-mod overlay conflict", CrossModOverlayConflictSurfacedInPlan),
+    ("doctor: a freshly initialised store reports no errors", DoctorHealthyStoreHasNoErrors),
+    ("doctor: an uninitialised store reports a store error", DoctorUninitialisedStoreErrors),
+    ("doctor: two conflicting enabled mods are flagged store-only (no game root)", DoctorFlagsCrossModConflictStoreOnly),
+    ("doctor: an enabled mod with an unreadable manifest grades Error (not 'all present')", DoctorFlagsUnreadableEnabledMod),
     ("install: missing source path emits modSourceNotFound", InstallMissingSourceEmitsCode),
     ("install: source that is not folder or zip emits modSourceNotAFolderOrZip", InstallBadSourceTypeEmitsCode),
     ("install: source folder missing mod.yaml emits modManifestMissing", InstallFolderMissingManifestEmitsCode),
@@ -165,6 +171,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("tweak: set unknown tweak-id / unenabled mod rejected (tweakUnknownId/Mod)", TweakSetUnknownModAndIdRejected),
     ("tweak: reset drops a single override then the whole-mod map", TweakResetDropsOverride),
     ("tweak: plan threads the profile override into the patcher plan (origin external)", PlanThreadsProfileTweakIntoPlan),
+    ("tweak: a fractional number tweak threads through a multiplyValue op (4 x 2.5 = 10)", NumberTweakDrivesMultiplyValueThroughManager),
     ("tweak: list report validates against schema + shows per-tweak origins", TweakListReportValidatesAndShowsOrigins),
     ("tweak: set report validates against schema", TweakSetReportValidates),
     ("tweak: set rejection report validates + carries the error diagnostic", TweakSetReportSurfacesRejection),
@@ -304,8 +311,11 @@ var tests = new (string Name, Func<bool> Run)[]
     // live-install rollback from pak backups.
     ("rollback live-install: restores rebuilt pak byte-identical to pre-deploy original", RollbackLiveInstallByteIdentical),
     ("rollback live-install: tampered backup yields rollbackHashMismatch + leaves live pak as-is", RollbackLiveInstallHashMismatch),
+    ("rollback extracted-layout: tampered XML backup yields rollbackHashMismatch + leaves live file as-is", RollbackExtractedLayoutHashMismatch),
     ("rollback live-install: missing backup yields rollbackBackupMissing without crash", RollbackLiveInstallMissingBackup),
     ("rollback live-install: pops the deploy from history + removes its timestamp dir", RollbackLiveInstallTrimsHistory),
+    ("rollback: a restore failure aborts BEFORE deleting overlay paks (no mixed install)", RollbackAbortsBeforeDeletingOverlaysOnRestoreFailure),
+    ("rollback: a foreign-replaced overlay is preserved + warned, not deleted, even under --force", RollbackPreservesDriftedOverlayUnderForce),
 
     // explicit round-trip across the full live-install pipeline.
     ("live install: deploy -> rollback round trip is byte-identical (full pipeline incl. extract cache)", LiveInstallDeployRollbackRoundTripByteIdentical),
@@ -337,7 +347,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("deploys clean: --keep 3 keeps the 3 newest + removes older + rewrites history.yaml", DeployCleanKeepThreeNewest),
     ("deploys clean: refuses to remove the entry referenced by state.yaml.lastDeploy", DeployCleanRefusesLastDeploy),
     ("deploys clean: --dry-run reports what would be removed without writing", DeployCleanDryRunWritesNothing),
-    ("deploys clean: --keep 0 removes everything except lastDeploy-protected", DeployCleanKeepZeroRespectsLastDeploy),
+    ("deploys clean: --keep 0 keeps the newest (rollback anchor) + the lastDeploy-protected entry", DeployCleanKeepZeroRespectsLastDeploy),
     ("deploys clean: across all fingerprints applies keep-N per fingerprint independently", DeployCleanAcrossFingerprints),
 
     // sparse patch apply.
@@ -366,6 +376,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("remote parser: short form with nested :base path", RemoteParserShortFormNestedBasePath),
     ("remote parser: spec without :base leaves BasePath empty (root)", RemoteParserDefaultBasePathEmpty),
     ("remote parser: rejects '..' traversal in :base path", RemoteParserRejectsBasePathTraversal),
+    ("remote parser: rejects '..' traversal in mod-spec (short + long form)", RemoteParserRejectsModSpecTraversal),
     ("remote parser: rejects empty :base path", RemoteParserRejectsEmptyBasePath),
     ("remote parser: long form https://github.com/.../tree/ref captures owner/repo/ref/mod-spec", RemoteParserLongFormFull),
     ("remote parser: long form without trailing mod-spec resolves to null mod-spec", RemoteParserLongFormRepoAndRef),
@@ -421,6 +432,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("catalog parser: file:absolute short form works", CatalogParserFileShort),
     ("catalog parser: rejects local-folder paths (not a catalog spec)", CatalogParserRejectsLocalPath),
     ("catalog parser: rejects garbage owner/repo names", CatalogParserRejectsGarbage),
+    ("catalog parser: rejects '..' traversal in the catalog path", CatalogParserRejectsPathTraversal),
     ("catalog parser: relative file: resolves against parent catalog directory", CatalogParserRelativeFileResolvesAgainstParent),
     ("catalog parser: repo entry indexPath round-trips, absent = root", CatalogRepoEntryIndexPathRoundTrips),
 
@@ -455,6 +467,7 @@ var tests = new (string Name, Func<bool> Run)[]
 
     // UrlCatalogSource — http(s):// catalogs.
     ("url-catalog parser: https://host/path/catalog.yaml parses as UrlCatalogSource", UrlCatalogParserHttps),
+    ("url-catalog parser: rejects loopback + link-local hosts (SSRF guard)", UrlCatalogParserRejectsLoopbackAndLinkLocal),
     ("url-catalog parser: http://... parses + IsInsecure=true", UrlCatalogParserHttpInsecure),
     ("url-catalog parser: garbage 'https://' alone rejected", UrlCatalogParserRejectsHostless),
     ("url-catalog canonical: HTTPS://Example.COM/x and https://example.com/x dedup", UrlCatalogCanonicalNormalisesSchemeAndHost),
@@ -495,6 +508,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("modio fetcher: 404 surfaces modIoApiError with the game/mod ids in the message", ModIoFetcher404),
     ("modio fetcher: malformed JSON surfaces modIoApiError cleanly", ModIoFetcherMalformedJson),
     ("modio fetcher: api_key env var override is used when set", ModIoFetcherEnvOverride),
+    ("modio fetcher: rate-limit + API-error diagnostics never leak the api_key", ModIoFetcherRateLimitRedactsKey),
     // ModIoGameAliases — slug/numeric resolution (PoP-only).
     ("modio aliases: numeric '8242' resolves to itself", ModIoAliasesNumericResolves),
     ("modio aliases: 'pioneers-of-pagonia' slug resolves to 8242", ModIoAliasesSlugResolves),
@@ -1143,6 +1157,218 @@ static bool InstallFolderHappyPath()
     finally
     {
         CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool InstallSurfacesOverlayAdvisorFindings()
+{
+    // A Pattern B overlay mod that Replaces an entity should, on install, carry
+    // the patcher advisor's destructive-mode notice through to the install
+    // diagnostics — advisory only, so the install still succeeds.
+    var tempRoot = NewTempRoot("install-advisor");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var sourceDir = Path.Combine(tempRoot, "src");
+        Directory.CreateDirectory(Path.Combine(sourceDir, "entries"));
+
+        File.WriteAllText(Path.Combine(sourceDir, "mod.yaml"), """
+patchFormatVersion: "0.1"
+id: pagonia-land.fixture.installer-advisor
+name: Fixture Installer Advisor
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11768+193445"
+description: Inline overlay fixture that Replaces an entity, for advisor surfacing.
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: installer-advisor-test/gdb/sawmill.gd.xml
+      source: entries/sawmill.gd.xml
+""");
+
+        File.WriteAllText(Path.Combine(sourceDir, "entries", "sawmill.gd.xml"), """
+<?xml version="1.0" encoding="utf-8"?>
+<EntityGroup>
+  <Entities>
+    <Entity Name="Sawmill Override" Guid="11111111-1111-1111-1111-111111111111" InheritanceMode="Replace" InheritedGuid="22222222-2222-2222-2222-222222222222">
+      <Values />
+    </Entity>
+  </Entities>
+</EntityGroup>
+""");
+
+        var result = new ModInstaller().Install(sourceDir, layout);
+
+        return result.Outcome == InstallOutcome.Installed
+            && result.Diagnostics.All(d => d.Severity != ManagerDiagnosticSeverity.Error)
+            && result.Diagnostics.Any(d => d.Code == "usesDestructiveInheritanceMode"
+                && d.Severity == ManagerDiagnosticSeverity.Info)
+            && result.Diagnostics.Any(d => d.Code == "inheritanceConflictRisk");
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool CrossModOverlayConflictSurfacedInPlan()
+{
+    // Two enabled overlay mods that both Replace the same inherited entity. The
+    // plan must surface a cross-mod overlay conflict naming the load-order winner
+    // (the last-enabled mod) and the overridden one. Advisory — never an error.
+    var tempRoot = NewTempRoot("cross-mod-overlay-conflict");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var gameRoot = MakeGameGdbFixture(tempRoot);
+        const string shared = "c732cb26-7487-4a7b-b1ba-b65e094f9bac";
+
+        InstallOverlayReplaceMod(layout, tempRoot, "pagonia-land.fixture.overlay-a", "src-a", shared);
+        new ActiveProfileService().Enable(layout, "pagonia-land.fixture.overlay-a", null);
+        InstallOverlayReplaceMod(layout, tempRoot, "pagonia-land.fixture.overlay-b", "src-b", shared);
+        new ActiveProfileService().Enable(layout, "pagonia-land.fixture.overlay-b", null);
+        // Load order is now [overlay-a, overlay-b] — overlay-b wins.
+
+        var plan = new PlanProfileService().Plan(layout, gameRoot, null);
+
+        return plan.ManagerDiagnostics.All(d => d.Severity != ManagerDiagnosticSeverity.Error)
+            && plan.ManagerDiagnostics.Any(d =>
+                d.Code == ManagerDiagnosticCodes.CrossModOverlayConflict
+                && d.Severity == ManagerDiagnosticSeverity.Warning
+                && d.Message.Contains("pagonia-land.fixture.overlay-b", StringComparison.Ordinal)
+                && d.Message.Contains("pagonia-land.fixture.overlay-a", StringComparison.Ordinal)
+                && d.Message.Contains(shared, StringComparison.OrdinalIgnoreCase));
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool DoctorHealthyStoreHasNoErrors()
+{
+    var tempRoot = NewTempRoot("doctor-healthy");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var report = new DoctorService().Run(layout, gameRoot: null);
+        return !report.HasErrors
+            && report.Checks.Any(c => c.Name == "Store" && c.Status == DoctorStatus.Ok)
+            && report.Checks.Any(c => c.Name == "Expansion ownership" && c.Status == DoctorStatus.Skipped);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool DoctorUninitialisedStoreErrors()
+{
+    var tempRoot = NewTempRoot("doctor-uninit");
+    try
+    {
+        var layout = new StoreLayout(Path.Combine(tempRoot, "store"));
+        var report = new DoctorService().Run(layout, gameRoot: null);
+        return report.HasErrors
+            && report.Checks.Any(c => c.Name == "Store" && c.Status == DoctorStatus.Error
+                && c.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.StoreNotInitialised));
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool DoctorFlagsCrossModConflictStoreOnly()
+{
+    // doctor reuses the cross-mod detector with no game root: two enabled mods
+    // that Replace the same entity should make the conflicts check a warning.
+    var tempRoot = NewTempRoot("doctor-conflict");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        const string shared = "c732cb26-7487-4a7b-b1ba-b65e094f9bac";
+        InstallOverlayReplaceMod(layout, tempRoot, "pagonia-land.fixture.doc-a", "src-a", shared);
+        new ActiveProfileService().Enable(layout, "pagonia-land.fixture.doc-a", null);
+        InstallOverlayReplaceMod(layout, tempRoot, "pagonia-land.fixture.doc-b", "src-b", shared);
+        new ActiveProfileService().Enable(layout, "pagonia-land.fixture.doc-b", null);
+
+        var report = new DoctorService().Run(layout, gameRoot: null);
+        return report.Checks.Any(c => c.Name == "Cross-mod overlay conflicts"
+            && c.Status == DoctorStatus.Warning
+            && c.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CrossModOverlayConflict));
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool DoctorFlagsUnreadableEnabledMod()
+{
+    // An enabled mod that's installed on disk but whose manifest can't be read must grade
+    // the "Enabled mods installed" check Error (modManifestUnreadable), not be silently
+    // dropped so the check reads "all present".
+    var tempRoot = NewTempRoot("doctor-broken-mod");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var modId = "pagonia-land.fixture.doc-broken";
+        InstallFixtureMod(layout, tempRoot, modId, "0.1.0", "src-broken");
+        new ActiveProfileService().Enable(layout, modId, null);
+
+        // Remove the installed manifest: the dir still exists, but ReadMod now returns null.
+        File.Delete(Path.Combine(layout.ModVersionDirectory(modId, "0.1.0"), "mod.yaml"));
+
+        var report = new DoctorService().Run(layout, gameRoot: null);
+        return report.Checks.Any(c => c.Name == "Enabled mods installed"
+            && c.Status == DoctorStatus.Error
+            && c.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModManifestUnreadable));
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static void InstallOverlayReplaceMod(StoreLayout layout, string tempRoot, string modId, string subdir, string inheritedGuid)
+{
+    var sourceDir = Path.Combine(tempRoot, subdir);
+    Directory.CreateDirectory(Path.Combine(sourceDir, "entries"));
+
+    File.WriteAllText(Path.Combine(sourceDir, "mod.yaml"), $"""
+patchFormatVersion: "0.1"
+id: {modId}
+name: Overlay {modId.Split('.').Last()}
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11768+193445"
+description: Inline overlay fixture that Replaces a shared inherited entity.
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: {subdir}/gdb/x.gd.xml
+      source: entries/x.gd.xml
+""");
+
+    File.WriteAllText(Path.Combine(sourceDir, "entries", "x.gd.xml"), $"""
+<?xml version="1.0" encoding="utf-8"?>
+<EntityGroup>
+  <Entities>
+    <Entity Name="Override by {modId}" Guid="{Guid.NewGuid()}" InheritanceMode="Replace" InheritedGuid="{inheritedGuid}">
+      <Values />
+    </Entity>
+  </Entities>
+</EntityGroup>
+""");
+
+    var result = new ModInstaller().Install(sourceDir, layout);
+    if (result.Outcome != InstallOutcome.Installed)
+    {
+        throw new InvalidOperationException($"fixture install failed for {modId}: {result.Outcome}");
     }
 }
 
@@ -4250,6 +4476,88 @@ static bool PlanThreadsProfileTweakIntoPlan()
             && resolved.Origin == PagoniaLand.Patcher.TweakOrigins.External
             && write.OldValue == "4"
             && write.NewValue == "5";
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool NumberTweakDrivesMultiplyValueThroughManager()
+{
+    // Coverage gap closer: the manager's tweak path (set/read/validate + plan threading) had no
+    // `number`-type tweak in any fixture — every fixture used integer/boolean/enum. The arithmetic
+    // ops make a fractional multiplier the natural case, so exercise it end to end through the manager.
+    var tempRoot = NewTempRoot("tweak-number-multiply");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var gameRoot = MakeGameGdbFixture(tempRoot); // Sawmill Amount = 4
+        const string modId = "pagonia-land.fixture.number-tweak";
+        var src = Path.Combine(tempRoot, "src");
+        Directory.CreateDirectory(Path.Combine(src, "patches"));
+        File.WriteAllText(Path.Combine(src, "mod.yaml"), $"""
+patchFormatVersion: "0.1"
+id: {modId}
+name: Fixture Number Tweak
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: A fractional number tweak driving a multiplyValue op, configured via the manager.
+requiredPackages:
+  - core
+tweaks:
+  - id: cost-multiplier
+    type: number
+    label: Build-cost multiplier
+    default: 1.5
+    min: 0.1
+    max: 5
+    step: 0.1
+patches:
+  - patches/buildings.yaml
+""");
+        File.WriteAllText(Path.Combine(src, "patches", "buildings.yaml"), """
+operations:
+  - id: scale-softwood-cost
+    operation: multiplyValue
+    risk: low
+    reason: Scale the Sawmill softwood cost by the cost multiplier.
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    factor: "{{ tweaks.cost-multiplier }}"
+""");
+        new ModInstaller().Install(src, layout);
+        new ActiveProfileService().Enable(layout, modId, null);
+
+        var svc = new TweakOverrideService();
+
+        // A fractional value is accepted + stored; a fractional value past the max is rejected.
+        var set = svc.Set(layout, null, modId, "cost-multiplier", "2.5");
+        var outOfRange = svc.Set(layout, null, modId, "cost-multiplier", "9");
+        var view = svc.Read(layout, null, modId).Tweaks.Single(t => t.Declaration.Id == "cost-multiplier");
+
+        // The stored 2.5 threads through the multiplyValue op: 4 * 2.5 = 10.
+        var plan = new PlanProfileService().Plan(layout, gameRoot, profileName: null);
+        var write = plan.PatcherPlan!.ModPlans.Single().Writes.Single();
+
+        return set.Success && set.Mutated
+            && view.Declaration.Type == "number"
+            && view.Value == "2.5"
+            && view.Origin == TweakValueOrigins.ProfileOverride
+            // Read surfaces the op the tweak feeds, so the wizard can build an op-aware hint.
+            && view.Usages.Any(u => u.OperationType == "multiplyValue" && u.OperandField == "factor" && u.ExpectedOldValue == "4")
+            && !outOfRange.Success
+            && outOfRange.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.TweakValueOutOfRange)
+            && plan.Success
+            && write.OperationType == "multiplyValue"
+            && write.OldValue == "4"
+            && write.NewValue == "10";
     }
     finally
     {
@@ -7555,6 +7863,39 @@ static bool RollbackLiveInstallHashMismatch()
     finally { CleanupTempRoot(tempRoot); }
 }
 
+static bool RollbackExtractedLayoutHashMismatch()
+{
+    // Extracted-layout (loose XML) analog of RollbackLiveInstallHashMismatch:
+    // the ModifiedFiles restore path must verify the backup SHA-256 too, not
+    // just the RebuiltPaks path. A tampered backup must be refused, leaving
+    // the live file untouched.
+    var tempRoot = NewTempRoot("rollback-xml-hash");
+    try
+    {
+        var (layout, gameRoot, _) = SetupDeployFixture(tempRoot, "rollback-xml-hash");
+        var liveFilePath = Path.Combine(gameRoot, "core", "gdb", "buildings.gd.xml");
+
+        var deploy = new DeployService().Deploy(layout, gameRoot, null, false, false);
+        if (deploy.Outcome != DeployOutcome.Completed) return false;
+
+        var backupPath = Path.Combine(deploy.BackupDirectory!, "core", "gdb", "buildings.gd.xml");
+        var tampered = File.ReadAllBytes(backupPath);
+        tampered[0] ^= 0xFF;  // flip a single byte → different SHA
+        File.WriteAllBytes(backupPath, tampered);
+
+        var liveBefore = File.ReadAllBytes(liveFilePath);
+        var rollback = new RollbackService().Rollback(layout, gameRoot);
+        var liveAfter = File.ReadAllBytes(liveFilePath);
+
+        return rollback.Outcome == RollbackOutcome.Failed
+            && rollback.Diagnostics.Any(d =>
+                d.Code == ManagerDiagnosticCodes.RollbackHashMismatch
+                && d.Severity == ManagerDiagnosticSeverity.Error)
+            && liveAfter.AsSpan().SequenceEqual(liveBefore);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
 static bool RollbackLiveInstallMissingBackup()
 {
     var tempRoot = NewTempRoot("rollback-live-missing");
@@ -7583,6 +7924,100 @@ static bool RollbackLiveInstallMissingBackup()
     }
     finally { CleanupTempRoot(tempRoot); }
 }
+
+// ----------------------------------------------------------------------------
+// rollback overlay (Pattern B) safety: mixed-install abort + foreign-file guard
+// ----------------------------------------------------------------------------
+
+static bool RollbackAbortsBeforeDeletingOverlaysOnRestoreFailure()
+{
+    var tempRoot = NewTempRoot("rollback-mixed-abort");
+    try
+    {
+        var (layout, gameRoot, _) = SetupLiveInstallDeployFixture(tempRoot);
+        var deploy = new DeployService().Deploy(layout, gameRoot, null, false, false);
+        if (deploy.Outcome != DeployOutcome.Completed) return false;
+
+        // Drop a Pattern B overlay pak into the live install + register it in the
+        // manifest as an addedFile, so rollback would delete it.
+        var overlayPath = Path.Combine(gameRoot, "mods", "test-overlay.pak");
+        Directory.CreateDirectory(Path.GetDirectoryName(overlayPath)!);
+        var overlayBytes = System.Text.Encoding.UTF8.GetBytes("overlay-pak-bytes");
+        File.WriteAllBytes(overlayPath, overlayBytes);
+        AddOverlayToManifest(deploy.ManifestPath!, "mods/test-overlay.pak", Sha256Hex(overlayBytes));
+
+        // Force the canonical-pak restore to FAIL by deleting its backup.
+        File.Delete(Path.Combine(deploy.BackupDirectory!, GameLayoutConstants.PakFolderName, "core.pak"));
+
+        var rollback = new RollbackService().Rollback(layout, gameRoot);
+
+        // Restore failed → rollback must abort BEFORE touching the overlay, so the
+        // install isn't left mixed (canonical un-restored AND overlay gone).
+        return rollback.Outcome == RollbackOutcome.Failed
+            && rollback.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.RollbackBackupMissing
+                && d.Severity == ManagerDiagnosticSeverity.Error)
+            && File.Exists(overlayPath);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool RollbackPreservesDriftedOverlayUnderForce()
+{
+    var tempRoot = NewTempRoot("rollback-overlay-drift");
+    try
+    {
+        var (layout, gameRoot, _) = SetupLiveInstallDeployFixture(tempRoot);
+        var deploy = new DeployService().Deploy(layout, gameRoot, null, false, false);
+        if (deploy.Outcome != DeployOutcome.Completed) return false;
+
+        var overlayPath = Path.Combine(gameRoot, "mods", "test-overlay.pak");
+        Directory.CreateDirectory(Path.GetDirectoryName(overlayPath)!);
+        var deployedBytes = System.Text.Encoding.UTF8.GetBytes("overlay-as-deployed");
+        File.WriteAllBytes(overlayPath, deployedBytes);
+        AddOverlayToManifest(deploy.ManifestPath!, "mods/test-overlay.pak", Sha256Hex(deployedBytes));
+
+        // A third party REPLACES the overlay with their own content after deploy.
+        var foreignBytes = System.Text.Encoding.UTF8.GetBytes("USER REPLACED THIS FILE LATER");
+        File.WriteAllBytes(overlayPath, foreignBytes);
+
+        // --force past the drift; the canonical restore still succeeds (backup intact),
+        // but the foreign overlay must be preserved (not deleted) + warned about.
+        var rollback = new RollbackService().Rollback(layout, gameRoot, acceptDrift: true);
+
+        return File.Exists(overlayPath)
+            && File.ReadAllBytes(overlayPath).AsSpan().SequenceEqual(foreignBytes)
+            && rollback.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.RollbackAddedFileChanged
+                && d.Severity == ManagerDiagnosticSeverity.Warning);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+// Append an addedFiles overlay entry to an existing deploy manifest, re-serialising
+// with the YamlMember aliases the rollback reader expects.
+static void AddOverlayToManifest(string manifestPath, string relativePath, string deployedSha256)
+{
+    var m = ReadManifest(manifestPath);
+    var updated = new DeployManifest
+    {
+        DeployVersion = m.DeployVersion,
+        Timestamp = m.Timestamp,
+        GameRoot = m.GameRoot,
+        GameFingerprint = m.GameFingerprint,
+        GameProductVersion = m.GameProductVersion,
+        Profile = m.Profile,
+        Mods = m.Mods,
+        ModifiedFiles = m.ModifiedFiles,
+        RebuiltPaks = m.RebuiltPaks,
+        AddedFiles = new List<DeployAddedFileEntry>(m.AddedFiles)
+        {
+            new() { RelativePath = relativePath, DeployedSha256 = deployedSha256, SourceMod = "test.overlay", ByteSize = 1 },
+        },
+    };
+    File.WriteAllText(manifestPath, new SerializerBuilder().Build().Serialize(updated));
+}
+
+static string Sha256Hex(byte[] bytes)
+    => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
 
 // ============================================================================
 // selective pak extract
@@ -8010,8 +8445,10 @@ static bool DeployCleanKeepZeroRespectsLastDeploy()
         var fingerprint = GameFingerprint.Compute(gameRoot);
         SeedFakeDeploys(layout, fingerprint, gameRoot, count: 3);
 
-        // Pin state.lastDeploy at the middle entry.
+        // Pin state.lastDeploy at the MIDDLE entry (not the newest), so the newest
+        // would be unprotected by the lastDeploy guard alone.
         var history = new DeployHistoryStore().Read(layout, fingerprint);
+        var newestTs = history.Deploys[0].Timestamp;
         var pinnedTs = history.Deploys[1].Timestamp;
         var state = new StoreStateReader().Read(layout);
         new StoreStateWriter().Write(layout, new StoreState
@@ -8023,11 +8460,14 @@ static bool DeployCleanKeepZeroRespectsLastDeploy()
 
         var result = new DeployCleanService().Clean(layout, keep: 0, gameRoot: null, dryRun: false);
 
-        // --keep 0 means "remove everything", but lastDeploy protection saves
-        // the pinned entry — so 2 removed, 1 refused.
-        return result.RemovedCount == 2
-            && result.KeptCount == 0
+        // --keep 0 prunes aggressively but ALWAYS retains the newest deploy per
+        // fingerprint as the rollback anchor (`rollback` reverts it), and the lastDeploy
+        // guard additionally protects the pinned middle entry. So of 3: oldest removed,
+        // newest kept (anchor), middle refused (lastDeploy) — both survive on disk.
+        return result.RemovedCount == 1
+            && result.KeptCount == 1
             && result.RefusedCount == 1
+            && Directory.Exists(layout.DeployTimestampDirectory(fingerprint, newestTs))
             && Directory.Exists(layout.DeployTimestampDirectory(fingerprint, pinnedTs));
     }
     finally { CleanupTempRoot(tempRoot); }
@@ -8438,6 +8878,17 @@ static bool RemoteParserRejectsBasePathTraversal()
     // indexPath schema pattern) — before any network fetch.
     return !RemoteSourceParser.TryParse("gh:owner/repo:../etc/mod-id", out _)
         && !RemoteSourceParser.TryParse("gh:owner/repo:official/../../etc#main/m", out _);
+}
+
+static bool RemoteParserRejectsModSpecTraversal()
+{
+    // '..' in the mod-spec is refused at parse time too (not just the base
+    // path), in both the short and long forms — before any network fetch.
+    return !RemoteSourceParser.TryParse("gh:owner/repo/../../evil", out _)
+        && !RemoteSourceParser.TryParse("gh:owner/repo#main/../../evil", out _)
+        && !RemoteSourceParser.TryParse("https://github.com/owner/repo/tree/main/../../evil", out _)
+        // A legitimate nested mod-spec still parses.
+        && RemoteSourceParser.TryParse("gh:owner/repo/mods/cheaper-sawmill", out _);
 }
 
 static bool RemoteParserRejectsEmptyBasePath()
@@ -9185,8 +9636,8 @@ static InMemoryRemoteContentFetcher MakeCollectionRepoFixture()
             path: mods/cheaper-sawmill
             version: 0.1.0
             gameDatabaseVersion: "1.3.0-11694+192849"
-          - id: pagonia-land.example.apple-icon-test
-            path: mods/apple-icon-test
+          - id: pagonia-land.example.wine-icon-test
+            path: mods/wine-icon-test
             version: 0.1.0
             gameDatabaseVersion: "1.3.0-11694+192849"
         collections:
@@ -9207,15 +9658,15 @@ static InMemoryRemoteContentFetcher MakeCollectionRepoFixture()
         mods:
           - id: pagonia-land.example.cheaper-sawmill
             version: "0.1.0"
-          - id: pagonia-land.example.apple-icon-test
+          - id: pagonia-land.example.wine-icon-test
             version: "0.1.0"
         """);
 
     // Second mod content (cheaper-sawmill is from MakeRepoFixture).
-    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/apple-icon-test/mod.yaml", """
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/wine-icon-test/mod.yaml", """
         patchFormatVersion: 0.1
-        id: pagonia-land.example.apple-icon-test
-        name: Apple Icon Test
+        id: pagonia-land.example.wine-icon-test
+        name: Wine Icon Test
         version: 0.1.0
         author: ACME
         gameDatabaseVersion: "1.3.0-11694+192849"
@@ -9233,7 +9684,7 @@ static InMemoryRemoteContentFetcher MakeCollectionRepoFixture()
         patches:
           - patches/dlc1-icon.yaml
         """);
-    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/apple-icon-test/patches/dlc1-icon.yaml", "operations: []");
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/wine-icon-test/patches/dlc1-icon.yaml", "operations: []");
 
     return fetcher;
 }
@@ -9252,8 +9703,8 @@ static bool RemoteFetcherCollectionSameRepoHappy()
             && Directory.Exists(result.ModsRoot!)
             && File.Exists(Path.Combine(result.ModsRoot!, "pagonia-land.example.cheaper-sawmill", "mod.yaml"))
             && File.Exists(Path.Combine(result.ModsRoot!, "pagonia-land.example.cheaper-sawmill", "patches", "buildings.yaml"))
-            && File.Exists(Path.Combine(result.ModsRoot!, "pagonia-land.example.apple-icon-test", "mod.yaml"))
-            && File.Exists(Path.Combine(result.ModsRoot!, "pagonia-land.example.apple-icon-test", "patches", "dlc1-icon.yaml"));
+            && File.Exists(Path.Combine(result.ModsRoot!, "pagonia-land.example.wine-icon-test", "mod.yaml"))
+            && File.Exists(Path.Combine(result.ModsRoot!, "pagonia-land.example.wine-icon-test", "patches", "dlc1-icon.yaml"));
     }
     finally
     {
@@ -9628,6 +10079,17 @@ static bool UrlCatalogParserRejectsHostless()
     // empty Host on some platforms; the parser must reject it either way.
     return !CatalogSourceParser.TryParse("https://", out _)
         && !CatalogSourceParser.TryParse("https:///nohost", out _);
+}
+
+static bool UrlCatalogParserRejectsLoopbackAndLinkLocal()
+{
+    // SSRF guard: no legitimate catalog lives on loopback or a link-local
+    // address (169.254.169.254 being the classic cloud-metadata target). A normal
+    // public/LAN host still parses.
+    return !CatalogSourceParser.TryParse("http://127.0.0.1/catalog.yaml", out _)
+        && !CatalogSourceParser.TryParse("http://localhost/catalog.yaml", out _)
+        && !CatalogSourceParser.TryParse("http://169.254.169.254/latest/meta-data/", out _)
+        && CatalogSourceParser.TryParse("https://example.com/catalog.yaml", out _);
 }
 
 static bool UrlCatalogCanonicalNormalisesSchemeAndHost()
@@ -10234,6 +10696,32 @@ static bool ModIoFetcherMalformedJson()
             && d.Severity == ManagerDiagnosticSeverity.Error);
 }
 
+static bool ModIoFetcherRateLimitRedactsKey()
+{
+    // The api_key rides in the request URL but must never reach a diagnostic.
+    // A 429 (rate-limit) and a generic API error both surface a URL — assert
+    // the secret key is absent from every diagnostic message.
+    const string secret = "super-secret-key-xyz";
+    var rateLimited = new InMemoryRemoteContentFetcher();
+    rateLimited.Throws["https://api.mod.io/v1/games/1234/mods/5678?api_key=" + secret]
+        = System.Net.HttpStatusCode.TooManyRequests;
+    var rl = new ModIoFetcher(rateLimited, apiKeyOverride: secret)
+        .Fetch(new ModIoSource("1234", "5678", null));
+
+    var serverError = new InMemoryRemoteContentFetcher();
+    serverError.Throws["https://api.mod.io/v1/games/1234/mods/5678?api_key=" + secret]
+        = System.Net.HttpStatusCode.InternalServerError;
+    var se = new ModIoFetcher(serverError, apiKeyOverride: secret)
+        .Fetch(new ModIoSource("1234", "5678", null));
+
+    return !rl.Success
+        && rl.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModIoRateLimited)
+        && rl.Diagnostics.All(d => !d.Message.Contains(secret))
+        && !se.Success
+        && se.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModIoApiError)
+        && se.Diagnostics.All(d => !d.Message.Contains(secret));
+}
+
 static bool ModIoFetcherEnvOverride()
 {
     var prior = Environment.GetEnvironmentVariable(ModIoFetcher.ApiKeyEnvironmentVariable);
@@ -10374,6 +10862,16 @@ static bool CatalogParserRejectsGarbage()
         && !CatalogSourceParser.TryParse("gh:bad owner!/repo", out _)
         && !CatalogSourceParser.TryParse(null, out _)
         && !CatalogSourceParser.TryParse("", out _);
+}
+
+static bool CatalogParserRejectsPathTraversal()
+{
+    // '..' in the catalog path is refused at parse time (mirrors the remote
+    // parser's base-path guard) — before any raw.githubusercontent.com fetch.
+    return !CatalogSourceParser.TryParse("gh:owner/repo/../../etc/catalog.yaml", out _)
+        && !CatalogSourceParser.TryParse("gh:owner/repo#main/../../etc/catalog.yaml", out _)
+        // A legitimate nested catalog path still parses.
+        && CatalogSourceParser.TryParse("gh:owner/repo#main/catalogs/official.yaml", out _);
 }
 
 static bool CatalogParserRelativeFileResolvesAgainstParent()
@@ -10838,11 +11336,17 @@ sealed class InMemoryRemoteContentFetcher : IRemoteContentFetcher
 
     public Dictionary<string, byte[]> Files { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string?> Refs { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, System.Net.HttpStatusCode> Throws { get; } = new(StringComparer.Ordinal);
     public List<string> FetchedUrls { get; } = new();
 
     public Task<RemoteFetchedContent?> TryFetchAsync(string url, CancellationToken cancellationToken)
     {
         FetchedUrls.Add(url);
+        if (Throws.TryGetValue(url, out var status))
+        {
+            throw new System.Net.Http.HttpRequestException(
+                $"Response status code does not indicate success: {(int)status} ({status}).", null, status);
+        }
         if (!Files.TryGetValue(url, out var bytes)) { return Task.FromResult<RemoteFetchedContent?>(null); }
         return Task.FromResult<RemoteFetchedContent?>(new RemoteFetchedContent(System.Text.Encoding.UTF8.GetString(bytes), bytes));
     }

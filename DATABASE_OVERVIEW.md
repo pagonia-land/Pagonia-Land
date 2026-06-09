@@ -1,6 +1,6 @@
 # Game Database Overview
 
-Snapshot: `1.3.1-11826+193733` (1.3.1 hotfix, 2026-06-02). Based on 59 `*.gd.xml` files across `core`, `decorations1`, `dlc1`, and `tools`.
+Snapshot: `1.3.2-11873+194094` (1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09). Based on 59 `*.gd.xml` files across `core`, `decorations1`, `dlc1`, and `tools`.
 
 This page is the high-level map of how the database is organised. For empirical oddities the structured docs don't cover, see [Quirks And Anomalies](docs/quirks-and-anomalies.md). For mod-distribution mechanics (Pattern A / B / C, cross-pak entity merging primitives), see [Mod Distribution Patterns](docs/mod-distribution.md).
 
@@ -23,9 +23,9 @@ The actual meaning of an entity is defined by its `Values`: a building is not a 
 | --- | ---: | --- |
 | `core` | 4,147 | Base game: resources, units, buildings, recipes, campaign, NPCs, terrain, UI, audio |
 | `decorations1` | 19 | Small expansion with decorative buildables |
-| `dlc1` | 517 | Meadowsong expansion: new units, resources, buildings, NPCs, objectives, and scenario map |
+| `dlc1` | 519 | Meadowsong expansion: new units, resources, buildings, NPCs, objectives, and scenario map |
 | `tools` | 26 | Editor/Magmaview data for terrain, vegetation, and brushes |
-| Total | 4,709 | All GUIDs are unique |
+| Total | 4,711 | All GUIDs are unique |
 
 ## Key Analysis Numbers
 
@@ -34,10 +34,10 @@ These numbers come from a structural scan of all XML files in the extracted game
 | Metric | Count | Notes |
 | --- | ---: | --- |
 | XML files | 59 | All files use the `*.gd.xml` pattern |
-| Total entities | 4,709 | Every entity has a unique GUID |
-| Unique GUIDs | 4,709 | No duplicate entity GUIDs were found |
-| GUID-like references | 31,761 | Text values matching the GUID format |
-| Resolved references | 24,420 | References that point to an entity in this XML set |
+| Total entities | 4,711 | Every entity has a unique GUID |
+| Unique GUIDs | 4,711 | No duplicate entity GUIDs were found |
+| GUID-like references | 31,763 | Text values matching the GUID format |
+| Resolved references | 24,422 | References that point to an entity in this XML set |
 | Null GUID references | 7,311 | Explicit empty/default references using `00000000-0000-0000-0000-000000000000` |
 | Other unresolved references | 30 | 12 engine-magic GUIDs (Unit + CustomFaction wildcards) plus 18 transient `NoMVP.` orphans the 1.3.1 hotfix introduced — see [Quirks And Anomalies](docs/quirks-and-anomalies.md) |
 
@@ -47,7 +47,7 @@ Package-level entity distribution:
 | --- | ---: |
 | `core` | 4,147 |
 | `decorations1` | 19 |
-| `dlc1` | 517 |
+| `dlc1` | 519 |
 | `tools` | 26 |
 
 The extracted XML set is largely self-contained: 77% of references resolve to a defined entity, and almost all remaining references (7,311 of 7,341 unresolved) are explicit null GUIDs marking intentionally-empty optional fields.
@@ -138,11 +138,11 @@ This shows the central design idea: entities are carriers for multiple component
 
 ## Reference System
 
-The scan finds 31,761 GUID-like text values:
+The scan finds 31,763 GUID-like text values:
 
 | Reference class | Count |
 | --- | ---: |
-| Resolvable to an entity in this XML set | 24,420 |
+| Resolvable to an entity in this XML set | 24,422 |
 | Null GUID `00000000-0000-0000-0000-000000000000` | 7,311 |
 | Other unresolved references | 30 |
 
@@ -153,7 +153,7 @@ Most common reference fields:
 | Field | Count | Typical meaning |
 | --- | ---: | --- |
 | `Resource` | 2,079 | Inputs, outputs, costs, storage, rewards |
-| `Unit` | 998 | Workers, recruitment, objectives, NPCs |
+| `Unit` | 1,000 | Workers, recruitment, objectives, NPCs |
 | `Category` | 823 | Construction/resource/UI categories |
 | `Building` | 578 | Objective, POI, unlock, or production reference |
 | `SedimentTag` | 573 | Placement and terrain rules |
@@ -168,12 +168,12 @@ Cross-package references:
 | From | To | Count | Meaning |
 | --- | --- | ---: | --- |
 | `core` | `core` | 21,287 | The base game is largely self-contained |
-| `dlc1` | `dlc1` | 1,859 | Meadowsong-internal new systems |
+| `dlc1` | `dlc1` | 1,861 | Meadowsong-internal new systems |
 | `dlc1` | `core` | 1,235 | Meadowsong builds heavily on core categories, units, UI, and base mechanics |
 | `decorations1` | `core` | 18 | Decoration pack uses core construction categories/materials |
 | `tools` | `tools` | 21 | Editor data is isolated |
 
-Dependency direction is strictly one-way: **no `core` reference ever targets `dlc1`, `decorations1`, or `tools`** (empirically verified against all 31,761 references). This means a mod can extend core without core needing to know the mod exists, and removing a DLC can never leave dangling references in core — the architectural foundation under [Mod Distribution Patterns](docs/mod-distribution.md) Pattern B.
+Dependency direction is strictly one-way: **no `core` reference ever targets `dlc1`, `decorations1`, or `tools`** (empirically verified against all 31,763 references). This means a mod can extend core without core needing to know the mod exists, and removing a DLC can never leave dangling references in core — the architectural foundation under [Mod Distribution Patterns](docs/mod-distribution.md) Pattern B.
 
 ## Important Data Flows
 
@@ -244,11 +244,11 @@ The campaign files are therefore not just map data, but scenario-specific mini d
 
 Meadowsong introduced declarative entity-relation primitives that let one pak modify another without byte-patching the shipped XML. Three are visible in shipped content:
 
-| Primitive | Uses in 1.3.1 | Meaning |
+| Primitive | Uses in 1.3.2 | Meaning |
 | --- | ---: | --- |
 | `InheritanceMode="Template"` | 18 | New entity inherits structure from another, then overrides selected fields |
 | `InheritanceMode="Replace"` | 14 | Replaces an existing entity by GUID with the new shape |
-| `InheritanceMode="Incremental"` | 17 | Merges into the target entity at list-marker positions (`<InheritedIndex>N</InheritedIndex>`) |
+| `InheritanceMode="Incremental"` | 19 | Merges into the target entity at list-marker positions (`<InheritedIndex>N</InheritedIndex>`) |
 
 Encounter-level "unload" is expressed through a pre-existing pattern (`<ReplaceSelf><ReplaceWithEntity>00000000-…</ReplaceWithEntity></ReplaceSelf>`, 17 uses) rather than a fourth `InheritanceMode` value. The full evidence and tooling implications are documented in [Mod Distribution Patterns → Confirmed primitives](docs/mod-distribution.md#confirmed-primitives). Pre-Meadowsong (`1.2.2`), the same machinery shipped with the engine but only one entity used it — see [Quirks And Anomalies → The single 1.2.2 InheritanceMode use](docs/quirks-and-anomalies.md#the-single-122-inheritancemodetemplate-use).
 

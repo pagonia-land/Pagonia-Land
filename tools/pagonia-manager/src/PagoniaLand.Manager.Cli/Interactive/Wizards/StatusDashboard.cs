@@ -1,5 +1,6 @@
 using PagoniaLand.Manager;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace PagoniaLand.Manager.Cli.Interactive;
 
@@ -57,23 +58,45 @@ internal static class StatusDashboard
         if (deploysSize >= DeploysStorageHighThresholdBytes)
         {
             AnsiConsole.WriteLine();
-            RenderDeploysStoragePanel(deploysSize);
+            RenderDeploysStoragePanel(layout, deploysSize);
         }
     }
 
-    // soft threshold above which the dashboard surfaces a "consider
-    // running deploys clean" hint. 5 GB is roughly a handful of full live-install
-    // pak backups; below that, the storage cost isn't worth nagging about.
-    private const long DeploysStorageHighThresholdBytes = 5L * 1024 * 1024 * 1024;
+    // soft threshold above which the dashboard surfaces a "consider running
+    // deploys clean" hint. A live deploy backs up the whole canonical pak set, and
+    // core.pak alone is ~5 GB, so a single deploy already costs ~5 GB of backups.
+    // Set the nag at 15 GB (~3 deploy generations): a deploy or two — where the
+    // only backup is the protected lastDeploy and there's nothing to reclaim yet —
+    // shouldn't trigger it. Raise this if your install's paks are larger.
+    private const long DeploysStorageHighThresholdBytes = 15L * 1024 * 1024 * 1024;
 
-    private static void RenderDeploysStoragePanel(long sizeBytes)
+    private static void RenderDeploysStoragePanel(StoreLayout layout, long sizeBytes)
     {
         var sizeGb = sizeBytes / (1024d * 1024d * 1024d);
         var body =
             $"[bold]<store>/deploys/[/] currently holds [yellow]~{sizeGb:F1} GB[/] of pak backups.\n" +
             $"  [dim]Run [aqua]pagonia-manager deploys clean --keep <N>[/] to trim per-fingerprint to the N newest entries.[/]\n" +
             $"  [dim]Add [aqua]--dry-run[/] first to see what would be removed.[/]";
-        AnsiConsole.Write(new Panel(new Markup(body))
+
+        var renderables = new List<IRenderable> { new Markup(body) };
+
+        // Break the total down by game-install fingerprint so it's obvious which
+        // install's backups dominate. Only worth showing when there's more than one.
+        var byFingerprint = DeployCleanService.ComputeDeploysSizeByFingerprint(layout);
+        if (byFingerprint.Count >= 2)
+        {
+            var palette = new[] { Color.Aqua, Color.Yellow, Color.Green, Color.Fuchsia, Color.Orange1, Color.Blue, Color.Red, Color.Grey };
+            var chart = new BreakdownChart().Width(60).ShowPercentage();
+            for (var i = 0; i < byFingerprint.Count; i++)
+            {
+                var gb = byFingerprint[i].Bytes / (1024d * 1024d * 1024d);
+                chart.AddItem($"{Markup.Escape(byFingerprint[i].Fingerprint)} ({gb:F1} GB)", gb, palette[i % palette.Length]);
+            }
+            renderables.Add(new Markup("\n[dim]By game install (fingerprint):[/]"));
+            renderables.Add(chart);
+        }
+
+        AnsiConsole.Write(new Panel(new Rows(renderables))
             .Header("[bold yellow]Deploy backups storage[/]")
             .BorderColor(Color.Yellow));
     }
@@ -116,7 +139,7 @@ internal static class StatusDashboard
         if (info.Initialised)
         {
             grid.AddRow("[bold]Store version[/]", $"[aqua]{info.StoreVersion}[/]");
-            grid.AddRow("[bold]Active profile[/]", $"[aqua]{info.ActiveProfile ?? "(none)"}[/]");
+            grid.AddRow("[bold]Active profile[/]", $"[aqua]{Markup.Escape(info.ActiveProfile ?? "(none)")}[/]");
             grid.AddRow("[bold]Counts[/]",
                 $"mods [aqua]{info.InstalledModCount}[/]  •  profiles [aqua]{info.ProfileCount}[/]  •  collections [aqua]{info.CollectionCount}[/]");
         }

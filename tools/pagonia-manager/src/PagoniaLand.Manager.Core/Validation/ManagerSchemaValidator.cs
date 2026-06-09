@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Json.Schema;
 
@@ -89,7 +90,10 @@ public sealed class ManagerSchemaValidator
         EvaluationResults results;
         try
         {
-            results = schema.Evaluate(node, new EvaluationOptions { OutputFormat = OutputFormat.Hierarchical });
+            // JsonSchema.Net 9 evaluates a JsonElement (was JsonNode in 7.x). Round-trip the
+            // parsed node through its JSON text; both calls are reflection-free (AOT-safe).
+            using var doc = JsonDocument.Parse(node is null ? "null" : node.ToJsonString());
+            results = schema.Evaluate(doc.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.Hierarchical });
         }
         catch (Exception ex)
         {
@@ -148,7 +152,7 @@ public sealed class ManagerSchemaValidator
             }
         }
 
-        foreach (var child in result.Details)
+        foreach (var child in result.Details ?? [])
         {
             CollectHierarchicalErrors(child, filePath, seen, diagnostics);
         }
@@ -163,6 +167,12 @@ public sealed class ManagerSchemaValidator
                 $"Embedded schema '{resourceName}' not found. " +
                 "Check the <EmbeddedResource> entries in PagoniaLand.Manager.Core.csproj.");
         using var reader = new StreamReader(stream, Encoding.UTF8);
-        return JsonSchema.FromText(reader.ReadToEnd());
+        // JsonSchema.Net 9 registers each evaluated schema by $id and refuses to overwrite it
+        // with a different document — so re-parsing the same report schema on a later
+        // ValidateReport call threw "Overwriting registered schemas is not permitted". Build
+        // into a fresh local registry (which still falls back to the global one) so each parse
+        // is isolated. The report schemas are self-contained (only internal #/$defs refs), so a
+        // per-schema registry resolves everything it needs.
+        return JsonSchema.FromText(reader.ReadToEnd(), new BuildOptions { SchemaRegistry = new SchemaRegistry() });
     }
 }

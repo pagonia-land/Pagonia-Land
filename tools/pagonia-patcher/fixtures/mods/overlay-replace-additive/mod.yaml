@@ -1,0 +1,23 @@
+patchFormatVersion: "0.1"
+id: pagonia-land.test.overlay-replace-additive
+name: Overlay Replace Additive Test
+version: "0.1.0"
+author: TheLavaBlock
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Artificial Pattern B overlay that Replaces the base Sawmill but keeps every
+  existing part verbatim and only adds a third Cost item. With --game-root the
+  base-aware advisor should notice this is purely additive and suggest
+  Incremental. Tested against fixtures/game-gdb-mini.
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: overlay-replace-additive-test/gdb/buildings.gd.xml
+      source: entries/buildings.gd.xml
+pak:
+  name: overlay-replace-additive-test
+  summary: Advisor fixture — additive Replace that should be Incremental
+  author: TheLavaBlock
+  dependencies:
+    - core

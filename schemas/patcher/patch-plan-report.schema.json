@@ -163,6 +163,8 @@
           "type": "string",
           "enum": [
             "replaceValue",
+            "multiplyValue",
+            "addValue",
             "replaceAttribute",
             "replaceNode",
             "addListItem",

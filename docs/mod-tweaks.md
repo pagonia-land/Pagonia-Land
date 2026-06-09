@@ -1,6 +1,6 @@
 # ✨ Mod Tweaks
 
-A **tweak** is a value a mod author marks as *user-adjustable* — a building-cost multiplier, an on/off flag, a difficulty preset — so a player picks the value in the mod manager **without editing the mod files**. One mod, many tastes.
+A **tweak** is a value a mod author marks as *user-adjustable* — a building-cost value, an on/off flag, a difficulty preset — so a player picks the value in the mod manager **without editing the mod files**. One mod, many tastes.
 
 This page is the map of the whole feature. It spans three roles and three tools, so the details live on the page that owns each layer; this guide tells the end-to-end story and links you to the right place.
 
@@ -37,6 +37,16 @@ tweaks:
 value: "{{ tweaks.softwood-cost }}"
 ```
 
+A placeholder substitutes a *literal* value. To make a tweak scale a value
+**relative** to its vanilla amount — a "×1.5 costs" multiplier or a "+2"
+delta across many targets — feed it into an [arithmetic operation](mod-patch-format.md#arithmetic-operations-multiplyvalue-addvalue) instead, where one shared tweak becomes one knob for every target:
+
+```yaml
+# in a patch operation
+operation: multiplyValue
+factor: "{{ tweaks.cost-multiplier }}"
+```
+
 **Full reference:** [Declarative Patch Format → Tweaks (`tweaks:` block)](mod-patch-format.md#tweaks-tweaks-block), including the field rules, the `{{ tweaks.x ? 'a' : 'b' }}` boolean ternary, and the stable-id rules. Tag a mod that exposes tweaks with the [`tweakable`](mod-tags.md) tag so catalog browsers can filter for it.
 
 ### Curator: ship presets
@@ -64,17 +74,16 @@ pagonia-manager tweak set   pagonia-land.example.tweakable-economy softwood-cost
 pagonia-manager tweak reset pagonia-land.example.tweakable-economy softwood-cost
 ```
 
-`tweak list` shows each value's **origin** — `default`, `collection-default` (seeded by a collection, unchanged), or `profile-override` (you set it). The interactive shell offers the same under **Manage active profile → Configure this mod (tweaks)**. **Full reference:** [Manager CLI → Tweaks](../tools/pagonia-manager/CLI.md#tweaks).
+`tweak list` shows each value's **origin** — `default`, `collection-default` (seeded by a collection, unchanged), or `profile-override` (you set it). The interactive shell offers the same under **Manage active profile → Configure this mod (tweaks)**, and when a tweak drives a [multiplier or delta op](mod-patch-format.md#arithmetic-operations-multiplyvalue-addvalue) it shows what the value does — an **Effect** column and a `4 → 10` before/after preview — so a multiplier reads as a multiplier, not a bare number. **Full reference:** [Manager CLI → Tweaks](../tools/pagonia-manager/CLI.md#tweaks).
 
 ## Which value wins (precedence)
 
 The same tweak can be set in more than one place. Highest wins:
 
 1. **lockfile pin** — a value recorded in a [collection lockfile](mod-collections.md#lockfiles) reproduces an exact past install, so it beats everything.
-2. **`--tweak` CLI override** — an ad-hoc value for a single patcher run.
-3. **profile override** — what you stored with `tweak set` (surfaces in the plan report as origin `external`).
-4. **collection-supplied default** — the curator's preset, seeded into the profile at install.
-5. **mod default** — the floor the author declared.
+2. **`--tweak` CLI override / profile override** — the same layer: an ad-hoc `--tweak` value for a single patcher run, or what you stored with `tweak set`, both surface in the plan report as origin `external`. (The manager threads a profile override into the patcher as exactly this external layer, so a CLI `--tweak` on the same run is the last write that wins.)
+3. **collection-supplied default** — the curator's preset, seeded into the profile at install.
+4. **mod default** — the floor the author declared.
 
 ## Renaming a tweak without losing the player's choice
 

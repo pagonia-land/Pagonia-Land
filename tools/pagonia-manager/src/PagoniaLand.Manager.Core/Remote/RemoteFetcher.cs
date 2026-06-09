@@ -348,7 +348,13 @@ public sealed class RemoteFetcher
     }
 
     private static string RawUrl(string owner, string repo, string sha, string path)
-        => $"https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}";
+        => $"https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{EscapePathSegments(path)}";
+
+    // The repo-relative path comes from a remote index.yaml / mod.yaml; URL-escape each
+    // '/'-delimited segment (preserving the separators) so a space or other reserved
+    // character can't break or alter the request — mirrors CatalogFetcher's handling.
+    private static string EscapePathSegments(string path)
+        => string.Join('/', path.Split('/').Select(Uri.EscapeDataString));
 
     private static string JoinRepoPath(string folder, string file)
     {

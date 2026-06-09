@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Need at least two commits so we can diff push events. For PRs the
           # action sets up the merge ref automatically.
@@ -70,8 +70,10 @@ jobs:
               # Extracted game XML — proprietary content.
               game-gdb/*/gdb/*|game-gdb/*/maps/*|game-gdb/*/gui/*)
                 VIOLATIONS="${VIOLATIONS}${path}\n" ;;
-              # Real game pak archives.
-              game-paks/*.pak|game-maps/*.pak)
+              # Real game pak archives + the proprietary game executable
+              # (prepare-update.ps1 stages "Pioneers of Pagonia.exe" into game-paks/;
+              # it must never be committed — see game-paks/README.md).
+              game-paks/*.pak|game-paks/*.exe|game-maps/*.pak)
                 VIOLATIONS="${VIOLATIONS}${path}\n" ;;
               # Generated analysis output (regeneratable from game-gdb).
               generated/entities.json|generated/references.json|generated/analysis-summary.json)
@@ -97,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Need history so the push-diff below can resolve before..after.
           fetch-depth: 0

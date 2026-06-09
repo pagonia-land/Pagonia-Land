@@ -15,16 +15,15 @@ internal static class InstallModWizard
         AnsiConsole.MarkupLine("[dim]  [aqua]gh:owner/repo/mod-id[/] (GitHub)   ·   [aqua]modio:game/mod-id[/] (mod.io)   ·   an [aqua]https://…/mod.zip[/] URL[/]");
         AnsiConsole.WriteLine();
 
-        var sourceSpec = AnsiConsole.Prompt(
-            new TextPrompt<string>("[bold]Mod source[/]:")
-                .ValidationErrorMessage("[red]Not a local path or a recognised remote source.[/]")
-                .Validate(spec =>
-                {
-                    if (string.IsNullOrWhiteSpace(spec)) return ValidationResult.Error("source required");
-                    if (File.Exists(spec) || Directory.Exists(spec)) return ValidationResult.Success();
-                    if (RemoteSourceParser.TryParse(spec, out _)) return ValidationResult.Success();
-                    return ValidationResult.Error($"'{spec}' is not a local path or a remote source (gh: / modio: / https://…zip)");
-                }));
+        if (!AdvancedHelpers.TryPromptText("[bold]Mod source[/]:", out var sourceSpec, spec =>
+            {
+                if (File.Exists(spec) || Directory.Exists(spec)) return ValidationResult.Success();
+                if (RemoteSourceParser.TryParse(spec, out _)) return ValidationResult.Success();
+                return ValidationResult.Error($"'{spec}' is not a local path or a remote source (gh: / modio: / https://…zip)");
+            }))
+        {
+            return;
+        }
 
         var layout = session.GetLayout();
 
@@ -63,9 +62,8 @@ internal static class InstallModWizard
         InstallResult? result = null;
         try
         {
-            AnsiConsole.Status()
-                .Spinner(Spinner.Known.Dots)
-                .Start("Validating and installing...", ctx => { result = new ModInstaller().Install(installSource, layout, remoteProvenance); });
+            AdvancedHelpers.Spin("Validating and installing...",
+                () => { result = new ModInstaller().Install(installSource, layout, remoteProvenance); });
         }
         finally
         {

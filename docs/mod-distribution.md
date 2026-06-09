@@ -72,7 +72,7 @@ The engine reads `files.json -> GameDatabase`, follows it to a `.gd.bin`, walks 
 
 ### Load order and overrides (empirical)
 
-`core.pak` is loaded first because every other module declares it as a dependency. After that, modules with no remaining unmet dependencies load in some order (alphabetic, manifest-declared, or filesystem-order are all plausible — verify by experiment for the version you target). When two paks contribute a file at the same in-pak path, the later one wins. Mods exploit this by shipping a pak whose `Name` is "after" core in the load order and which carries a replacement at the same path — for example the camera mod on mod.io that ships its own `system.json` at the pak root.
+`core.pak` is loaded first because every other module declares it as a dependency. After that, modules with no remaining unmet dependencies load in some order (alphabetic, manifest-declared, or filesystem-order are all plausible — verify by experiment for the version you target). When two paks contribute a file at the same in-pak path, the later one wins — **EE confirmed this last-loaded-wins rule on 2026-06-06** (see [Dev statement 4](#dev-statement-4)); it had previously been empirical. Mods exploit this by shipping a pak whose `Name` is "after" core in the load order and which carries a replacement at the same path — for example the camera mod on mod.io that ships its own `system.json` at the pak root. (For `*.gd.xml` GameDatabase content the merge model takes over from crude file-level last-write-wins — see [Loading model update](#loading-model-update).)
 
 ## Pattern A: Patch The Canonical Pak
 
@@ -173,7 +173,7 @@ black forest islands.pak
 
 A few things to notice from a sample of real mod.io user-map paks (`4r70_DnD`, `Black Forest Islands`, `Tales of Pagonia`, `flex17`):
 
-- the module folder name is **always lowercase**, even when the manifest's `Name` is mixed-case ("Black Forest Islands" ↔ `black forest islands/`)
+- the module folder name is **always lowercase**, even when the manifest's `Name` is mixed-case ("Black Forest Islands" ↔ `black forest islands/`). This was not just convention: **before game version 1.3.2, the engine failed to load a mod map whose package name was not entirely lowercase.** The 1.3.2 "Free Beer" core update fixed that ("Fixed loading of mod maps when the package name is not written entirely in lower case"), so mixed-case map packages now load — but lowercase remains the safe choice, since installs still on 1.3.1 or earlier reject anything else.
 - `Dependencies` is always `["core"]`; DLC dependencies on user maps are possible in principle but none of the sampled maps declared one
 - the `Image` field of `manifest.json` is an in-pak path to a `.image` file — the editor stores previews under `<modulename>/images/`, but path conventions vary by author (some use `map_thumbnail.image` at module root, others put everything under `images/`)
 - **one user-map pak can ship multiple maps.** `Tales of Pagonia` ships two popmaps in the same pak (`tales of a creeper.popmap` and `tales of swampy hills.popmap`) — each appears as its own entry in the map browser
@@ -228,7 +228,7 @@ What the current tooling does NOT cover yet. **Done** items are already shipped 
 | Encode/decode the `.gd.bin` index format | **Done** | Reading and writing the index is a library + CLI surface (`pagonia-paker gdbin info`). |
 | `pagonia-paker patch` updates `<m>/<m>.gd.bin` when a new `*.gd.xml` is added under `<m>/` | **Done** | Pattern A close-the-loop — modders can ship new XML rules in `core.pak` (or any module) and the engine actually sees them, without touching `.gd.bin` by hand. |
 | Generate a `<modname>/manifest.json` + `<modname>/files.json` + `<modname>/<modname>.gd.bin` + `memory.bin` automatically from `mod.yaml` | **Done** | A `pak:` block in `mod.yaml` triggers the patcher's scaffold step. `sandbox-pack` without `-BasePak` produces a proper Pattern B overlay pak. See [docs/mod-patch-format.md](mod-patch-format.md#standalone-overlay-paks-pak-block) for the block shape; [`sandbox/examples/standalone-overlay/`](../sandbox/examples/standalone-overlay/) is the worked example. |
-| Load-order / override-precedence validation | open | warn when two Pattern B mods would silently fight over the same in-pak path. |
+| Load-order / override-precedence validation | open (now deterministic) | warn when two Pattern B mods would silently fight over the same in-pak path. EE confirmed last-loaded-wins (2026-06-06), so this can be a precise warning, not a heuristic. |
 | Pak-shape sniffer for downloaded mods | **Done** | `pagonia-paker classify <pak>` reports `module` / `user-map` / `overlay` / `unknown`, plus the module's declared `Dependencies`, `HasGdBin`, `PopmapCount`, and `OverridesAtRoot`. JSON report shape pinned by [`schemas/paker/pak-classify-report.schema.json`](../schemas/paker/pak-classify-report.schema.json). |
 | Native user-map authoring | far future | the in-game editor owns this today and is unlikely to be displaced. |
 
@@ -239,14 +239,17 @@ The pak shapes described above (A / B / C) treat each pak as a unit whose files 
 The information below is collected from two **public statements by an Envision Entertainment developer** describing the new Meadowsong modding capabilities, plus one short **dev reply to a question from a player using the currently-released (pre-Meadowsong) Pagonia Editor**.
 
 **Dev statement 1** (paraphrased and translated from German):
+{: #dev-statement-1 }
 
 > With Meadowsong, gdb files can live in different paks; the game loads them all and produces the joint dataset for a game session. Maps can have their own map-specific gdb too. You will discover new ways for entities to depend on each other, beyond the usual hierarchical inheritance: you can selectively **unload** other entities (to play without lumberjacks at all), **replace** other entities (give the base-game mines a longer range), use other entities as a **template** (you still build the regular sawmill, but you can also build the New Great Sawmill in Better), or **extend** other entities (if a mod adds Moonsickle as a resource, the base-game toolmaker should perhaps be able to craft Moonsickle from silver bars too).
 
 **Dev statement 2** clarifies the rollout shape:
+{: #dev-statement-2 }
 
 > Behind all of the game is a system called game database. It defines what a building is, or what a unit is. Visuals, features, gameplay balancing, you name it. This does not only apply to units & buildings but to almost everything in the game, such as objectives or dialogs or how the terrain looks. With this change, modders can modify this database by adding new entities or changing existing ones. Initially this is done **per map**, i.e. the changes are only active for a specific map created in the Pagonia Editor. But we also prepare a system where these changes can be applied **globally**, i.e. as long as the mod is active, those changes apply to all maps and game modes.
 
 **Dev reply to a player question.** A player using the currently-released Pagonia Editor (which authors maps, not GameDatabase content) asked whether modders will be able to modify "almost all attributes, values, etc., and even add new ones — for example, new buildings, resources, units" and whether all of that will be editable via the editor or only via files/scripts. The dev's reply:
+{: #dev-reply }
 
 > You can [add] new buildings, resources etc. There is an editor for the game database. But importing new meshes into the game is not possible yet.
 
@@ -256,6 +259,28 @@ Two concrete consequences for this repository's audience:
 
 - **A modder-facing GDB editor UI is on EE's roadmap, not in the current build.** EE has an internal authoring tool (the "editor for the game database" the dev's reply refers to). The plan is to surface that capability to modders by extending the existing Pagonia Editor — Wave 1 (June 2026) brings per-map GDB editing to the Pagonia Editor, Wave 2 (Q3 2026) opens globally-active GDB mods. **In the current Meadowsong public release, the only way to author GDB content as a modder is by hand-writing `*.gd.xml`** (Pattern A patches or Pattern B overlays). This repository's patcher + paker are the practical tools for that path until the editor extension ships.
 - **No custom-mesh import (yet).** New entities can reference any existing mesh, texture, audio, or prefab that ships in `core.pak` / `dlc1.pak` / etc., but a mod cannot ship its own 3D model and have the game render it. Practical implication: new buildings/units must reuse the visuals of an existing one (a "Cool New Sawmill" looks like the regular sawmill); custom recipes, balance changes, and entity-shape variations are fully in scope, but anything that needs novel art is blocked until mesh import opens up.
+
+### Dev review follow-up (2026-06-06)
+
+A later round of feedback came from an Envision Entertainment developer who reviewed this documentation site directly. It corrected two assumptions we'd recorded as open. Both are paraphrased and translated from German. (For a one-page register of every engine claim and its confidence level — confirmed / data-derived / inferred — see [What We Know About the Engine](engine-claims.md).)
+
+**Dev statement 3 — `InheritanceMode="Unload"` is real, just unused in shipped content.**
+{: #dev-statement-3 }
+
+> `InheritanceMode="Unload"` has been implemented since Meadowsong, but it is unused. A proxy entity A can unload another entity B, with the effect that the final database simply does not contain B — as if it had never existed. This works well only when no other entity C still holds a reference to B (B's GUID appears nowhere else). An effective unload therefore usually means unloading several entities together, so that all of B's dependencies are removed with it. Some parts of the game validate references and others don't, so today the only way to find out what can be unloaded safely — without a crash — is by trial and error.
+
+This **corrects** the inference we'd drawn from the shipped-data scan. The scan was right on the facts: zero entities use `InheritanceMode="Unload"` in 1.3.x. But we wrongly read that absence as "the entity-level Unload mode doesn't ship." It does — EE simply doesn't exercise it in their own content. A pure data scan is structurally blind to an engine feature with no data uses, which is exactly the gap a dev statement fills. The corrected table is in [Confirmed primitives](#confirmed-primitives); the methodology lesson is logged in [quirks-and-anomalies.md → `InheritanceMode="Unload"` ships but is unused](quirks-and-anomalies.md#inheritancemodeunload-ships-but-is-unused).
+
+**Dev statement 4 — the intended model is load-time pak overlays, not external pak manipulation; plus the multi-mod conflict rule.**
+{: #dev-statement-4 }
+
+> External manipulation of pak files is not something we intend. Instead our approach is that other paks are able to replace files from the core/dlc paks at load time. Conflicts between several files with the same path (inside different paks) are resolved via the mod load order — the last-loaded mod wins. A newly introduced `.gd.xml` file loads without problems and lands in the merged game database. When it comes to changing core or dlc gdb entities, you should work with `Replace` or `Unload` as little as possible, and use `Incremental` and `Template` instead. If several mods replace the same entity via `Replace`, the entity from the last-loaded mod wins. An entity can, by contrast, be upgraded multiple times via `Incremental`. Once there are several competing gdb mods, it is most pleasant for players if there are as few conflicts among the mods as possible.
+
+Three things this settles:
+
+- **External pak rewriting is a non-sanctioned path.** EE's intended distribution shape is a *separate* overlay pak that the engine merges at load time — exactly **Pattern B** below — not a rewritten copy of `core.pak` / `dlc1.pak`. Our **Pattern A** (byte-level pak patching) stays useful for non-entity assets the merge model can't reach (icons, audio, `system.json`) and for pre-Meadowsong versions, but it is explicitly **not** the path EE plans around for GameDatabase content. We had already de-prioritised it (the patcher roadmap's standing guidance is "do not extend the byte-level op surface"); this confirms the call rather than changing it.
+- **The multi-mod conflict-resolution rule is now known, not open.** For same-path file conflicts and for two mods that `Replace` the same entity, **the last-loaded mod wins** (load order decides). `Incremental` is the exception — multiple mods can each stack additions onto the same inherited entity without clobbering one another. This answers what we'd flagged as "unobserved" in [quirks-and-anomalies.md](quirks-and-anomalies.md#each-inheritedguid-target-is-hit-exactly-once) and "still empirical" elsewhere.
+- **Conflict-minimising authoring guidance, straight from EE.** Prefer `Incremental` / `Template` (additive, stackable) over `Replace` / `Unload` (destructive, last-loaded-wins) when editing core/dlc entities, because the destructive modes are precisely where competing mods collide. The fewer entities a mod `Replace`s or `Unload`s, the better it co-exists with the rest of a player's mod set.
 
 ### Two-wave rollout
 
@@ -274,14 +299,15 @@ For Wave 1 (map-scoped), modders interested in per-map entity changes wait for t
 
 ### Confirmed primitives
 
-The public Meadowsong release (version `1.3.0-11768+193445`, shipped 2026-05-27) ships three entity-level inheritance primitives that cover three of the four dev-announced concepts. The fourth ("unload") is expressed at the encounter-component level via a pre-existing pattern rather than as an Entity-level mode.
+The public Meadowsong release (version `1.3.0-11768+193445`, shipped 2026-05-27) exercises three entity-level inheritance primitives in its shipped data. The fourth dev-announced concept — entity-level **Unload** — is **implemented in the engine since Meadowsong but used zero times in shipped content** (confirmed by EE, see [Dev statement 3](#dev-statement-3)). Separately, a pre-existing encounter-component pattern achieves a removal at the encounter-slot level. Both "remove" mechanisms are listed below.
 
-| Dev concept | XML form | Hits in 1.3.0 | Inherited entity's fate |
+| Dev concept | XML form | Hits in 1.3.x | Inherited entity's fate |
 | --- | --- | ---: | --- |
 | Template | `<Entity InheritanceMode="Template" InheritedGuid="...">` | 18 | Stays in the merged dataset alongside the new derived entity. |
-| Replace | `<Entity InheritanceMode="Replace" InheritedGuid="...">` | 14 | Removed (replaced wholesale by the new entity). |
-| Extend | `<Entity InheritanceMode="Incremental" InheritedGuid="...">` | 17 | Stays; the new entity contributes additional list items, referencing inherited list positions via `<InheritedIndex>N</InheritedIndex>` markers. |
-| Unload (encounter level) | `<ReplaceSelf><ReplaceWithEntity>00000000-0000-0000-0000-000000000000</ReplaceWithEntity></ReplaceSelf>` inside an encounter component | 17 | The encounter slot resolves to the null GUID and is effectively removed. |
+| Replace | `<Entity InheritanceMode="Replace" InheritedGuid="...">` | 14 | Removed (replaced wholesale by the new entity). With two mods, the last-loaded `Replace` wins. |
+| Extend | `<Entity InheritanceMode="Incremental" InheritedGuid="...">` | 19 | Stays; the new entity contributes additional list items, referencing inherited list positions via `<InheritedIndex>N</InheritedIndex>` markers. Stackable — several mods can each `Incremental` the same entity. |
+| Unload (entity level) | `<Entity InheritanceMode="Unload" InheritedGuid="...">` (exact attribute shape unverified — **0 shipped examples**) | 0 | A proxy entity removes the inherited entity from the merged dataset entirely. Safe only when nothing else references the target; usually requires unloading dependents together. Engine-confirmed by EE, never used in shipped data. |
+| Unload (encounter level) | `<ReplaceSelf><ReplaceWithEntity>00000000-0000-0000-0000-000000000000</ReplaceWithEntity></ReplaceSelf>` inside an encounter component | 17 | The encounter slot resolves to the null GUID and is effectively removed. A distinct, pre-existing mechanism — not the entity-level Unload mode above. |
 
 Worked examples from the shipped `game-gdb/` tree:
 
@@ -294,7 +320,7 @@ Worked examples from the shipped `game-gdb/` tree:
 
 - **The `InheritanceMode` attribute machinery is pre-Meadowsong**, but barely used. 1.2.2 (the pre-DLC public release) has exactly **one** `InheritanceMode="Template"` use (the abstract `DecorativeBuilding` in `decorations1/gdb/decorations.gd.xml`). Meadowsong's contribution is **wide-scale adoption** — the three primitives jump from 1 use total to **49** across `core`, `decorations1`, and especially `dlc1`.
 - **The list-inheritance mechanism is also pre-Meadowsong.** `<InheritedIndex>N</InheritedIndex>` children appear 3,148 times in 1.2.2 and 4,366 times in 1.3.0. Meadowsong leverages this existing tag for the new `InheritanceMode="Incremental"` semantics.
-- **The `ReplaceSelf` null-GUID "unload" pattern is pre-Meadowsong** (13 occurrences in 1.2.2, 17 in 1.3.0). It's used by core's campaign maps to remove encounter slots conditionally — not a Meadowsong introduction. Whether a dedicated Entity-level `Unload` primitive ships in a later patch is open.
+- **The `ReplaceSelf` null-GUID "unload" pattern is pre-Meadowsong** (13 occurrences in 1.2.2, 17 in 1.3.0). It's used by core's campaign maps to remove encounter slots conditionally — not a Meadowsong introduction. It is **distinct** from the entity-level `InheritanceMode="Unload"` mode, which EE has confirmed ships in the engine (since Meadowsong) but is used zero times in shipped content — see [Dev statement 3](#dev-statement-3).
 - **The `.gd.bin` index format is stable across the 1.2.2 → Meadowsong jump.** Seven-byte v3 header (`03 XX 02 YY 00 00 00`), where byte[3] tracks `entries.Count - 1`. Our existing `GdBinReader` reads shipped paks and any Meadowsong-era mod indexes without changes — see [`tools/pagonia-paker/CLI.md`](../tools/pagonia-paker/CLI.md).
 - **The single 1.2.2 `InheritanceMode="Template"` use (`DecorativeBuilding`) survived unchanged** into 1.3.0 — same GUID (`9edc01cd-...`), same `InheritedGuid`, same file. Meadowsong didn't redefine the attribute, it just opened the floodgates on its usage.
 
@@ -308,11 +334,22 @@ The full diff between the 1.2.2 and Meadowsong snapshots is in `generated/diffs/
 
 ### Loading model update
 
-Pre-Meadowsong, our description of the engine's loading was "later pak wins on same in-pak path (last-write-wins)". For GameDatabase content under Meadowsong this is **no longer the right mental model** — the engine doesn't do last-write-wins for `*.gd.xml`; it builds a single merged entity set where every loaded module's XMLs contribute through the inheritance primitives confirmed above (additive / exclusive / destructive). The last-write-wins description still holds for non-GDB assets (config files like `system.json`, textures, audio); for `*.gd.xml`, the merge model takes over.
+Pre-Meadowsong, our description of the engine's loading was "later pak wins on same in-pak path (last-write-wins)". For GameDatabase content under Meadowsong this is **no longer the whole picture** — the engine doesn't do crude file-level last-write-wins for `*.gd.xml`; it builds a single merged entity set where every loaded module's XMLs contribute through the inheritance primitives confirmed above (additive / exclusive / destructive). The file-level last-write-wins description still holds for non-GDB assets (config files like `system.json`, textures, audio); for `*.gd.xml`, the merge model takes over.
+
+Where two mods *do* collide on the same entity, EE confirmed (2026-06-06, [Dev statement 4](#dev-statement-4)) that load order still decides — but **at the entity-relation level, not the file level**:
+
+| Collision | Resolution |
+| --- | --- |
+| Two paks ship a file at the same in-pak path (non-GDB) | Last-loaded pak's file wins (file-level last-write-wins). |
+| Two mods `Replace` the same inherited entity | Last-loaded mod's `Replace` wins. |
+| Two mods `Incremental` the same inherited entity | **Both apply** — additions stack, no clobber. |
+| A mod `Unload`s an entity another mod still references | Unsafe; the reference dangles. EE's guidance: unload the dependents too, or avoid `Unload`. |
+
+The practical takeaway EE stressed: **prefer `Incremental` / `Template` over `Replace` / `Unload`** when editing core/dlc entities, so competing gdb mods produce as few hard conflicts as possible. `pagonia-patcher validate-mod` turns this into authoring-time lint — its [conflict-minimising advisor](mod-conflicts.md#gamedatabase-overlay-conflicts-authoring-advisor) flags destructive modes, warns when an `Unload` would dangle, and (with a game root) spots a `Replace` that could be `Incremental`. The manager runs it on install too.
 
 ### Status of "what we built" against this
 
-- The patcher's existing operation set (`replaceValue`, `mergeComponent`, `addEntity`, `removeEntity`, `addListItem`, `removeListItem`, `replaceAttribute`, `replaceNode`) is **byte-level** — it edits the XML of the shipped paks. Meadowsong's relation mechanism is **declarative inside a fresh XML file**: the mod ships its own entity that references the inherited one. These are complementary, not competing — a Meadowsong-aware mod often writes the new XML directly rather than patching the shipped one.
+- The patcher's existing operation set (`replaceValue`, `multiplyValue`, `addValue`, `mergeComponent`, `addEntity`, `removeEntity`, `addListItem`, `removeListItem`, `replaceAttribute`, `replaceNode`) is **byte-level** — it edits the XML of the shipped paks. Meadowsong's relation mechanism is **declarative inside a fresh XML file**: the mod ships its own entity that references the inherited one. These are complementary, not competing — a Meadowsong-aware mod often writes the new XML directly rather than patching the shipped one. **EE has confirmed (2026-06-06) that externally rewriting the shipped paks is not their intended path** ([Dev statement 4](#dev-statement-4)); the sanctioned shape is a separate overlay pak (Pattern B) merged at load time. The byte-level ops remain a legitimate fallback for non-entity assets and pre-Meadowsong versions, but they are not the canonical GameDatabase-modding path and the op surface is intentionally frozen.
 - The Pattern B scaffold already produces the right module shape for a Meadowsong mod. No tooling work is needed there to support the new primitives; the modder writes the XML by hand today (a modder-facing GDB editor is on the EE roadmap for Q3 2026, see "Two-wave rollout" above).
 - A future patcher iteration might add declarative `entity:` operations to `mod.yaml` so the patch format can describe Meadowsong-style merges without the modder authoring the engine's XML by hand. The primitives are now confirmed against the public release; the remaining hold is the planned post-DLC hotfix wave — once any short-term schema tweaks settle in, that work can move.
 
@@ -354,7 +391,7 @@ The schemas live at [`schemas/mod-patches/`](../schemas/mod-patches/) and are th
 
 Working layouts ship under [`examples/`](../examples/):
 
-- **[`examples/mod-repo-example/`](../examples/mod-repo-example/)** — Multi-mod Git repository: two mods + one collection + top-level `index.yaml` + a `.github/workflows/validate.yml` CI job. Fork it as a starting point.
+- **[`examples/mod-repo-example/`](../examples/mod-repo-example/)** — Multi-mod Git repository: three mods + one collection + top-level `index.yaml` + a `.github/workflows/validate.yml` CI job. Fork it as a starting point.
 - More examples (single-mod-only, cross-repo curator, mod.io-ZIP variant) will land alongside the corresponding manager capabilities. The [`examples/README.md`](../examples/README.md) index stays current.
 
 ## Where Things Live In This Repo

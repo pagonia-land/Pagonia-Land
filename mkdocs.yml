@@ -96,6 +96,7 @@ watch:
   - tools/pagonia-patcher/CLI.md
   - tools/pagonia-paker/README.md
   - tools/pagonia-paker/CLI.md
+  - tools/catalog-browser/CHANGELOG.md
   - schemas/README.md
   - schemas/manager/README.md
   - schemas/mod-patches/README.md
@@ -176,6 +177,7 @@ nav:
       - Package Loading and Overlays: package-loading.md
       - Package Layering and DLC: package-layering.md
       - DLC Patch and Override Model: dlc-patch-override-model.md
+      - What We Know About the Engine: engine-claims.md
     - Gameplay Data:
       - Resources: resources.md
       - Buildings: buildings.md
@@ -260,7 +262,9 @@ nav:
     - Pagonia Paker:
       - Overview: _imported/tools/pagonia-paker/index.md
       - CLI Reference: _imported/tools/pagonia-paker/cli.md
-    - Catalog Browser: catalog-browser.md
+    - Catalog Browser:
+      - Overview: catalog-browser.md
+      - Changelog: _imported/tools/catalog-browser/changelog.md
   - Schemas:
     - Overview: _imported/schemas/index.md
     - Mod Patches: _imported/schemas/mod-patches.md

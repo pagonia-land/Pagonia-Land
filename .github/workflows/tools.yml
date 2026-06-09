@@ -22,6 +22,7 @@ on:
       - 'sandbox/examples/**'
       - 'official-mods/**'
       - 'catalog/**'
+      - 'docs/examples/**'
       - 'scripts/preflight.ps1'
       - '.github/workflows/tools.yml'
   pull_request:
@@ -37,6 +38,7 @@ on:
       - 'sandbox/examples/**'
       - 'official-mods/**'
       - 'catalog/**'
+      - 'docs/examples/**'
       - 'scripts/preflight.ps1'
       - '.github/workflows/tools.yml'
   workflow_dispatch:
@@ -47,10 +49,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up .NET 8 SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
 
@@ -67,10 +69,10 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up .NET 8 SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
 

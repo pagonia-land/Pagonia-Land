@@ -18,7 +18,7 @@ internal static class AdvancedSchemaValidate
             return;
         }
 
-        var path = AdvancedHelpers.PromptExistingPath("[bold]Report file[/] [dim](.json)[/]:", mustBeFile: true);
+        if (!AdvancedHelpers.TryPromptExistingPath("[bold]Report file[/] [dim](.json)[/]:", out var path, mustBeFile: true)) { return; }
 
         var diagnostics = new ManagerSchemaValidator().ValidateReport(kind, path);
         DiagnosticsRenderer.Render(diagnostics);

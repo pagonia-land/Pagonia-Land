@@ -31,6 +31,27 @@ public sealed class PatchOperation
     [YamlMember(Alias = "value")]
     public string? Value { get; init; }
 
+    // Arithmetic operands (multiplyValue / addValue). The new leaf value is computed at plan time
+    // from expectedOldValue combined with one of these; both may carry a {{ tweaks.<id> }} placeholder
+    // so one shared tweak can scale many targets relative to their vanilla values.
+    [YamlMember(Alias = "factor")]
+    public string? Factor { get; init; }
+
+    [YamlMember(Alias = "delta")]
+    public string? Delta { get; init; }
+
+    // Rounding policy for the computed result (game-database values are integers). round | floor | ceil;
+    // null defaults to round. ClampMin/ClampMax optionally bound the rounded result. These are static
+    // policy fields, not templated.
+    [YamlMember(Alias = "rounding")]
+    public string? Rounding { get; init; }
+
+    [YamlMember(Alias = "clampMin")]
+    public string? ClampMin { get; init; }
+
+    [YamlMember(Alias = "clampMax")]
+    public string? ClampMax { get; init; }
+
     [YamlMember(Alias = "attribute")]
     public string? Attribute { get; init; }
 

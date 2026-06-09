@@ -142,10 +142,10 @@ Suggested result: warning, not automatic failure.
 Every mod should declare the snapshot it was authored against:
 
 ```yaml
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 ```
 
-The validator should compare this with the local current snapshot. Prefer exact program versions such as `1.3.1-11826+193733` over descriptive labels.
+The validator should compare this with the local current snapshot. Prefer exact program versions such as `1.3.2-11873+194094` over descriptive labels.
 
 If the snapshot differs:
 
@@ -210,6 +210,29 @@ loadBefore:
 ```
 
 If two mods require incompatible ordering, the validator should report a load-order cycle.
+
+## GameDatabase Overlay Conflicts (Authoring Advisor)
+
+The conflicts above are about two *patches* fighting over the same shipped XML. A different class of conflict appears when two mods ship their own GameDatabase overlay (`*.gd.xml`) and both touch the same inherited entity via the engine's `InheritanceMode` primitives. The engine resolves these by **load order** — for `Replace` / `Unload` the last-loaded mod wins; `Incremental` is additive and stacks (see [What We Know About the Engine](engine-claims.md)). So the destructive modes are where competing mods silently clobber each other.
+
+`pagonia-patcher validate-mod` runs a **conflict-minimising authoring advisor** over a mod's own overlay to flag this *before* it ships:
+
+| Finding | Severity | Meaning |
+| --- | --- | --- |
+| `usesDestructiveInheritanceMode` | info | The entity uses `Replace` / `Unload` (last-loaded-wins). If the change only adds to the inherited entity, prefer `Incremental` / `Template` so it stacks with other mods. |
+| `unloadsReferencedEntity` | warning | An `Unload` whose target is still referenced elsewhere in the same overlay — the reference will dangle. Unload the dependents too, or don't. |
+| `inheritanceConflictRisk` | info | A per-mod score (low / medium / high) from how many entities the mod `Replace`s or `Unload`s. |
+
+Point the advisor at an unpacked game database (`validate-mod --game-root <path>`) and two more checks switch on, comparing your overlay against the shipped data:
+
+| Finding | Severity | Meaning |
+| --- | --- | --- |
+| `unloadsReferencedEntity` (widened) | warning | The unload target is still referenced *anywhere in core/dlc*, not just in your overlay — the dangling-reference case. |
+| `replaceCouldBeIncremental` | warning | Your `Replace` keeps the inherited entity verbatim and only adds to it, so it could be an `Incremental` that stacks. (Conservative: any modified value means a genuine rewrite and isn't flagged.) |
+
+Rule of thumb: the fewer entities your mod `Replace`s or `Unload`s, the more cleanly it co-exists in a player's mod set. Reach for the additive modes first.
+
+**Across mods.** The advisor above lints *one* mod in isolation. The manager adds the cross-mod view: when you `plan` or `deploy` a profile, it checks the enabled mods *in load order* and warns (`manager.crossModOverlayConflict`) when two of them `Replace`/`Unload` the same inherited entity — naming the load-order winner and the silently-overridden mods, so you can reorder, disable one, or ask the authors to switch to additive modes.
 
 ## Risk Score
 

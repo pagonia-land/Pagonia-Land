@@ -90,11 +90,7 @@ internal static class ManageActiveProfileWizard
         {
             AnsiConsole.MarkupLine("[yellow]No mods installed.[/]"); Pause(); return;
         }
-        var modId = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Enable which mod?")
-                .HighlightStyle(new Style(foreground: Color.Aqua))
-                .AddChoices(installed.Select(m => m.Id).Distinct()));
+        var modId = AdvancedHelpers.Pick("Enable which mod?", installed.Select(m => m.Id).Distinct());
         var r = new ActiveProfileService().Enable(layout, modId, requestedVersion: null);
         DiagnosticsRenderer.Render(r.Diagnostics);
         if (r.Success && r.Profile is not null)
@@ -123,11 +119,7 @@ internal static class ManageActiveProfileWizard
         {
             AnsiConsole.MarkupLine("[yellow]No enabled mods to disable.[/]"); Pause(); return;
         }
-        var modId = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Disable which mod?")
-                .HighlightStyle(new Style(foreground: Color.Aqua))
-                .AddChoices(choices));
+        var modId = AdvancedHelpers.Pick("Disable which mod?", choices);
         var r = svc.Disable(layout, modId);
         DiagnosticsRenderer.Render(r.Diagnostics);
         if (r.Success && r.Profile is not null)
@@ -144,16 +136,11 @@ internal static class ManageActiveProfileWizard
         {
             AnsiConsole.MarkupLine("[yellow]Need at least 2 enabled mods to reorder.[/]"); Pause(); return;
         }
-        var modId = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Move which mod?")
-                .HighlightStyle(new Style(foreground: Color.Aqua))
-                .AddChoices(show.Profile.LoadOrder));
-        var anchor = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Place it relative to:")
-                .HighlightStyle(new Style(foreground: Color.Aqua))
-                .AddChoices(show.Profile.LoadOrder.Where(id => id != modId)));
+        var modId = AdvancedHelpers.Pick("Move which mod?", show.Profile.LoadOrder);
+        if (!AdvancedHelpers.TryPick("Place it relative to:", show.Profile.LoadOrder.Where(id => id != modId), out var anchor))
+        {
+            AnsiConsole.MarkupLine("[yellow]No other mod to place this relative to.[/]"); Pause(); return;
+        }
         var where = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("Before or after?")
@@ -184,10 +171,12 @@ internal static class ManageActiveProfileWizard
     {
         AnsiConsole.WriteLine();
         var source = new StoreStateReader().Read(layout).ActiveProfile ?? StoreLayoutConstants.DefaultProfileName;
-        var target = AnsiConsole.Prompt(
-            new TextPrompt<string>($"Copy '[aqua]{Markup.Escape(source)}[/]' to new profile name:")
-                .Validate(n => ProfileNameValidator.IsValid(n, out var why)
-                    ? ValidationResult.Success() : ValidationResult.Error(why)));
+        if (!AdvancedHelpers.TryPromptText($"Copy '[aqua]{Markup.Escape(source)}[/]' to new profile name:", out var target,
+                n => ProfileNameValidator.IsValid(n, out var why)
+                    ? ValidationResult.Success() : ValidationResult.Error(why)))
+        {
+            return;
+        }
         var activate = AdvancedHelpers.Confirm("Switch to the copy now?", defaultValue: false);
         var r = new ProfileLifecycleService().Copy(layout, source, target, activate);
         DiagnosticsRenderer.Render(r.Diagnostics);
@@ -200,8 +189,7 @@ internal static class ManageActiveProfileWizard
     {
         AnsiConsole.WriteLine();
         var source = new StoreStateReader().Read(layout).ActiveProfile ?? StoreLayoutConstants.DefaultProfileName;
-        var outPath = AdvancedHelpers.PromptText(
-            "Write collection to file path (e.g. [aqua].\\my-setup.collection.yaml[/]):");
+        if (!AdvancedHelpers.TryPromptText("Write collection to file path (e.g. [aqua].\\my-setup.collection.yaml[/]):", out var outPath)) { return; }
         var displayName = AdvancedHelpers.PromptText("Collection display name (optional):", allowEmpty: true);
         var r = new ProfileExportService().Export(layout, source, outPath,
             new ProfileExportOptions { Name = string.IsNullOrWhiteSpace(displayName) ? null : displayName });
@@ -245,11 +233,7 @@ internal static class ManageActiveProfileWizard
         }
         var state = new StoreStateReader().Read(layout);
         var active = state.ActiveProfile ?? StoreLayoutConstants.DefaultProfileName;
-        var pick = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Switch active profile to:")
-                .HighlightStyle(new Style(foreground: Color.Aqua))
-                .AddChoices(list.Profiles.Select(p => p.Name)));
+        var pick = AdvancedHelpers.Pick("Switch active profile to:", list.Profiles.Select(p => p.Name));
         if (string.Equals(pick, active, StringComparison.Ordinal))
         {
             AnsiConsole.MarkupLine($"[dim]'{Markup.Escape(pick)}' is already active.[/]");

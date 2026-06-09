@@ -376,10 +376,11 @@ public sealed class DeployService
             //   4. Write the deploy manifest (rollback needs this to find backups + added paks)
             //   5. Append history       (THE commit point; visible in 'status' / 'deploy-status')
             //   6. Update state.lastDeploy
-            // A crash between 1 and 4 leaves files in a partially-modified state with NO
-            // history entry — 'status' will reflect that the most recent deploy is the
-            // previous one, so the user can see the discrepancy rather than be told a
-            // successful deploy happened that physically did not.
+            // A caught write error during steps 2-3 self-heals: the backups from step 1 are
+            // restored and any overlay paks removed, so a failed deploy leaves the install in its
+            // pre-deploy state. A hard *crash* (process kill / power loss) mid-write can
+            // still leave partial state, but with NO history entry — 'status' then reflects the
+            // previous deploy, so the user sees the discrepancy rather than a phantom success.
 
             // 1. Backup originals first. AtomicFile guarantees per-file atomicity.
             foreach (var modified in modifiedFiles)
@@ -389,21 +390,57 @@ public sealed class DeployService
                 AtomicFile.WriteAllBytes(backupPath, File.ReadAllBytes(sourcePath));
             }
 
-            // 2. Write the new files into the game. Per-file atomic; an interrupt leaves each
-            //    file as either old or new — never half-written.
-            foreach (var modified in modifiedFiles)
+            // 2-3. Mutate the live install (modified files, then Pattern B overlay paks). Each
+            //    write is per-file atomic, but a failure partway (e.g. a disk-full / permission
+            //    error on file K) would otherwise leave the game half-modified with no manifest
+            //    or history to roll back. Self-heal: on any write failure, restore every original
+            //    from the backups just written in step 1 and remove any overlay paks already
+            //    placed, leaving the install in its exact pre-deploy state, then fail cleanly.
+            var writtenOverlays = new List<string>();
+            try
             {
-                var stagedPath = Path.Combine(stagingRoot, modified.RelativePath);
-                var targetPath = Path.Combine(gameRoot, modified.RelativePath);
-                AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(stagedPath));
-            }
+                foreach (var modified in modifiedFiles)
+                {
+                    var stagedPath = Path.Combine(stagingRoot, modified.RelativePath);
+                    var targetPath = Path.Combine(gameRoot, modified.RelativePath);
+                    AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(stagedPath));
+                }
 
-            // 3. Pattern B overlay paks land in <game>/mods/<pakname>.pak. These are addedFiles
-            //    (the target didn't exist before) — rollback deletes them, no backup needed.
-            foreach (var (_, stagedPakPath, targetRelative) in pakDeployments)
+                foreach (var (_, stagedPakPath, targetRelative) in pakDeployments)
+                {
+                    var targetPath = Path.Combine(gameRoot, targetRelative.Replace('/', Path.DirectorySeparatorChar));
+                    AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(stagedPakPath));
+                    writtenOverlays.Add(targetPath);
+                }
+            }
+            catch (Exception writeEx) when (writeEx is IOException or UnauthorizedAccessException)
             {
-                var targetPath = Path.Combine(gameRoot, targetRelative.Replace('/', Path.DirectorySeparatorChar));
-                AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(stagedPakPath));
+                foreach (var modified in modifiedFiles)
+                {
+                    var backupPath = Path.Combine(backupDir, modified.RelativePath);
+                    var targetPath = Path.Combine(gameRoot, modified.RelativePath);
+                    if (File.Exists(backupPath))
+                    {
+                        try { AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(backupPath)); }
+                        catch (IOException) { /* best-effort restore */ }
+                    }
+                }
+                foreach (var overlay in writtenOverlays)
+                {
+                    try { if (File.Exists(overlay)) { File.Delete(overlay); } }
+                    catch (IOException) { /* best-effort cleanup */ }
+                }
+                diagnostics.Add(new ManagerDiagnostic(
+                    ManagerDiagnosticSeverity.Error,
+                    ManagerDiagnosticCodes.DeployMidWriteRolledBack,
+                    $"Deploy failed while writing to the game ({writeEx.Message}); the install was restored to its pre-deploy state. Nothing was committed."));
+                return new DeployResult
+                {
+                    ProfileName = planResult.ProfileName,
+                    GameFingerprint = fingerprint,
+                    BackupDirectory = backupDir,
+                    Diagnostics = diagnostics,
+                };
             }
 
             // 4. Write the manifest now that files are in place. Rollback needs this; if it
@@ -695,6 +732,12 @@ public sealed class DeployService
                 modifiedFiles = new List<DeployFileEntry>();
                 foreach (var (relativePath, newBytes) in changedBytes.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
                 {
+                    // Re-reading the cached original here (rather than threading the exact
+                    // pre-patch bytes out of ApplySparse) is safe only because the pak cache is
+                    // immutable for the duration of a single deploy: deploy runs single-threaded
+                    // and PakCacheService self-heals/extracts before the patch phase, never during
+                    // it. If a concurrent cache writer is ever introduced, carry the originals
+                    // through SparseApplyResult instead so this can't read post-mutation bytes.
                     var originalPath = Path.Combine(cacheRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
                     var originalBytes = File.ReadAllBytes(originalPath);
                     if (originalBytes.AsSpan().SequenceEqual(newBytes)) continue;
@@ -827,8 +870,15 @@ public sealed class DeployService
                 {
                     // First pak wins — paks aren't supposed to overlap, but a duplicate
                     // would mean two source paks contain the same path; we'd patch the
-                    // first one we discover. Surface this via diagnostic if it happens.
-                    ownerByEntry.TryAdd(entry.Filename, pakPath);
+                    // first one we discover. Surface it (when the owners actually differ).
+                    if (!ownerByEntry.TryAdd(entry.Filename, pakPath)
+                        && !string.Equals(ownerByEntry[entry.Filename], pakPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        diagnostics.Add(new ManagerDiagnostic(
+                            ManagerDiagnosticSeverity.Warning,
+                            ManagerDiagnosticCodes.DuplicatePakEntryOwner,
+                            $"Entry '{entry.Filename}' appears in more than one source pak ('{Path.GetFileName(ownerByEntry[entry.Filename])}' and '{Path.GetFileName(pakPath)}'); patching the first."));
+                    }
                 }
                 }
             }

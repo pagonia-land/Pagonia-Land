@@ -41,7 +41,24 @@ Validate a mod manifest and patch file layout:
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- validate-mod --mod .\fixtures\mods\cheaper-sawmill
 ```
 
-`validate-mod` runs the patcher's own internal validation (`ManifestValidator`) — the rules the patcher enforces when planning. For mods that declare `tweaks:`, it also runs a lint pass that warns (without failing) about likely authoring mistakes the schema can't catch: a tweak declared but never referenced by a `{{ tweaks.<id> }}` placeholder, a boolean ternary used on a non-boolean tweak, or a numeric tweak whose `min` exceeds its `max`. For a check that compares your `mod.yaml`, patches, collections, or lockfiles against the canonical JSON Schemas under `schemas/mod-patches/`, use `schema-validate`:
+`validate-mod` runs the patcher's own internal validation (`ManifestValidator`) — the rules the patcher enforces when planning. For mods that declare `tweaks:`, it also runs a lint pass that warns (without failing) about likely authoring mistakes the schema can't catch: a tweak declared but never referenced by a `{{ tweaks.<id> }}` placeholder, a boolean ternary used on a non-boolean tweak, or a numeric tweak whose `min` exceeds its `max`.
+
+For mods that ship their own GameDatabase overlay (`*.gd.xml` files declared under `entries:`), `validate-mod` also runs the **conflict-minimising authoring advisor**. It encodes the engine maintainers' guidance — prefer the additive, stackable inheritance modes (`Incremental` / `Template`) over the destructive, last-loaded-wins ones (`Replace` / `Unload`) so a mod co-exists cleanly with others. Findings are advisory (`validate-mod` still exits `0`):
+
+- **`usesDestructiveInheritanceMode`** (info) — names each `Replace` / `Unload` entity and reminds you that the last-loaded mod wins; if the change is purely additive, use `Incremental` / `Template`.
+- **`unloadsReferencedEntity`** (warning) — an `Unload` whose target GUID is still referenced elsewhere in the same overlay; the reference will dangle after the unload.
+- **`inheritanceConflictRisk`** (info) — a per-mod summary score (low / medium / high) based on how many entities the mod `Replace`s or `Unload`s.
+
+Pass an optional `--game-root <unpacked-game-gdb>` to turn on the **base-aware** checks, which compare the overlay against the shipped database:
+
+```powershell
+dotnet run --project .\src\PagoniaLand.Patcher.Cli -- validate-mod --mod .\fixtures\mods\overlay-replace-additive --game-root .\fixtures\game-gdb-mini
+```
+
+- **`unloadsReferencedEntity`** widens to warn when the unload target is still referenced anywhere in core/dlc (not just in your own overlay) — the dangling-reference case the engine maintainers flagged.
+- **`replaceCouldBeIncremental`** (warning) — your `Replace` keeps every part of the inherited entity verbatim and only adds to it, so it could be an `Incremental` that stacks with other mods instead of a wholesale replace that the last-loaded mod wins. The diff is conservative: any modified or removed value means a genuine rewrite and is not flagged.
+
+For a check that compares your `mod.yaml`, patches, collections, or lockfiles against the canonical JSON Schemas under `schemas/mod-patches/`, use `schema-validate`:
 
 ```powershell
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- schema-validate --mod .\fixtures\mods\cheaper-sawmill
@@ -149,11 +166,13 @@ Tools should use exit codes and JSON reports for automation. Mod managers (inclu
 
 ## Patch Operations
 
-The patcher implements all eight operations defined in [patch-file.schema.json](../../schemas/mod-patches/patch-file.schema.json):
+The patcher implements all ten operations defined in [patch-file.schema.json](../../schemas/mod-patches/patch-file.schema.json):
 
 | Operation | What it changes | Required fields |
 | --- | --- | --- |
 | `replaceValue` | The text value of an XML element resolved by `target.path`. | `expectedOldValue`, `value` |
+| `multiplyValue` | The text value of `target.path`, set to `expectedOldValue × factor` (rounded, optionally clamped). | `expectedOldValue`, `factor`. Optional `rounding` (`round`/`floor`/`ceil`, default `round`), `clampMin`, `clampMax`. |
+| `addValue` | The text value of `target.path`, set to `expectedOldValue + delta` (negative `delta` subtracts; rounded, optionally clamped). | `expectedOldValue`, `delta`. Optional `rounding`, `clampMin`, `clampMax`. |
 | `replaceAttribute` | One attribute on the XML element resolved by `target.path`. | `attribute`, `expectedOldValue`, `value` |
 | `replaceNode` | The full XML element resolved by `target.path`, replaced with the literal `xml` fragment. | `xml`. `expectedOldXml` is optional but recommended. |
 | `addListItem` | Appends an `xml` fragment as a child of the container resolved by `target.path`. | `xml` |
@@ -164,7 +183,7 @@ The patcher implements all eight operations defined in [patch-file.schema.json](
 
 Conflict detection groups writes by kind:
 
-- single-target operations (`replaceValue`, `replaceAttribute`, `replaceNode`) collide on file, entity GUID, component, path, and attribute
+- single-target operations (`replaceValue`, `multiplyValue`, `addValue`, `replaceAttribute`, `replaceNode`) collide on file, entity GUID, component, path, and attribute — so a `multiplyValue` and a `replaceValue` on one field conflict
 - list operations (`addListItem`, `removeListItem`) additionally include the normalised item XML, so two adds with different XML coexist, but two adds with the same XML or an add and a remove of the same item conflict
 - entity operations (`addEntity`, `removeEntity`) collide on file and entity GUID, so an add and a remove targeting the same GUID conflict
 - `mergeComponent` collides on file, entity GUID, and component name, so two merges into the same component conflict

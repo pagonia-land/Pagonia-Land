@@ -82,7 +82,7 @@ id: pagonia-land.example.cheaper-sawmill
 name: Cheaper Sawmill
 version: 0.1.0
 author: TheLavaBlock
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 description: Lowers one Sawmill construction cost for local testing.
 requiredPackages:
   - core
@@ -125,7 +125,7 @@ operations:
 | `name` | Human-readable mod name |
 | `version` | Mod version |
 | `author` | Author or team |
-| `gameDatabaseVersion` | Exact program/database version the mod was authored against, such as `1.3.1-11826+193733` |
+| `gameDatabaseVersion` | Exact program/database version the mod was authored against, such as `1.3.2-11873+194094` |
 | `description` | Short description |
 | `requiredPackages` | Packages that must be present, such as `core`, `dlc1`, `decorations1`, or `tools` |
 | `optionalPackages` | Packages that enable optional patch sets when present |
@@ -142,7 +142,7 @@ operations:
 Use the exact program version that belongs to the extracted GameDatabase XML set:
 
 ```yaml
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 ```
 
 Prefer this exact version over descriptive names such as "Meadowsong release". Human labels can still be used in notes, but validators and patch files need stable, unambiguous identifiers.
@@ -250,6 +250,8 @@ Start with a small operation set. More operations can be added later after real 
 | Operation | Meaning | Beginner Risk |
 | --- | --- | --- |
 | `replaceValue` | Replace the text value of an existing field | Low |
+| `multiplyValue` | Scale an existing numeric value by a factor | Low |
+| `addValue` | Add a delta to an existing numeric value | Low |
 | `replaceAttribute` | Replace an existing XML attribute value | Medium |
 | `addListItem` | Add one item to an existing list | Medium |
 | `mergeComponent` | Add missing fields to an existing component | Medium |
@@ -306,6 +308,48 @@ component named by `target.component`. In every case the fragment is a plain
 XML element with no namespace declarations — match the shape the file already
 uses for that list or node.
 
+### Arithmetic operations (`multiplyValue`, `addValue`)
+
+`replaceValue` sets a value to a fixed number. The arithmetic operations instead
+compute the new value **relative to the existing one**, which is what a literal
+substitution cannot express — "all costs ×1.5" or "+2 to a build cost":
+
+- `multiplyValue` writes `expectedOldValue × factor`;
+- `addValue` writes `expectedOldValue + delta` (a negative `delta` subtracts).
+
+```yaml
+- id: scale-sawmill-softwood-cost
+  operation: multiplyValue
+  risk: low
+  reason: Scale the Sawmill softwood cost with the shared cost multiplier.
+  target:
+    file: core/gdb/buildings.gd.xml
+    entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+    entityName: Sawmill
+    component: AspectBuildup
+    path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+  expectedOldValue: "4"
+  factor: "{{ tweaks.cost-multiplier }}"   # literal or a tweak placeholder
+  rounding: round                          # round | floor | ceil (default round)
+  clampMin: "1"                            # optional bounds on the result
+```
+
+Key points:
+
+- The math runs at **plan time** from the declared `expectedOldValue` and the
+  operand — the existing-value cross-check (the same drift guard `replaceValue`
+  uses) still has to match the file, so the result never depends on another mod's
+  earlier write. `expectedOldValue` is therefore **required**.
+- The operand (`factor` / `delta`) may be a literal or a `{{ tweaks.<id> }}`
+  placeholder, so **one shared multiplier tweak referenced by many ops** is one
+  knob that scales every target relative to its own vanilla value.
+- Game-database values are integers, so the result is **rounded** (`round` /
+  `floor` / `ceil`, default `round`) and optionally **clamped** to `clampMin` /
+  `clampMax` after rounding. A clamp that fires is reported in the plan.
+- The target must be a single leaf value (same rule as `replaceValue`), and two
+  ops writing the same target still conflict — a `multiplyValue` and a
+  `replaceValue` on one field collide just like two `replaceValue`s.
+
 ## Binary Pak Entries
 
 XML patches live in `patches/*.yaml` and target the game-database XML files. Non-XML pak entries — icons, textures, meshes, prefabs, materials, audio events, etc. — are handled separately by an `entries:` block in `mod.yaml` plus a sibling `entries/` folder that ships the raw bytes.
@@ -327,7 +371,7 @@ The three lists are all optional; a real mod uses whichever it needs.
 | Operation | What it does | Path constraint |
 | --- | --- | --- |
 | `entries.replace` | Substitute an existing pak entry with the bytes from `source`. The entry keeps its original `compressed` flag. | `path` must match an entry name in the base pak you'll patch against. |
-| `entries.add` | Append a new pak entry. Compression flag is chosen by extension (`.xml`/`.yaml`/`.yml`/`.txt` → gzip; everything else stored verbatim). | `path` must NOT already be in the base pak. |
+| `entries.add` | Append a new pak entry. Compression flag is chosen by extension (`.xml`/`.yaml`/`.yml`/`.txt`/`.json` → gzip; everything else stored verbatim). | `path` must NOT already be in the base pak. |
 | `entries.delete` | Omit a pak entry from the resulting pak. | `path` must match an entry name in the base pak. |
 
 `source` is a path relative to the mod folder; it must not be rooted and must not contain `..`. `path` is a pak entry name; the first segment is always a pak namespace (`core`, `decorations1`, `dlc1`, `tools`) and `..` traversal is rejected at the schema level.
@@ -416,7 +460,7 @@ it, by `schema-validate` / IDE JSON-Schema validation):
 | `id` | all | Unique within the mod, **including across `aliases`**. Pattern `^[a-z0-9][a-z0-9-]*$`, max 40 chars. |
 | `type` | all | One of `number`, `integer`, `boolean`, `enum`. |
 | `label` | all | Required, max 80 chars. |
-| `default` | all | Required; its literal must match `type` (a `boolean` default is `true`/`false`, a numeric default is a number, an `enum` default is one of the `values`). |
+| `default` | all | Required, and its literal must match `type` (a number for `number`/`integer`, `true`/`false` for `boolean`, one of `values` for `enum`). The literal↔type match itself is enforced by `schema-validate` / IDE JSON-Schema; `validate-mod` adds the semantic checks on top — `default` within `min..max`, and `default` ∈ `values`. |
 | `min` / `max` / `step` | number, integer | Optional bounds. The `default` must fall inside `min..max`. |
 | `values` | enum | Required array of `{ value, label }` options. |
 | `aliases` | all | Optional legacy ids, each satisfying the `id` pattern. |
@@ -433,7 +477,7 @@ Tag a mod that exposes tweaks with the [`tweakable`](mod-tags.md) tag so catalog
 
 ### Using tweaks in patch operations
 
-A patch operation references a tweak with a `{{ tweaks.<id> }}` placeholder in any of its value-carrying fields — `value`, `expectedOldValue`, `xml`, `expectedOldXml`. The patcher substitutes the chosen (or default) value **at plan time**, so the plan report shows the concrete values and `apply` just consumes the resolved plan. Two forms exist:
+A patch operation references a tweak with a `{{ tweaks.<id> }}` placeholder in any of its value-carrying fields — `value`, `factor`, `delta`, `clampMin`, `clampMax`, `expectedOldValue`, `xml`, `expectedOldXml` (the arithmetic operands and clamp bounds included, so one shared tweak can drive a multiplier and its floor alike). `rounding` is the exception: it's a fixed enum (`round`/`floor`/`ceil`), not a placeholder field. The patcher substitutes the chosen (or default) value **at plan time**, so the plan report shows the concrete values and `apply` just consumes the resolved plan. Two forms exist:
 
 ```yaml
 operations:

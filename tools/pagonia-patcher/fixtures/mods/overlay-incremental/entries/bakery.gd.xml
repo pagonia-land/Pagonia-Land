@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EntityGroup>
+  <Entities>
+    <Entity Name="Bakery Extension" Guid="66666666-6666-6666-6666-666666666666" InheritanceMode="Incremental" InheritedGuid="77777777-7777-7777-7777-777777777777">
+      <Values />
+    </Entity>
+  </Entities>
+</EntityGroup>

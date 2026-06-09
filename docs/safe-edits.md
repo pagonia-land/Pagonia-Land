@@ -54,6 +54,7 @@ Avoid these until you can trace references confidently.
 | Delete entities | High | Other packages or maps may reference them |
 | Remove components | High | Systems may expect the component to exist |
 | Change inheritance/template links | High | Can affect many derived entities |
+| `Replace` or `Unload` a core/dlc entity in a shipped overlay | High | Destructive + last-loaded-wins across mods; prefer additive `Incremental`/`Template`. Run `pagonia-patcher validate-mod` — its [authoring advisor](mod-conflicts.md#gamedatabase-overlay-conflicts-authoring-advisor) flags this |
 | Change terrain blocking or grid size | High | Can break placement and saves |
 | Change objective triggers or rewards | High | Can block campaign/map progression |
 | Replace mesh, icon, texture, or audio paths | High | Asset may be missing or incompatible |

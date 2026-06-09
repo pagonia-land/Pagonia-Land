@@ -38,7 +38,7 @@ foreach ($tool in @($Plpaker, $PagoniaPaker)) {
 }
 
 if (-not $WorkDir) {
-    $WorkDir = Join-Path $env:TEMP ("paker-parity-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+    $WorkDir = Join-Path ([System.IO.Path]::GetTempPath()) ("paker-parity-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
 }
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 Write-Host "Working directory: $WorkDir"

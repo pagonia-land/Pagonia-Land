@@ -177,7 +177,13 @@ public sealed class SchemaValidator
         EvaluationResults results;
         try
         {
-            results = schema.Evaluate(node, new EvaluationOptions { OutputFormat = OutputFormat.Hierarchical });
+            // JsonSchema.Net 9 evaluates a JsonElement (was JsonNode in 7.x). Round-trip the
+            // typed JsonNode we built from YAML through its JSON text — ToJsonString() preserves
+            // the bool / int / number / null typing resolved above, and both calls are
+            // reflection-free so the AOT binary stays clean. The document stays alive across the
+            // Evaluate call; we only read IsValid / Errors / Details afterwards, never the input.
+            using var doc = JsonDocument.Parse(node is null ? "null" : node.ToJsonString());
+            results = schema.Evaluate(doc.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.Hierarchical });
         }
         catch (Exception ex)
         {
@@ -235,7 +241,7 @@ public sealed class SchemaValidator
             }
         }
 
-        foreach (var child in result.Details)
+        foreach (var child in result.Details ?? [])
         {
             CollectAllErrors(child, displayPath, filePath, seen, diagnostics);
         }
@@ -426,7 +432,12 @@ public sealed class SchemaValidator
             ?? throw new InvalidOperationException($"Embedded schema '{resourceName}' not found. Check the EmbeddedResource entries in PagoniaLand.Patcher.Core.csproj.");
         using var reader = new StreamReader(stream, Encoding.UTF8);
         var schemaText = reader.ReadToEnd();
-        return JsonSchema.FromText(schemaText);
+        // JsonSchema.Net 9 registers each evaluated schema by $id and refuses to overwrite it with
+        // a different document. A second SchemaValidator instance re-parsing these schemas would
+        // otherwise throw "Overwriting registered schemas is not permitted". Build into a fresh
+        // local registry (which still falls back to the global one) so each parse is isolated;
+        // these schemas are self-contained (only internal #/$defs refs).
+        return JsonSchema.FromText(schemaText, new BuildOptions { SchemaRegistry = new SchemaRegistry() });
     }
 
     private static PatchDiagnostic Error(string code, string message, string? path = null) =>

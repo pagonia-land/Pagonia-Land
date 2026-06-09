@@ -9,7 +9,5 @@ operations:
       entityName: Sawmill
       component: AspectBuildup
       path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
-      resourceGuid: c22b4997-5563-44ab-8aa0-04a7b2c826be
-      resourceName: Softwood Trunk
     expectedOldValue: "4"
     value: "3"

@@ -135,8 +135,22 @@ public static class InstallSourceResolver
                 return new RemoteSourceResolution { Aborted = true, Diagnostics = diagnostics };
             }
 
-            // mod.io pre-signed download URLs are always https; chain into the
-            // DirectUrlFetcher for the actual download + unpack.
+            // mod.io pre-signed download URLs should always be https. Validate the scheme
+            // before handing the URL to the fetcher: a non-https value indicates a tampered
+            // or unexpected response, and the hard-coded IsHttp:false below would otherwise
+            // bypass the insecure-transport gate that user-typed direct URLs go through.
+            if (!Uri.TryCreate(modIoResult.BinaryUrl, UriKind.Absolute, out var binaryUri)
+                || !string.Equals(binaryUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                var scheme = binaryUri is null ? "invalid" : binaryUri.Scheme;
+                diagnostics.Add(new ManagerDiagnostic(
+                    ManagerDiagnosticSeverity.Error,
+                    ManagerDiagnosticCodes.ModIoInsecureDownloadUrl,
+                    $"mod.io returned a non-https download URL (scheme '{scheme}'); refusing to download mod content over an unencrypted or unknown transport."));
+                return new RemoteSourceResolution { Aborted = true, Diagnostics = diagnostics };
+            }
+
+            // Verified https above; chain into the DirectUrlFetcher for the download + unpack.
             var pseudoDirect = new DirectUrlSource(modIoResult.BinaryUrl, IsHttp: false);
             var downloadResult = new DirectUrlFetcher(http).Fetch(pseudoDirect);
             diagnostics.AddRange(downloadResult.Diagnostics);
@@ -176,7 +190,11 @@ public static class InstallSourceResolver
             yield return new ManagerDiagnostic(
                 ManagerDiagnosticSeverity.Info,
                 ManagerDiagnosticCodes.DirectUrlArchiveDrift,
-                $"Archive at '{url}' has drifted since the previous install of '{mod.Id}@{mod.Version}': previous sha-prefix {existingSha[..16]}..., current sha-prefix {newSha[..16]}.... Not blocking the install.");
+                $"Archive at '{url}' has drifted since the previous install of '{mod.Id}@{mod.Version}': previous sha-prefix {ShaPrefix(existingSha)}..., current sha-prefix {ShaPrefix(newSha)}.... Not blocking the install.");
         }
     }
+
+    // A sidecar's recorded SHA may be hand-edited / truncated, so guard the 16-char slice.
+    private static string ShaPrefix(string? sha)
+        => string.IsNullOrEmpty(sha) ? "(none)" : sha.Length >= 16 ? sha[..16] : sha;
 }

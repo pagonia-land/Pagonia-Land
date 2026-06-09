@@ -1,0 +1,22 @@
+patchFormatVersion: "0.1"
+id: pagonia-land.test.overlay-incremental
+name: Overlay Incremental Test
+version: "0.1.0"
+author: TheLavaBlock
+gameDatabaseVersion: "1.3.1-11826+193733"
+description: >-
+  Artificial Pattern B overlay that only extends an inherited entity via
+  Incremental — the additive, stackable mode. The advisor should stay silent
+  (no destructive notice, no risk score, no warning).
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: overlay-incremental-test/gdb/bakery.gd.xml
+      source: entries/bakery.gd.xml
+pak:
+  name: overlay-incremental-test
+  summary: Advisor fixture — additive Incremental only
+  author: TheLavaBlock
+  dependencies:
+    - core

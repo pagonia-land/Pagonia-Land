@@ -200,7 +200,34 @@ public static class RemoteSourceParser
             return false;
         }
 
+        if (modSpec is not null && !IsSafeModSpec(modSpec))
+        {
+            return false;
+        }
+
         source = new GitHubSource(owner, repo, refSpec ?? DefaultRef, modSpec, basePath ?? string.Empty);
+        return true;
+    }
+
+    private static bool IsSafeModSpec(string value)
+    {
+        // Reject path traversal at parse time, before any fetch. RemoteFetcher
+        // also guards the joined path, but only after a network SHA-resolution
+        // round-trip — this catches 'owner/repo/../../evil' early and keeps the
+        // mod-spec consistent with the base-path defence. Deliberately narrow
+        // (traversal / absolute / backslash only) so legitimate dotted-kebab mod
+        // ids and nested 'mods/<id>' specs still parse.
+        if (value.Length == 0 || value[0] == '/' || value.Contains('\\'))
+        {
+            return false;
+        }
+        foreach (var segment in value.Split('/'))
+        {
+            if (segment == "..")
+            {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -258,6 +285,11 @@ public static class RemoteSourceParser
         if (modSpec is { Length: 0 })
         {
             modSpec = null;
+        }
+
+        if (modSpec is not null && !IsSafeModSpec(modSpec))
+        {
+            return false;
         }
 
         source = new GitHubSource(owner, repo, refSpec, modSpec);

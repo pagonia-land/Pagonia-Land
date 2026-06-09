@@ -26,15 +26,16 @@ internal static class ProfileSetupWizard
             return false;
         }
 
-        var profileName = AnsiConsole.Prompt(
-            new TextPrompt<string>("[bold]Profile name[/]:")
-                .ValidationErrorMessage("[red]Invalid name.[/]")
-                .Validate(name => ProfileNameValidator.IsValid(name, out var reason)
+        if (!AdvancedHelpers.TryPromptText("[bold]Profile name[/]:", out var profileName,
+                name => ProfileNameValidator.IsValid(name, out var reason)
                     ? ValidationResult.Success()
-                    : ValidationResult.Error(reason)));
+                    : ValidationResult.Error(reason)))
+        {
+            return false;
+        }
 
         // Gather selections UPFRONT, then execute everything in one linear pass.
-        // This lets the user back out (Esc) before any mutation happens.
+        // This lets the user back out (empty name prompt above) before any mutation happens.
         var installedMods = new ModLister().List(layout);
         var pickedMods = new List<string>();
 

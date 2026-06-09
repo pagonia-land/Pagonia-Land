@@ -21,8 +21,15 @@ public sealed class HttpRemoteContentFetcher : IRemoteContentFetcher, IDisposabl
     // Generous-but-finite cap on a single streamed download. Pak-bundled mods can
     // be large, but an unbounded stream from a misbehaving or malicious server
     // (endless body, download-level zip bomb) must not be able to fill the disk.
-    private const long MaxDownloadBytes = 8L * 1024 * 1024 * 1024; // 8 GiB
+    // Overridable via PAGONIA_MAX_DOWNLOAD_BYTES for the rare legitimately-larger mod.
+    private const long DefaultMaxDownloadBytes = 8L * 1024 * 1024 * 1024; // 8 GiB
+    private static readonly long MaxDownloadBytes = ResolveMaxDownloadBytes();
     private const int CopyBufferBytes = 81920;
+
+    private static long ResolveMaxDownloadBytes()
+        => long.TryParse(Environment.GetEnvironmentVariable("PAGONIA_MAX_DOWNLOAD_BYTES"), out var v) && v > 0
+            ? v
+            : DefaultMaxDownloadBytes;
 
     private readonly HttpClient _client;
 

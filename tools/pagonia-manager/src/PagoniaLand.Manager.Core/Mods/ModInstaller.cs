@@ -160,6 +160,15 @@ public sealed class ModInstaller
             var schemaValidator = new SchemaValidator();
             diagnostics.AddRange(schemaValidator.ValidateMod(validationRoot).Select(ManagerDiagnostic.From));
 
+            // Conflict-minimising authoring advisor (patcher Phase 5): advise on
+            // the mod's own overlay *.gd.xml so a GameDatabase-overlay mod surfaces
+            // its inter-mod conflict risk at install time. Advisory only — it emits
+            // no Error, so it never blocks the install. Base-free here (the store
+            // has no game root); the base-aware checks live under Advanced → Mods.
+            var overlay = OverlayGdbReader.ReadFromMod(loaded);
+            diagnostics.AddRange(overlay.Diagnostics.Select(ManagerDiagnostic.From));
+            diagnostics.AddRange(new EntityRelationAdvisor().Advise(overlay).Select(ManagerDiagnostic.From));
+
             if (diagnostics.Any(d => d.Severity == ManagerDiagnosticSeverity.Error))
             {
                 return new InstallResult

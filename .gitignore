@@ -30,9 +30,6 @@ Thumbs.db
 *.tmp
 *.log
 
-# Local Claude Code permissions
-.claude/
-
 # .NET build output.
 **/bin/
 **/obj/

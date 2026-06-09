@@ -39,8 +39,7 @@ internal static class AdvancedTweaks
             return null;
         }
 
-        return AnsiConsole.Prompt(
-            new SelectionPrompt<string>().Title($"{verb} tweaks for which mod:").AddChoices(mods));
+        return AdvancedHelpers.Pick($"{verb} tweaks for which mod:", mods);
     }
 
     private static void RunList(StoreLayout layout)
@@ -90,9 +89,8 @@ internal static class AdvancedTweaks
             return;
         }
 
-        var tweakId = AnsiConsole.Prompt(
-            new SelectionPrompt<string>().Title("Set which tweak:").AddChoices(read.Tweaks.Select(t => t.Declaration.Id)));
-        var value = AdvancedHelpers.PromptText($"New value for '[aqua]{Markup.Escape(tweakId)}[/]':");
+        var tweakId = AdvancedHelpers.Pick("Set which tweak:", read.Tweaks.Select(t => t.Declaration.Id));
+        if (!AdvancedHelpers.TryPromptText($"New value for '[aqua]{Markup.Escape(tweakId)}[/]':", out var value)) { return; }
         var r = svc.Set(layout, profileName: null, modId, tweakId, value);
         DiagnosticsRenderer.Render(r.Diagnostics);
         if (r.Success)
@@ -119,8 +117,7 @@ internal static class AdvancedTweaks
         const string All = "(all tweaks)";
         var choices = new List<string> { All };
         choices.AddRange(read.Tweaks.Select(t => t.Declaration.Id));
-        var pick = AnsiConsole.Prompt(
-            new SelectionPrompt<string>().Title("Reset which:").AddChoices(choices));
+        var pick = AdvancedHelpers.Pick("Reset which:", choices);
         var tweakId = pick == All ? null : pick;
 
         var r = svc.Reset(layout, profileName: null, modId, tweakId);

@@ -4,7 +4,35 @@ This file tracks local observations from extracted GameDatabase XML updates.
 
 The extracted XML files under `game-gdb/` are not committed to this repository. This changelog therefore records derived local observations, validation counts, and patch-note-driven review points.
 
-**Current baseline:** `1.3.1-11826+193733` — 1.3.1 hotfix, 2026-06-02.
+**Current baseline:** `1.3.2-11873+194094` — 1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09.
+
+## 1.3.2-11873+194094 - 2026-06-09 Hotfix
+
+A tiny maintenance release. The DLC1 "Meadowsong" side ships its second hotfix (Fruit Farm work fix, withered-unit notification fixes, Cat Tree / Dog House minimap + highlight fixes, DLC key-binding/achievement fixes), while the base game "Free Beer" update refines the same-building-type highlight feature and adds UI/multiplayer crash fixes. One "Free Beer" bugfix is directly relevant to map modders — *mod maps whose package name is not entirely lowercase now load* (a runtime loader fix, not a GameDatabase change; it explains why every sampled user-map pak uses a lowercase module folder — see [docs/mod-distribution.md → user-map paks](docs/mod-distribution.md)). Only six XML files changed and the database shape barely moved — a maintenance release, not a content drop. Cross-referenced against [`game-paks/patch_notes.txt`](game-paks/README.md).
+
+### Validation Delta (1.3.1 → 1.3.2)
+
+| Metric | 1.3.1 | 1.3.2 | Delta |
+| --- | ---: | ---: | ---: |
+| XML files | 59 | 59 | 0 |
+| Entity definitions | 4,709 | 4,711 | +2 |
+| Unique entity GUIDs | 4,709 | 4,711 | +2 |
+| GUID-like references | 31,761 | 31,763 | +2 |
+| Resolved references | 24,420 | 24,422 | +2 |
+| Null GUID references | 7,311 | 7,311 | 0 |
+| Other unresolved references | 30 | 30 | 0 |
+| Reference resolution rate | 76.89% | 76.89% | 0 |
+| Warnings | 2 | 2 | 0 |
+| Errors | 0 | 0 | 0 |
+
+Per-package entity counts: `core` 4,147 (=), `decorations1` 19 (=), `dlc1` 517 → 519 (+2), `tools` 26 (=). The two stable engine-magic GUIDs and the 18 transient `NoMVP.*` orphans are unchanged — the unresolved set is byte-for-byte the same as 1.3.1.
+
+### Notable Shape Changes
+
+- **Two new DLC1 HUD-layout entities.** `OverviewHudMinimum Incremental` and `OverviewHudmixed Incremental` were added to `dlc1/gdb/globals.gd.xml`, both `InheritanceMode="Incremental"` overlays onto the base HUD-layout entities that contribute an `InfectedUnit` row to the overview HUD's default unit list. They nudge the shipped `InheritanceMode="Incremental"` count 17 → 19 and the `<InheritedIndex>` list-merge markers 4,366 → 4,447; `Template` (18) and `Replace` (14) hold steady. Both new references resolve, so the resolution rate is unchanged.
+- **Six XML files changed, all small tweaks.** `core/gdb/buildings.gd.xml`, `core/gdb/decorations.gd.xml`, `core/gdb/globals.gd.xml`, `dlc1/gdb/buildings.gd.xml`, `dlc1/gdb/globals.gd.xml`, and `dlc1/maps/meadowsong map database.gd.xml` changed content with **no net entity churn beyond the two additions above** (no entity names added, removed, or renamed in any of them) — value- and attribute-level edits backing the patch-notes bugfixes (Fruit Farm, decorations/minimap behaviour, the building-highlight feature). The diff does not pin each file to a specific patch-note line, so the per-file mapping is left unstated.
+
+The complete diff (added/removed/changed entities, reference deltas, changed XML files) is available locally under `generated/diffs/1.3.1-11826+193733_to_1.3.2-11873+194094/` after running `scripts/diff_versions.ps1`.
 
 ## 1.3.1-11826+193733 - 2026-06-02 Hotfix
 
@@ -63,6 +91,7 @@ The lower resolution rate is driven by intentionally-empty new fields, not by re
 ### Notable Shape Changes
 
 - **Cross-pak entity merging machinery in active use.** Meadowsong is the first release that uses the `InheritanceMode` machinery at scale: 18 `Template`, 14 `Replace`, 17 `Incremental`, plus 17 encounter-level null-GUID `<ReplaceSelf>` unloads. (1.2.2 had exactly one `InheritanceMode="Template"` use — the `DecorativeBuilding` test-bed entity.) Empirical breakdown and modder implications in [docs/mod-distribution.md → Cross-Pak Entity Merging](docs/mod-distribution.md#cross-pak-entity-merging-meadowsong).
+  - **Correction (EE dev review, 2026-06-06):** the data scan shows **0** `InheritanceMode="Unload"` uses, but EE confirmed the entity-level `Unload` mode **is engine-implemented since Meadowsong** — it's simply unused in shipped content (a scan can't see a zero-use feature). EE also confirmed the multi-mod collision rule: last-loaded `Replace`/`Unload` wins, `Incremental` stacks; and that externally rewriting shipped paks is not their intended path (overlay paks merged at load time are). See [docs/mod-distribution.md → Dev review follow-up](docs/mod-distribution.md#dev-review-follow-up-2026-06-06) and [docs/quirks-and-anomalies.md → `InheritanceMode="Unload"` ships but is unused](docs/quirks-and-anomalies.md#inheritancemodeunload-ships-but-is-unused).
 - **Pre-release placeholders retired.** Entities prefixed `NoMVP.` (EE's "not part of MVP" marker for unshipped content) and a handful of `LocaParkplatz` placeholder rows were cleaned up between the development phase and the public release. Most visible example: `NoMVP.Beer` → `Beer` (the Brewery + Beer feature went live). The `NoMVP.` convention is documented in [docs/quirks-and-anomalies.md → EE's internal "NoMVP." prefix](docs/quirks-and-anomalies.md#ees-internal-nomvp-prefix-on-pre-release-entities).
 - **Component vocabulary grew from 281 to 313 types** (`<Aspect*>` / `<Vis*>` / `<Effect*>` element names) — 33 added, 1 retired (`UiGlobalUnitTraits` → singular `UiGlobalUnitTrait`). Of the 33 additions, 26 are dlc1-exclusive (animal husbandry, the Withering / infection system, Sanctuary, DLC-aware progression) and 7 are also picked up by core entities — notably `UnitRaidParameters`, which got bulk-added to 57 existing campaign NPCs in a single rollout. Full table in [docs/quirks-and-anomalies.md → Meadowsong added 33 new component types](docs/quirks-and-anomalies.md#meadowsong-added-33-new-component-types-and-removed-1-typo).
 

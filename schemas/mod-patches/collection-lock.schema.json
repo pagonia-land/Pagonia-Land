@@ -75,7 +75,9 @@
           "$ref": "#/$defs/semver"
         },
         "resolvedSource": {
-          "$ref": "#/$defs/uriString"
+          "description": "Where this mod's content resolved from when the lockfile was generated: a URL, a local filesystem path, or 'local' for a purely local install. Free-form (not constrained to a URI, since local installs record a path).",
+          "type": "string",
+          "maxLength": 500
         },
         "archiveSha256": {
           "type": "string",

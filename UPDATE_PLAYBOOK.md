@@ -140,7 +140,31 @@ Auto-checked by `check-doc-currency.ps1`:
 
 Manual (not auto-checked — verify by hand against the new diff/catalog):
 
-- **DATABASE_OVERVIEW.md** — per-file entity counts (e.g. `resources.gd.xml`), the most-common-reference-field table, the cross-package reference matrix, and the `InheritanceMode` "Uses in <version>" label.
+- **DATABASE_OVERVIEW.md** — per-file entity counts (e.g. `resources.gd.xml`), the most-common-reference-field table (e.g. the `Unit` row), and the cross-package reference matrix (e.g. `dlc1`→`dlc1`). The `InheritanceMode` "Uses in <version>" table is part of the cross-doc item below.
+- **InheritanceMode + `<InheritedIndex>` counts (cross-doc — the easy-to-miss one).** Any update that adds or removes a `Template` / `Replace` / `Incremental` entity shifts these, and they are restated across **six** docs. They are *not* version-tagged headline numbers, so `check-doc-currency.ps1` does **not** catch them — regenerate from the new `game-gdb/` and fix every occurrence by hand:
+
+  ```powershell
+  $xml = Get-ChildItem game-gdb -Recurse -File -Filter *.xml
+  # per-mode counts (Template / Replace / Incremental)
+  $xml | Select-String -Pattern 'InheritanceMode="(\w+)"' -AllMatches |
+    ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } |
+    Group-Object | Select-Object Name, Count
+  # total uses + list-merge markers
+  ($xml | Select-String 'InheritanceMode="' -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum
+  ($xml | Select-String '<InheritedIndex>'   -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum
+  # distinct InheritedGuid targets (backs the "each use targets a distinct InheritedGuid" claim)
+  ($xml | Select-String 'InheritanceMode="\w+"[^>]*InheritedGuid="([0-9a-f-]+)"' -AllMatches |
+    ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique).Count
+  ```
+
+  Update the *current* count in each of these — but **keep** the `1.2.2` / `1.3.0` historical figures in mod-distribution's "1.2.2 → 1.3.0 diff" section as-is:
+  - [DATABASE_OVERVIEW.md](DATABASE_OVERVIEW.md) — the "Uses in `<version>`" table
+  - [docs/dlc-patch-override-model.md](docs/dlc-patch-override-model.md) — the Current-Evidence table, the "Meadowsong (N uses)" prose cells, **and** the closing "full picture as of `<version>`" paragraph
+  - [docs/package-layering.md](docs/package-layering.md) — the `<Entity InheritanceMode="…">` total and the `<InheritedIndex>` marker count
+  - [docs/mod-distribution.md](docs/mod-distribution.md) — the "Hits in 1.3.x" column of the Confirmed-primitives table
+  - [docs/engine-claims.md](docs/engine-claims.md) — the "N Template / N Replace / N Incremental" line and the "each of the N uses targets a distinct `InheritedGuid`" claim
+  - [docs/quirks-and-anomalies.md](docs/quirks-and-anomalies.md) — the "three flavours — `Template` (N), `Replace` (N), `Incremental` (N)" sentence
+- **Patch-notes review — read *both* sections.** `game-paks/patch_notes.txt` usually splits into a **DLC** block and a **Core Game** block. Skim *both* for changes that affect modders even when they don't move the database counts — pak / package naming and casing, mod-map or mod loading, load order, `.gd.bin` / pak format, file-name rules. (1.3.2's core-game "Fixed loading of mod maps when the package name is not written entirely in lower case" is the worked example — captured in [docs/mod-distribution.md](docs/mod-distribution.md) and the CHANGELOG entry.) Record anything actionable in the relevant modding doc, not only the changelog.
 - **docs/quirks-and-anomalies.md** — **add** a new row to the reference-resolution-rate history table (don't overwrite the old version's row).
 - **CHANGELOG.md** — add a new per-version entry with the validation delta (old→new). The previous entry stays.
 - **Example manifests + illustrative versions** — bump `gameDatabaseVersion` in example mods/collections and "e.g. `<version>`" strings to the new version. Policy: update example and illustrative versions too, but **keep** genuine historical statements (e.g. "Meadowsong shipped as 1.3.0", version diffs), version-drift teaching examples that need two versions, and test fixtures / test code / C# version constants (tests must not be pinned to a specific version unless the test is specifically about versioning).

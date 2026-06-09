@@ -51,7 +51,7 @@ dotnet run --project .\src\PagoniaLand.Patcher.Cli -- plan --game .\fixtures\gam
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- apply --game .\fixtures\game-gdb-mini --mods .\fixtures\mods\cheaper-sawmill --out .\fixtures\out
 ```
 
-`--version`, `inspect-mod`, `validate-mod`, `inspect-collection`, `resolve-collection`, `inspect-lock`, `plan`, and `apply` for one or more mod directories are implemented right now.
+`--version`, `inspect-mod`, `validate-mod`, `schema-validate`, `inspect-collection`, `resolve-collection`, `inspect-lock`, `export-collection`, `plan`, and `apply` for one or more mod directories are implemented right now.
 
 ## C# Structure
 

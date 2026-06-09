@@ -132,6 +132,14 @@ public sealed class DirectUrlFetcher
             ? rootFull
             : rootFull + Path.DirectorySeparatorChar;
 
+        // Bound the extraction independently of the (already-capped) download size: a small
+        // compressed archive can declare a huge number of entries or huge uncompressed sizes
+        // (a zip bomb). Cap both the entry count and the cumulative declared uncompressed bytes.
+        const long maxUncompressedBytes = 8L * 1024 * 1024 * 1024; // 8 GiB
+        const int maxEntries = 100_000;
+        long totalUncompressed = 0;
+        var entryCount = 0;
+
         using var archive = ZipFile.OpenRead(zipPath);
         foreach (var entry in archive.Entries)
         {
@@ -141,6 +149,15 @@ public sealed class DirectUrlFetcher
             if (string.IsNullOrEmpty(entry.Name))
             {
                 continue;
+            }
+
+            entryCount++;
+            totalUncompressed += entry.Length;
+            if (entryCount > maxEntries || totalUncompressed > maxUncompressedBytes)
+            {
+                diagnostics.Add(Error(ManagerDiagnosticCodes.DirectUrlArchiveTooLarge,
+                    $"Archive is too large to extract safely ({entryCount} entries, {totalUncompressed} declared uncompressed bytes) — refused (possible zip bomb)."));
+                return false;
             }
 
             // Build the destination path. Path.Combine + GetFullPath

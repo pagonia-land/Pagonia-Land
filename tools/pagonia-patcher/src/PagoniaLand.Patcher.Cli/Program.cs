@@ -2,6 +2,7 @@ using PagoniaLand.Patcher;
 
 var reader = new ManifestReader();
 var validator = new ManifestValidator();
+var advisor = new EntityRelationAdvisor();
 var schemaValidator = new SchemaValidator();
 var planner = new PatchPlanner();
 var applier = new PatchApplier();
@@ -52,8 +53,9 @@ if (args is ["inspect-mod", "--mod", var modDirectory])
     return PatcherExitCodes.Success;
 }
 
-if (args is ["validate-mod", "--mod", var validateModDirectory])
+if (args.Length >= 3 && args[0] == "validate-mod" && args[1] == "--mod")
 {
+    var validateModDirectory = args[2];
     var result = reader.ReadMod(validateModDirectory);
     PrintDiagnostics(result.Diagnostics);
 
@@ -62,7 +64,34 @@ if (args is ["validate-mod", "--mod", var validateModDirectory])
         return PatcherExitCodes.Error;
     }
 
-    var diagnostics = validator.ValidateMod(result.Value);
+    var diagnostics = validator.ValidateMod(result.Value).ToList();
+
+    // Conflict-minimising authoring advisor (Phase 5): lint the mod's own
+    // overlay *.gd.xml for InheritanceMode usage. Advisory only — Info notices
+    // plus an unload-dangling Warning; never blocks validate-mod. An optional
+    // --game-root turns on the base-aware checks (unload-vs-whole-DB, and
+    // replace-could-be-incremental diffed against the inherited entity).
+    var overlay = OverlayGdbReader.ReadFromMod(result.Value);
+    diagnostics.AddRange(overlay.Diagnostics);
+
+    var validateGameRoot = ReadOptionValue(args, "--game-root");
+    ReferenceGdbIndex? reference = null;
+    if (validateGameRoot is not null)
+    {
+        reference = ReferenceGdbIndex.Load(validateGameRoot);
+        // A typo'd / wrong --game-root yields an empty index and the base-aware checks
+        // silently no-op — the user would read a clean pass as "base-aware coverage".
+        // Warn loudly instead so a false sense of coverage can't slip through.
+        if (reference.EntityCount == 0)
+        {
+            diagnostics.Add(new PatchDiagnostic(
+                PatchDiagnosticSeverity.Warning,
+                DiagnosticCodes.ReferenceGameRootEmpty,
+                $"--game-root '{validateGameRoot}' contained no *.gd.xml entities, so the base-aware advisor checks were skipped. Point it at an unpacked game database (e.g. game-gdb)."));
+        }
+    }
+    diagnostics.AddRange(advisor.Advise(overlay, reference));
+
     PrintDiagnostics(diagnostics);
 
     return diagnostics.Any(diagnostic => diagnostic.Severity == PatchDiagnosticSeverity.Error)
@@ -424,7 +453,7 @@ static void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  pagonia-patcher --version");
     Console.WriteLine("  pagonia-patcher inspect-mod --mod <mod-directory>");
-    Console.WriteLine("  pagonia-patcher validate-mod --mod <mod-directory>");
+    Console.WriteLine("  pagonia-patcher validate-mod --mod <mod-directory> [--game-root <game-root>]");
     Console.WriteLine("  pagonia-patcher schema-validate --mod <mod-directory>");
     Console.WriteLine("  pagonia-patcher schema-validate --collection <collection-yaml>");
     Console.WriteLine("  pagonia-patcher schema-validate --lock <collection-lock-yaml>");

@@ -36,7 +36,7 @@ internal static class BrowseCatalogsWizard
                 AnsiConsole.MarkupLine("[dim]Aborted.[/]");
                 return;
             }
-            var spec = AdvancedHelpers.PromptText("Catalog source [dim](gh:owner/repo, https://host/catalog.yaml, or file:path)[/]:");
+            if (!AdvancedHelpers.TryPromptText("Catalog source [dim](gh:owner/repo, https://host/catalog.yaml, or file:path)[/]:", out var spec)) { return; }
             var add = new CatalogSubscriptionService().Add(layout, spec);
             DiagnosticsRenderer.Render(add.Diagnostics);
             if (!add.Success) { return; }

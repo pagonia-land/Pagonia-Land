@@ -33,15 +33,15 @@ Pagonia Land focuses on the second slice: a structured map of the game's XML dat
 
 ## What's Inside
 
-Current snapshot: **`1.3.1-11826+193733`** (1.3.1 hotfix, 2026-06-02).
+Current snapshot: **`1.3.2-11873+194094`** (1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09).
 
 > **Work in progress.** This repository is actively maintained alongside Pioneers of Pagonia itself — every game update gets a snapshot refresh, every new mechanic gets documented, every reported bug or doc gap gets fixed. Things will move and improve. If something looks off or out of date, the next refresh probably covers it.
 
 | Area | What you get |
 | --- | --- |
-| Database snapshot | 59 XML files · 4,709 entities · 31,761 GUID references · 0 errors / 2 stable warnings ([details](VALIDATION_BASELINE.md)) |
+| Database snapshot | 59 XML files · 4,711 entities · 31,763 GUID references · 0 errors / 2 stable warnings ([details](VALIDATION_BASELINE.md)) |
 | Documentation | 30+ guides across six chapters — orientation, database concepts, gameplay data, cross-file systems, modding practice, generated reference ([jump](#documentation-chapters)) — plus a [catalog browser](https://pagonia-land.github.io/Pagonia-Land/catalog/) to explore every entity, recipe, building, and unit in your browser |
-| Patcher | `pagonia-patcher` — declarative `mod.yaml`, eight XML operations, binary pak-entry ops, conflict detection, collections + lockfiles, AOT single-file binary ([CLI](tools/pagonia-patcher/CLI.md)) |
+| Patcher | `pagonia-patcher` — declarative `mod.yaml`, ten XML operations, binary pak-entry ops, conflict detection, collections + lockfiles, AOT single-file binary ([CLI](tools/pagonia-patcher/CLI.md)) |
 | Paker | `pagonia-paker` — list / unpack / pack / patch / compress / decompress / classify, `.gd.bin` index encode-decode, Pattern B overlay scaffold, parallel encoding, AOT single-file binary ([CLI](tools/pagonia-paker/CLI.md)) |
 | Manager | `pagonia-manager` — install / uninstall / enable / disable / move / profile / collection install / tweak / plan / deploy / rollback against a real game install; profile-scoped mod selection, per-profile [tweak configuration](docs/mod-tweaks.md), atomic deploy with full backup + byte-identical rollback, Pattern B overlay-pak deploy, schema-validated JSON reports on every command, AOT single-file binary ([CLI](tools/pagonia-manager/CLI.md)) |
 | Sandbox | [`sandbox/`](sandbox/README.md) — one-command apply for your own mods, git-ignored output folder, ready-to-copy templates, [end-to-end manager walkthrough](sandbox/examples/manager-walkthrough/) |

@@ -3,7 +3,7 @@ id: pagonia-land.example.beginner-qol
 name: Beginner QoL Pack
 version: 0.1.0
 author: TheLavaBlock
-gameDatabaseVersion: "1.3.1-11826+193733"
+gameDatabaseVersion: "1.3.2-11873+194094"
 description: Small safe quality-of-life preset bundling both example mods into one ready-to-play setup.
 conflictPolicy: strict
 requiresNewGame: false
@@ -21,13 +21,13 @@ mods:
     source: "mods/cheaper-sawmill"
     required: true
     enabled: true
-  - id: pagonia-land.example.apple-icon-test
+  - id: pagonia-land.example.wine-icon-test
     version: "0.1.0"
-    source: "mods/apple-icon-test"
+    source: "mods/wine-icon-test"
     required: false
     enabled: false
     requiresPackages:
       - dlc1
 loadOrder:
   - pagonia-land.example.cheaper-sawmill
-  - pagonia-land.example.apple-icon-test
+  - pagonia-land.example.wine-icon-test

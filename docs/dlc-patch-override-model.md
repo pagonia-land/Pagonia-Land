@@ -17,21 +17,21 @@ The additive-overlay base model has held since the earliest analyses. **Meadowso
 
 ## Current Evidence
 
-Current local scan (`1.3.1-11826+193733`, regenerated 2026-06-02):
+Current local scan (`1.3.2-11873+194094`, regenerated 2026-06-09):
 
 | Observation | Count |
 | --- | ---: |
-| Total entity definitions | 4,709 |
+| Total entity definitions | 4,711 |
 | Duplicate entity GUIDs | 0 |
 | `core` entities | 4,147 |
-| `dlc1` entities | 517 |
+| `dlc1` entities | 519 |
 | `decorations1` entities | 19 |
 | `tools` entities | 26 |
-| GUID-like references (total) | 31,761 |
+| GUID-like references (total) | 31,763 |
 | `InheritanceMode="Template"` uses | 18 |
 | `InheritanceMode="Replace"` uses | 14 |
-| `InheritanceMode="Incremental"` uses | 17 |
-| `<InheritedIndex>` list-merge markers | 4,366 |
+| `InheritanceMode="Incremental"` uses | 19 |
+| `<InheritedIndex>` list-merge markers | 4,447 |
 
 This strongly suggests:
 
@@ -51,8 +51,9 @@ The data shows several patch-like patterns, mixing pre-Meadowsong overlay tricks
 | **Variant by reference** | A new entity represents a "core building + DLC changes" variant, and scenarios/unlocks point to the variant instead of the core entity | New GUID, no `InheritanceMode` | DLC infected building variants, scenario-specific units. The pre-Meadowsong "safer than overriding" pattern; still valid. |
 | **Template inheritance** | A new entity declares an abstract base whose structure other entities clone | `<Entity InheritanceMode="Template" InheritedGuid="...">` | Meadowsong (18 uses). DLC1 `BuildingBase`, abstract `EncounterAbility Template`, etc. |
 | **Engine-level Replace** | A new entity wholesale replaces the inherited entity in the merged dataset | `<Entity InheritanceMode="Replace" InheritedGuid="...">` | Meadowsong (14 uses). Campaign-map tech-tree node replacements, NPC base reskins. |
-| **Engine-level Extend (Incremental)** | A new entity contributes additional list items to the inherited entity, referencing preserved positions via `<InheritedIndex>` | `<Entity InheritanceMode="Incremental" InheritedGuid="...">` + `<InheritedIndex>N</InheritedIndex>` markers | Meadowsong (17 uses). `Bakery DLC1 extension`, `Brewery DLC1 extension`, etc. |
-| **Encounter-level Unload** | A specific encounter slot is replaced with the null GUID to remove it from the merged set | `<ReplaceSelf><ReplaceWithEntity>00000000-...</ReplaceWithEntity></ReplaceSelf>` | Pre-Meadowsong, in core's campaign maps. 17 occurrences in 1.3.0 (13 in 1.2.2). |
+| **Engine-level Extend (Incremental)** | A new entity contributes additional list items to the inherited entity, referencing preserved positions via `<InheritedIndex>` | `<Entity InheritanceMode="Incremental" InheritedGuid="...">` + `<InheritedIndex>N</InheritedIndex>` markers | Meadowsong (19 uses). `Bakery DLC1 extension`, `Brewery DLC1 extension`, etc. |
+| **Engine-level Unload** | A proxy entity removes the inherited entity from the merged dataset entirely (as if it never existed) | `<Entity InheritanceMode="Unload" InheritedGuid="...">` (exact attribute shape unverified — 0 shipped examples) | Implemented in the engine since Meadowsong, **used zero times in shipped 1.3.x data** (EE-confirmed, 2026-06-06). Safe only when nothing else references the target. |
+| **Encounter-level Unload** | A specific encounter slot is replaced with the null GUID to remove it from the merged set | `<ReplaceSelf><ReplaceWithEntity>00000000-...</ReplaceWithEntity></ReplaceSelf>` | Pre-Meadowsong, in core's campaign maps. 17 occurrences in 1.3.0 (13 in 1.2.2). A distinct mechanism from engine-level Unload above. |
 
 What is **not** observed:
 
@@ -60,7 +61,7 @@ What is **not** observed:
 | --- | --- |
 | Same-GUID override | No duplicate GUIDs found, before or after Meadowsong. Override semantics use `InheritanceMode="Replace"` instead. |
 | File-level replacement | Same file names exist between packages, but entities are merged rather than the file replacing. |
-| Entity-level "Unload" attribute | The dev statements name "unload" as one of four primitives, but no distinct `InheritanceMode="Unload"` value ships in 1.3.0. The encounter-level null-GUID-replace pattern above is the closest available mechanism. |
+| Entity-level "Unload" *in shipped data* | The engine-level `InheritanceMode="Unload"` mode **is implemented** (EE-confirmed since Meadowsong) but appears **zero times** in shipped 1.3.x content — so a data-only scan never sees it. It is a real primitive available to modders, not a missing one; it's just unexercised by EE's own content. The encounter-level null-GUID-replace pattern is a *separate*, pre-existing mechanism. |
 
 ## Same File Name Does Not Mean Override
 
@@ -185,6 +186,7 @@ Safer:
 - add a new entity with a new GUID
 - reuse known core categories, workers, tags, resources, and templates
 - create a variant instead of editing a heavily referenced core entity
+- when you *must* touch an inherited entity, prefer `InheritanceMode="Incremental"` / `"Template"` (additive, and they stack cleanly across competing mods) over `"Replace"` / `"Unload"` (destructive, last-loaded-wins) — EE's explicit guidance for minimising inter-mod conflicts (2026-06-06)
 - gate new content through scenario or unlock references
 - validate duplicate GUIDs and unresolved references after every change
 
@@ -221,6 +223,8 @@ For precise cross-package reference tracing, inspect `generated/references.json`
 
 ## Open Questions
 
+> The consolidated register of every engine claim and its confidence level lives in [What We Know About the Engine](engine-claims.md). The items below are this page's slice of it.
+
 Resolved or partially resolved by Meadowsong's release + dev statements:
 
 - ~~Whether the engine supports same-GUID override.~~ **No.** Override is expressed via `InheritanceMode="Replace"` + `InheritedGuid`, never via duplicate GUIDs.
@@ -228,10 +232,14 @@ Resolved or partially resolved by Meadowsong's release + dev statements:
 - ~~Whether community packages can be added without replacing official files.~~ **Yes**, via Pattern B overlay paks. The bundled paker's scaffold step generates the required `<modname>/manifest.json` + `files.json` + `.gd.bin` + `memory.bin` — see [`tools/pagonia-paker/CLI.md`](../tools/pagonia-paker/CLI.md) and [`docs/mod-patch-format.md`](mod-patch-format.md#standalone-overlay-paks-pak-block).
 - Which package metadata is required for a fully valid custom package — answered for module paks by [docs/mod-distribution.md → The Pak Loading Model](mod-distribution.md#the-pak-loading-model).
 
+Resolved by EE dev review (2026-06-06, see [docs/mod-distribution.md → Dev review follow-up](mod-distribution.md#dev-review-follow-up-2026-06-06)):
+
+- ~~the engine's merge resolution between two mods that target the same `InheritedGuid`.~~ **Load order decides: last-loaded `Replace` wins; `Incremental` stacks (both apply).**
+- ~~whether a dedicated Entity-level `Unload` primitive ships.~~ **It does — `InheritanceMode="Unload"` has shipped in the engine since Meadowsong; it's just unused in EE's own content.** The encounter-level null-GUID-replace is a separate, additional mechanism.
+
 Still open:
 
-- exact package load order (still empirical — the engine's merge resolution between two mods that target the same `InheritedGuid` is the practical case to watch).
+- exact package load *order* determination (which module loads when — alphabetic / manifest-declared / filesystem), even though the *winner* rule on a collision is now known.
 - whether `tools` is loaded only for editor/debug contexts.
-- whether a dedicated Entity-level `Unload` primitive ships in a later patch, or whether the encounter-level null-GUID-replace remains the only "remove" mechanism.
 
-Until proven otherwise, treat the database as an additive global registry with package overlays plus the Meadowsong inheritance primitives. The combination — additive base + `InheritanceMode` relations + encounter-level unloads — is the full picture as of `1.3.1-11826+193733` (unchanged through the 1.3.1 hotfix — the InheritanceMode and `<InheritedIndex>` counts held steady).
+Until proven otherwise, treat the database as an additive global registry with package overlays plus the Meadowsong inheritance primitives. The combination — additive base + `InheritanceMode` relations + encounter-level unloads — is the full picture as of `1.3.2-11873+194094` (the 1.3.2 "Free Beer" update added two more `InheritanceMode="Incremental"` HUD-layout entities to `dlc1`, nudging the Incremental count 17 → 19 and the `<InheritedIndex>` markers 4,366 → 4,447; the Template/Replace counts and the model itself held steady).
