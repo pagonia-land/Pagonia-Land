@@ -26,7 +26,7 @@ hide:
 </div>
 
 !!! note "Looking for map editing instead?"
-    Designing a map's **terrain, layout, and placement** in the editor — plus asset/texture file formats and the editor's own project format — is the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding)'s slice. The **GameDatabase changes** the 1.4.0 Pagonia Editor authors *are* covered here — it publishes them as ordinary `.pak` mods our tools handle.
+    The **Pagonia Editor** that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod ([community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it). Pagonia Land is the GameDatabase data and distribution side underneath: a structured map of it, declarative patches with conflict detection, and the install / deploy / rollback lifecycle.
 
 ## What You Get
 

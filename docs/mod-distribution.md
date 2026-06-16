@@ -158,7 +158,7 @@ The override is the single 6 KB `system.json` file at the pak root. Compared wit
 > [!IMPORTANT]
 > **Updated in 1.4.0 (Pagonia Editor Update, beta).** A map published by the 1.4.0 Pagonia Editor is an ordinary GameDatabase-contributing pak — it ships `files.json` + `<mod>.gd.bin` + compiled `localization/loca_<lang>.bin` **and** the map under `usermaps/` (`.popmap` + a map-scoped `*.gd.xml`), so [`classify`](../tools/pagonia-paker/CLI.md) reports `GdbScopes: map-scoped` (its GameDatabase changes apply only when playing that map, not your normal games) alongside a `PopmapCount`. Our tools handle it like any other pak; the editor's authoring UI and project format are EE's domain (see the [community wiki](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding)). The popmap-only description below still fits maps from the **pre-1.4.0** editor (no GameDatabase changes).
 
-The in-game editor lets a player author a map and exports it as a self-contained pak. Inside, the pak follows the **same module layout** as `core.pak` or `dlc1.pak` (a `<modulename>/` folder with `manifest.json` and `memory.bin`), but it skips `files.json` / `.gd.bin` and instead drops the actual map under `<modulename>/usermaps/<mapname>.popmap`. The engine surfaces these in the custom-map browser rather than wiring them into the database.
+The Pagonia Editor lets a player author a map and exports it as a self-contained pak. Inside, the pak follows the **same module layout** as `core.pak` or `dlc1.pak` (a `<modulename>/` folder with `manifest.json` and `memory.bin`), but it skips `files.json` / `.gd.bin` and instead drops the actual map under `<modulename>/usermaps/<mapname>.popmap`. The engine surfaces these in the custom-map browser rather than wiring them into the database.
 
 ```text
 black forest islands.pak
@@ -213,7 +213,7 @@ The map can reference units, buildings, recipes, and POI types that exist in `co
 | Survives game updates | needs re-apply | survives unless override target changes | survives if referenced GUIDs survive |
 | Multiple coexisting mods | hard (conflicts on same pak) | fine (different paks) | fine |
 | mod.io-friendly | depends | yes | yes |
-| Authored by | this repo's tooling | partial — overlay scaffolding wanted | the in-game editor |
+| Authored by | this repo's tooling | partial — overlay scaffolding wanted | the Pagonia Editor |
 
 A practical rule of thumb:
 
@@ -234,7 +234,7 @@ What the current tooling does NOT cover yet. **Done** items are already shipped 
 | Generate a `<modname>/manifest.json` + `<modname>/files.json` + `<modname>/<modname>.gd.bin` + `memory.bin` automatically from `mod.yaml` | **Done** | A `pak:` block in `mod.yaml` triggers the patcher's scaffold step. `sandbox-pack` without `-BasePak` produces a proper Pattern B overlay pak. See [docs/mod-patch-format.md](mod-patch-format.md#standalone-overlay-paks-pak-block) for the block shape; [`sandbox/examples/standalone-overlay/`](../sandbox/examples/standalone-overlay/) is the worked example. |
 | Load-order / override-precedence validation | open (now deterministic) | warn when two Pattern B mods would silently fight over the same in-pak path. EE confirmed last-loaded-wins (2026-06-06), so this can be a precise warning, not a heuristic. |
 | Pak-contribution sniffer for downloaded mods | **Done** | `pagonia-paker classify <pak>` reports what a pak contributes as independent signals — `GdbScopes` (GameDatabase reach: **`global`** = affects all your games vs **`map-scoped`** = only that map, both, or empty = none), `PopmapCount` (bundled maps), `OverridesAtRoot` (root file overlays) — plus the module's declared `Name` and `Dependencies`. No single "kind" label: one pak can do several at once (a published editor map ships a GameDatabase *and* a map). JSON report shape pinned by [`schemas/paker/pak-classify-report.schema.json`](../schemas/paker/pak-classify-report.schema.json). |
-| Native user-map authoring | far future | the in-game editor owns this today and is unlikely to be displaced. |
+| Native user-map authoring | far future | the Pagonia Editor owns this today and is unlikely to be displaced. |
 
 ## Cross-Pak Entity Merging (Meadowsong)
 

@@ -1,6 +1,6 @@
 # Local User-Map Paks
 
-This folder is the local input area for **user-map `.pak` archives** — the kind produced by the in-game editor and shared on mod.io. It mirrors what [`game-paks/`](../game-paks/README.md) is for the shipped game paks: a place to drop content on your own machine so the tools can inspect it, never committed to Git.
+This folder is the local input area for **user-map `.pak` archives** — the kind produced by the Pagonia Editor and shared on mod.io. It mirrors what [`game-paks/`](../game-paks/README.md) is for the shipped game paks: a place to drop content on your own machine so the tools can inspect it, never committed to Git.
 
 ## What Belongs Here
 

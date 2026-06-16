@@ -24,12 +24,9 @@ The goal is to shorten the path from "I have an idea" to "it works in-game" — 
 
 ## Why This Exists
 
-Pioneers of Pagonia modding has two slices — and since the 1.4.0 Pagonia Editor they overlap:
+Since the 1.4.0 update, the **Pagonia Editor** that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod; the [Pioneers of Pagonia community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it.
 
-- **Map authoring** — designing a map's terrain, layout, and placement in the official editor, plus the asset/texture file formats. The [Pioneers of Pagonia community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) is the place for that.
-- **GameDatabase modding** — changing what the game is made of: buildings, units, recipes, costs, objectives. Covered by this repository. The 1.4.0 Pagonia Editor now authors GameDatabase changes too (per-map and globally active) and publishes them as ordinary `.pak` mods — our tools work against that published output. The editor's own authoring UI and project format are EE's domain, not ours; we complement the editor rather than duplicate it.
-
-Pagonia Land focuses on the GameDatabase slice: a structured map of the game's XML data, a declarative patch format with conflict detection, command-line tooling for the install / deploy / rollback lifecycle, and end-to-end worked examples. For the map-authoring side — terrain, layout, textures — the wiki is the right starting point.
+Pagonia Land is the GameDatabase data and distribution side underneath: a structured map of the game's XML data, a declarative patch format with conflict detection, the install / deploy / rollback lifecycle, and end-to-end worked examples.
 
 ## What's Inside
 
