@@ -43,9 +43,8 @@ internal static class RollbackWizard
         AnsiConsole.WriteLine();
 
         // Default to NO — destructive prompts should require an explicit Yes.
-        var confirm = AnsiConsole.Prompt(
-            new ConfirmationPrompt("Restore the game files this deploy modified, and delete the files it added?")
-                { DefaultValue = false });
+        var confirm = AdvancedHelpers.Confirm(
+            "Restore the game files this deploy modified, and delete the files it added?", defaultValue: false);
 
         if (!confirm)
         {
@@ -70,9 +69,8 @@ internal static class RollbackWizard
             && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.LiveStateDrift))
         {
             AnsiConsole.MarkupLine("[yellow]Some live game files changed since this deploy (shown above) — rolling back would discard those changes.[/]");
-            var overwrite = AnsiConsole.Prompt(
-                new ConfirmationPrompt("Overwrite them and restore the backup anyway (--force)?")
-                    { DefaultValue = false });
+            var overwrite = AdvancedHelpers.Confirm(
+                "Overwrite them and restore the backup anyway (--force)?", defaultValue: false);
             if (overwrite)
             {
                 using (var stages = new StagePrinter())

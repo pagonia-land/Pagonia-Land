@@ -195,7 +195,7 @@ public sealed class DeployService
         }
 
         // Ownership advisories (present-but-not-owned / unknown) warn but never
-        // block — ownership never gates deployment, only presence does (Phase 9
+        // block — ownership never gates deployment, only presence does (the
         // load-bearing rule; lets a non-owner deploy a host's modded co-op set).
         var managerWarnings = planResult.ManagerDiagnostics
             .Any(d => d.Severity == ManagerDiagnosticSeverity.Warning && !ExpansionGate.IsNonBlockingAdvisory(d.Code));
@@ -630,7 +630,7 @@ public sealed class DeployService
             return new DeployResult { ProfileName = planResult.ProfileName, Diagnostics = diagnostics };
         }
 
-        // Ownership advisories warn but never block deployment (Phase 9 rule) — see
+        // Ownership advisories warn but never block deployment — see
         // the extracted-layout path for the rationale.
         var managerWarnings = planResult.ManagerDiagnostics.Any(d => d.Severity == ManagerDiagnosticSeverity.Warning && !ExpansionGate.IsNonBlockingAdvisory(d.Code));
         var patcherWarnings = patcherPlan.Diagnostics.Concat(patcherPlan.ModPlans.SelectMany(p => p.Diagnostics))
@@ -951,6 +951,31 @@ public sealed class DeployService
             var rebuilder = new PakRebuilder();
             var pakIndex = 0;
             var pakCount = modifiedByPak.Count;
+
+            // Self-heal for a mid-write failure. Canonical paks are rebuilt IN PLACE, so a failure on
+            // pak K would otherwise leave paks 1..K-1 modded with NO manifest/history to roll back
+            // (those are written only after this phase). We track every backed-up pak + every overlay
+            // placed, and on any failure restore the paks and delete the overlays — returning the
+            // install to its exact pre-deploy state (manager.deployMidWriteRolledBack). Mirrors the
+            // extracted-layout path's self-heal.
+            var backedUpPaks = new List<(string Live, string Backup)>();
+            var placedOverlays = new List<string>();
+            void SelfHealMidWrite()
+            {
+                foreach (var (live, backup) in backedUpPaks)
+                {
+                    try { if (File.Exists(backup)) { AtomicFile.CopyAtomic(backup, live); } }
+                    catch { /* best effort; the diagnostic names the pre-deploy backups */ }
+                }
+                foreach (var overlay in placedOverlays)
+                {
+                    try { if (File.Exists(overlay)) { File.Delete(overlay); } }
+                    catch { /* best effort */ }
+                }
+            }
+
+            try
+            {
             foreach (var (pakPath, replacements) in modifiedByPak.OrderBy(kv => kv.Key, StringComparer.Ordinal))
             {
                 pakIndex++;
@@ -963,16 +988,18 @@ public sealed class DeployService
                 // backup→repack→backup… on a multi-pak deploy).
                 progress?.Report(new DeployProgress("repack", pakIndex * 100 / pakCount, $"Backing up {pakName} ({pakIndex}/{pakCount})"));
                 AtomicFile.CopyAtomic(pakPath, backupPath);
+                backedUpPaks.Add((pakPath, backupPath));
 
                 progress?.Report(new DeployProgress("repack", pakIndex * 100 / pakCount, $"Rebuilding {pakName} ({pakIndex}/{pakCount})"));
                 var rebuild = rebuilder.Rebuild(pakPath, pakPath, replacements);
                 diagnostics.AddRange(rebuild.Diagnostics.Select(ManagerDiagnostic.From));
                 if (!rebuild.Success)
                 {
+                    SelfHealMidWrite();
                     diagnostics.Add(new ManagerDiagnostic(
                         ManagerDiagnosticSeverity.Error,
-                        ManagerDiagnosticCodes.PakRebuildFailed,
-                        $"Rebuilding '{pakName}' failed; deploy aborted. Backup at '{backupPath}' — restore it manually if the live pak is corrupted."));
+                        ManagerDiagnosticCodes.DeployMidWriteRolledBack,
+                        $"Rebuilding '{pakName}' failed; restored {backedUpPaks.Count} pak(s) from backup and removed any overlay paks — the install is back to its pre-deploy state. No manifest or history was written."));
                     return new DeployResult { ProfileName = planResult.ProfileName, GameFingerprint = fingerprint, Diagnostics = diagnostics };
                 }
 
@@ -1007,6 +1034,17 @@ public sealed class DeployService
             {
                 var targetPath = Path.Combine(gameRoot, targetRelative.Replace('/', Path.DirectorySeparatorChar));
                 AtomicFile.CopyAtomic(stagedPakPath, targetPath);
+                placedOverlays.Add(targetPath);
+            }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                SelfHealMidWrite();
+                diagnostics.Add(new ManagerDiagnostic(
+                    ManagerDiagnosticSeverity.Error,
+                    ManagerDiagnosticCodes.DeployMidWriteRolledBack,
+                    $"A write failed mid-deploy ({ex.Message}); restored {backedUpPaks.Count} pak(s) from backup and removed any overlay paks — the install is back to its pre-deploy state."));
+                return new DeployResult { ProfileName = planResult.ProfileName, GameFingerprint = fingerprint, Diagnostics = diagnostics };
             }
 
             // 4. Manifest. RebuiltPaks is populated; ModifiedFiles stays empty

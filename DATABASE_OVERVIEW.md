@@ -1,6 +1,6 @@
 # Game Database Overview
 
-Snapshot: `1.3.2-11873+194094` (1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09). Based on 59 `*.gd.xml` files across `core`, `decorations1`, `dlc1`, and `tools`.
+Snapshot: `1.4.0-11944+194631` (1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, 2026-06-16). Based on 60 `*.gd.xml` files across `core`, `decorations1`, `dlc1`, and `tools`.
 
 This page is the high-level map of how the database is organised. For empirical oddities the structured docs don't cover, see [Quirks And Anomalies](docs/quirks-and-anomalies.md). For mod-distribution mechanics (Pattern A / B / C, cross-pak entity merging primitives), see [Mod Distribution Patterns](docs/mod-distribution.md).
 
@@ -21,11 +21,11 @@ The actual meaning of an entity is defined by its `Values`: a building is not a 
 
 | Package | Entities | Role |
 | --- | ---: | --- |
-| `core` | 4,147 | Base game: resources, units, buildings, recipes, campaign, NPCs, terrain, UI, audio |
+| `core` | 4,149 | Base game: resources, units, buildings, recipes, campaign, NPCs, terrain, UI, audio |
 | `decorations1` | 19 | Small expansion with decorative buildables |
-| `dlc1` | 519 | Meadowsong expansion: new units, resources, buildings, NPCs, objectives, and scenario map |
+| `dlc1` | 521 | Meadowsong expansion: new units, resources, buildings, NPCs, objectives, and scenario map |
 | `tools` | 26 | Editor/Magmaview data for terrain, vegetation, and brushes |
-| Total | 4,711 | All GUIDs are unique |
+| Total | 4,715 | All GUIDs are unique |
 
 ## Key Analysis Numbers
 
@@ -33,9 +33,9 @@ These numbers come from a structural scan of all XML files in the extracted game
 
 | Metric | Count | Notes |
 | --- | ---: | --- |
-| XML files | 59 | All files use the `*.gd.xml` pattern |
-| Total entities | 4,711 | Every entity has a unique GUID |
-| Unique GUIDs | 4,711 | No duplicate entity GUIDs were found |
+| XML files | 60 | All files use the `*.gd.xml` pattern |
+| Total entities | 4,715 | Every entity has a unique GUID |
+| Unique GUIDs | 4,715 | No duplicate entity GUIDs were found |
 | GUID-like references | 31,763 | Text values matching the GUID format |
 | Resolved references | 24,422 | References that point to an entity in this XML set |
 | Null GUID references | 7,311 | Explicit empty/default references using `00000000-0000-0000-0000-000000000000` |
@@ -45,9 +45,9 @@ Package-level entity distribution:
 
 | Package | Entity count |
 | --- | ---: |
-| `core` | 4,147 |
+| `core` | 4,149 |
 | `decorations1` | 19 |
-| `dlc1` | 519 |
+| `dlc1` | 521 |
 | `tools` | 26 |
 
 The extracted XML set is largely self-contained: 77% of references resolve to a defined entity, and almost all remaining references (7,311 of 7,341 unresolved) are explicit null GUIDs marking intentionally-empty optional fields.
@@ -82,6 +82,7 @@ The extracted XML set is largely self-contained: 77% of references resolve to a 
 | `game-gdb/core/gdb/audio.gd.xml` | 36 | Discover/audio events |
 | `game-gdb/core/gdb/credits.gd.xml` | 33 | Credits categories and entries |
 | `game-gdb/core/gdb/dlcs.gd.xml` | 4 | DLC/unlock metadata |
+| `game-gdb/core/gdb/modfilters.gd.xml` | 2 | Mod-browser filter categories (`ModFilterCategory`) — new in 1.4.0 |
 
 ### Maps and Campaign
 
@@ -105,7 +106,7 @@ The campaign maps are databases in their own right. They contain local entities 
 | `game-gdb/core/gdb/npcbases.gd.xml` | 68 | NPC bases, factions, subfactions, camps, base tags |
 | `game-gdb/core/gdb/npcunits.gd.xml` | 97 | Enemy/NPC units, raid parameters, encounter parameters, bosses |
 | `game-gdb/dlc1/gdb/npcbases.gd.xml` | 17 | Withered/infected camps and DLC factions |
-| `game-gdb/dlc1/gdb/npcunits.gd.xml` | 60 | Animals, infected animals, witches, boss and summon logic |
+| `game-gdb/dlc1/gdb/npcunits.gd.xml` | 61 | Animals, infected animals, witches, boss and summon logic |
 
 ## Entity Model
 
@@ -322,4 +323,5 @@ If you want to understand or mod the database, read it in this order:
 - Some value types use readable localisation names directly as element names (e.g. `IconicBuilding Name ...`, campaign-specific objective names). This is an editor-export artifact rather than runtime-meaningful naming.
 - Editor-export typos exist in group names and value types (`AvergaePleasureMealQuality`, `AbiltiesVfx`, `Natural Prodcuts`). Runtime logic depends on GUIDs, so these are cosmetic — but they confirm "labels are not safe to target by name; always target by GUID".
 - Campaign maps sometimes carry local copies or special variants of global entities. When editing a global entity, check whether maps define local counterparts that should change in sync.
+- Around 60 entities ship fully authored (icons, meshes, recipe bodies) but unreachable in play — cut/superseded features such as a transport/cogwheel chain, an unbuilt copper-tools tier, a cut `Stone Mason` building, and a cut sorceress upgrade line. See [Quirks And Anomalies → Dead / cut content](docs/quirks-and-anomalies.md#dead-cut-content-fully-authored-but-unreachable).
 - More observations — pre-release `NoMVP.` placeholder prefix, the structural outlier `tools.pak`, the `memory.bin` shape, the bulk addition of `UnitRaidParameters` to all campaign NPCs in 1.3.0 — live in [Quirks And Anomalies](docs/quirks-and-anomalies.md).

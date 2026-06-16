@@ -19,56 +19,22 @@ public sealed class CrossModOverlayConflictDetector
     /// <param name="orderedMods">Enabled mods in load order (first loaded → last loaded).</param>
     public IReadOnlyList<ManagerDiagnostic> Detect(IReadOnlyList<LoadedMod> orderedMods)
     {
-        // InheritedGuid → the distinct mod ids (kept in load order) that
-        // destructively claim it.
-        var claims = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var mod in orderedMods)
-        {
-            var modId = mod.Manifest.Id;
-            var overlay = OverlayGdbReader.ReadFromMod(mod);
-
-            var destructiveTargets = overlay.Entities
-                .Where(entity => !string.IsNullOrWhiteSpace(entity.InheritedGuid)
-                    && (string.Equals(entity.InheritanceMode, "Replace", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(entity.InheritanceMode, "Unload", StringComparison.OrdinalIgnoreCase)))
-                .Select(entity => entity.InheritedGuid!)
-                .Distinct(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var target in destructiveTargets)
-            {
-                if (!claims.TryGetValue(target, out var mods))
-                {
-                    mods = new List<string>();
-                    claims[target] = mods;
-                }
-
-                if (!mods.Contains(modId, StringComparer.OrdinalIgnoreCase))
-                {
-                    mods.Add(modId);
-                }
-            }
-        }
+        // The destructive-collision rule lives in the patcher's shared
+        // CrossOverlayConflictDetector. Here we just supply (mod id, overlay)
+        // pairs in load order and format the conflicts as manager diagnostics.
+        var overlays = orderedMods
+            .Select(mod => (Label: mod.Manifest.Id, Model: OverlayGdbReader.ReadFromMod(mod)))
+            .ToList();
 
         var diagnostics = new List<ManagerDiagnostic>();
-
-        // Ordered by target GUID for a stable, deterministic report.
-        foreach (var (target, mods) in claims.OrderBy(claim => claim.Key, StringComparer.Ordinal))
+        foreach (var conflict in CrossOverlayConflictDetector.Detect(overlays))
         {
-            if (mods.Count < 2)
-            {
-                continue;
-            }
-
-            var winner = mods[^1];
-            var overridden = mods.Take(mods.Count - 1).ToList();
-
             diagnostics.Add(new ManagerDiagnostic(
                 ManagerDiagnosticSeverity.Warning,
                 ManagerDiagnosticCodes.CrossModOverlayConflict,
-                $"Entity {target} is Replaced/Unloaded by {mods.Count} enabled mods ({string.Join(", ", mods)}). "
-                + $"Load order decides — '{winner}' (last loaded) wins; "
-                + $"{string.Join(", ", overridden)} {(overridden.Count == 1 ? "is" : "are")} silently overridden. "
+                $"Entity {conflict.Target} is Replaced/Unloaded by {conflict.Claimants.Count} enabled mods ({string.Join(", ", conflict.Claimants)}). "
+                + $"Load order decides — '{conflict.Winner}' (last loaded) wins; "
+                + $"{string.Join(", ", conflict.Overridden)} {(conflict.Overridden.Count == 1 ? "is" : "are")} silently overridden. "
                 + "Prefer Incremental/Template where the edit is additive, or reorder/disable to choose the winner deliberately."));
         }
 

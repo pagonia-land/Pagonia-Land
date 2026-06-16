@@ -12,11 +12,10 @@ namespace PagoniaLand.Paker;
 public sealed record PakClassifyReport(
     string Pak,
     bool Success,
-    string Kind,
     string? Name,
     string? ModuleFolder,
     IReadOnlyList<string> Dependencies,
-    bool HasGdBin,
+    IReadOnlyList<string> GdbScopes,
     int PopmapCount,
     IReadOnlyList<string> OverridesAtRoot,
     IReadOnlyList<PakReportDiagnostic> Diagnostics)

@@ -103,6 +103,16 @@ var tests = new (string Name, Func<bool> Run)[]
     ("schema-validate rejects catalog with unknown property on repo entry", SchemaValidateRejectsCatalogUnknownProperty),
     ("schema-validate rejects catalog with unknown catalogFormatVersion", SchemaValidateRejectsCatalogUnknownVersion),
     ("schema-validate rejects catalog repo entry with invalid owner chars", SchemaValidateRejectsCatalogBadOwner),
+    ("index-check passes when index mirrors every mod.yaml", IndexCheckPassesWhenInSync),
+    ("index-check flags a safetyFlags drift", IndexCheckFlagsSafetyDrift),
+    ("index-check flags a version drift", IndexCheckFlagsVersionDrift),
+    ("index-check flags an orphan index entry (no mod.yaml on disk)", IndexCheckFlagsOrphanEntry),
+    ("index-check flags a mod folder missing from the index", IndexCheckFlagsMissingEntry),
+    ("index-check flags an id mismatch between entry and mod.yaml", IndexCheckFlagsIdMismatch),
+    ("index-check allows an index entry that omits a field the mod.yaml declares", IndexCheckAllowsOmittedField),
+    ("index build --check reports drift without writing", IndexBuildCheckDoesNotWrite),
+    ("index build surgically syncs a drift and preserves formatting", IndexBuildSyncsAndPreservesFormatting),
+    ("index build quotes an unsafe scalar instead of corrupting index.yaml", IndexBuildQuotesUnsafeScalarInsteadOfCorrupting),
     ("schema roundtrip: patch-plan-report", SchemaRoundtripPatchPlanReport),
     ("schema roundtrip: patch-apply-report", SchemaRoundtripPatchApplyReport),
     ("schema roundtrip: patch-plan-report carries arithmetic ops (multiplyValue)", SchemaRoundtripPatchPlanReportArithmetic),
@@ -131,7 +141,9 @@ var tests = new (string Name, Func<bool> Run)[]
     ("arithmetic: multiplyValue clamps a low result up to clampMin", MultiplyValueClampsLowResult),
     ("tweaks: an undeclared placeholder in clampMin is detected (tweakUndeclared), not a 'not numeric' failure", ClampMinPlaceholderDetectsUndeclared),
     ("tweaks: an out-of-set enum / non-boolean CLI override warns tweakValueInvalid", CliTweakInvalidEnumOrBoolWarns),
+    ("tweaks: a fractional integer CLI override warns tweakValueInvalid", CliTweakFractionalIntegerWarns),
     ("arithmetic: parser rejects NaN/Infinity, Format guards overflow, clamp bounds round", ArithmeticOpsGuardParseFormatClamp),
+    ("arithmetic: an overflowing result fails with arithmeticResultNotFinite", ArithmeticOverflowFailsWithNotFiniteDiagnostic),
     ("arithmetic: addValue adds a delta to the vanilla value", AddValuePlansAndApplies),
     ("arithmetic: ceil rounding rounds a fractional result up", ArithmeticCeilRoundingRoundsUp),
     ("arithmetic: a non-numeric operand fails planning", ArithmeticNonNumericOperandFailsPlanning),
@@ -160,6 +172,9 @@ var tests = new (string Name, Func<bool> Run)[]
     ("advisor: unloading a still-referenced entity warns", AdvisorWarnsOnUnloadOfReferencedEntity),
     ("advisor: an additive Incremental overlay is silent", AdvisorIsSilentOnAdditiveIncremental),
     ("advisor: shipped dlc1 produces no warnings (calibration)", AdvisorIsQuietOnShippedDlc1),
+    ("advisor: reads entities nested under the editor's <Groups> structure", AdvisorReadsEditorGroupsNestedOverlay),
+    ("cross-overlay: two packages claiming the same entity is one conflict (last wins)", CrossOverlayDetectorFlagsTwoPackagesClaimingSameEntity),
+    ("cross-overlay: additive (Incremental) and single-claimant targets are not flagged", CrossOverlayDetectorIgnoresAdditiveAndSingleClaimant),
     ("advisor base-aware: unload of a base-referenced entity warns with --game-root", AdvisorBaseAwareWarnsUnloadReferencedInBaseGame),
     ("advisor base-aware: that same unload is clean base-free (no game-root)", AdvisorBaseFreeSilentOnBaseOnlyReference),
     ("advisor base-aware: a purely additive Replace is flagged as Incremental-able", AdvisorBaseAwareFlagsAdditiveReplace),
@@ -398,7 +413,8 @@ operations:
     }
 
     return Fails("Costs//Item")
-        && Fails("[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount");
+        && Fails("[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount")
+        && Fails("Costs/Item[1");
 }
 
 bool ApplyRefusesOutputOverlappingSource()
@@ -1515,6 +1531,91 @@ bool AdvisorIsQuietOnShippedDlc1()
     return overlay.Diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
         && diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Warning
             && d.Severity != PatchDiagnosticSeverity.Error);
+}
+
+bool AdvisorReadsEditorGroupsNestedOverlay()
+{
+    // The 1.4.0 Pagonia Editor nests entities under named <Groups>/<EntityGroup Name>
+    // rather than a flat root <Entities>. Confirm the advisor sees through that: an
+    // Unload buried in one group whose target is still referenced from a *second*
+    // group must still raise the dangling-unload warning (base-free path). This matters
+    // because a published editor mod's *.gd.xml uses this nesting, which OverlayGdbReader
+    // (and so the manager's cross-mod advisor) reads when such a mod is installed.
+    var dir = Directory.CreateTempSubdirectory("pagonia-editor-overlay-").FullName;
+    try
+    {
+        var gd = string.Join("\n", new[]
+        {
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+            "<EntityGroup><Entities /><Groups>",
+            "  <EntityGroup Name=\"Unloading a building\"><Entities>",
+            "    <Entity Name=\"Unload Explorer\" Guid=\"11111111-1111-1111-1111-111111111111\" InheritanceMode=\"Unload\" InheritedGuid=\"22222222-2222-2222-2222-222222222222\"><Children /><Values /></Entity>",
+            "  </Entities></EntityGroup>",
+            "  <EntityGroup Name=\"New Building\"><Entities>",
+            "    <Entity Name=\"Needs Explorer\" Guid=\"33333333-3333-3333-3333-333333333333\"><Values><AspectBuildup><Employment><Unit>22222222-2222-2222-2222-222222222222</Unit></Employment></AspectBuildup></Values></Entity>",
+            "  </Entities></EntityGroup>",
+            "</Groups></EntityGroup>",
+        });
+        var file = Path.Combine(dir, "Example Custom Database.gd.xml");
+        File.WriteAllText(file, gd);
+
+        var overlay = OverlayGdbReader.ReadFiles(new[] { file });
+        var diagnostics = advisor.Advise(overlay);
+
+        return overlay.Entities.Any(e => e.InheritanceMode == "Unload")
+            && overlay.Entities.Any(e => e.Guid == "33333333-3333-3333-3333-333333333333")
+            && diagnostics.Any(d => d.Code == DiagnosticCodes.UnloadsReferencedEntity
+                && d.Severity == PatchDiagnosticSeverity.Warning
+                && d.Message.Contains("22222222-2222-2222-2222-222222222222", StringComparison.OrdinalIgnoreCase));
+    }
+    finally
+    {
+        try { Directory.Delete(dir, recursive: true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best-effort */ }
+    }
+}
+
+static OverlayGdbModel OverlayWith(string mode, string inheritedGuid, string label)
+{
+    var entity = new OverlayEntity(
+        Guid: "00000000-0000-0000-0000-0000000000aa",
+        Name: $"{mode} in {label}",
+        InheritanceMode: mode,
+        InheritedGuid: inheritedGuid,
+        SourceFile: $"{label}.gd.xml");
+    return new OverlayGdbModel(new[] { entity }, Array.Empty<string>(), Array.Empty<PatchDiagnostic>());
+}
+
+bool CrossOverlayDetectorFlagsTwoPackagesClaimingSameEntity()
+{
+    // Two packages destructively target the same inherited entity (one Replace, one
+    // Unload): one conflict, last-loaded wins, the earlier package is the overridden one.
+    const string target = "22222222-2222-2222-2222-222222222222";
+    var conflicts = CrossOverlayConflictDetector.Detect(new[]
+    {
+        ("pkg-a", OverlayWith("Replace", target, "pkg-a")),
+        ("pkg-b", OverlayWith("Unload", target, "pkg-b")),
+    });
+
+    return conflicts.Count == 1
+        && string.Equals(conflicts[0].Target, target, StringComparison.OrdinalIgnoreCase)
+        && conflicts[0].Winner == "pkg-b"
+        && conflicts[0].Overridden.SequenceEqual(new[] { "pkg-a" });
+}
+
+bool CrossOverlayDetectorIgnoresAdditiveAndSingleClaimant()
+{
+    // Two packages Incremental the same entity (additive — stacks, no clobber), and a
+    // third Replaces a *different* entity alone: nothing is flagged.
+    const string shared = "33333333-3333-3333-3333-333333333333";
+    var conflicts = CrossOverlayConflictDetector.Detect(new[]
+    {
+        ("a", OverlayWith("Incremental", shared, "a")),
+        ("b", OverlayWith("Incremental", shared, "b")),
+        ("c", OverlayWith("Replace", "44444444-4444-4444-4444-444444444444", "c")),
+    });
+
+    return conflicts.Count == 0;
 }
 
 bool AdvisorBaseAwareWarnsUnloadReferencedInBaseGame()
@@ -4316,6 +4417,274 @@ pak:
     }
 }
 
+// --- index mirror (RepoIndexMirror): index.yaml's per-mod copy vs each mod.yaml ---
+
+string MirrorModYaml(string id = "tl.mods.alpha", string name = "Alpha", string version = "0.1.0", string gdb = "1.3.2-test", string safeToRemove = "true") => $"""
+    patchFormatVersion: 0.1
+    id: {id}
+    name: {name}
+    version: {version}
+    author: Pagonia Land
+    gameDatabaseVersion: "{gdb}"
+    description: The full manifest description, deliberately longer than the index blurb.
+    requiredPackages:
+      - core
+    requiresNewGame: false
+    safeToRemove: {safeToRemove}
+    multiplayerSafe: unknown
+    campaignSafe: unknown
+    patches:
+      - patches/buildings.yaml
+    """;
+
+string MirrorIndexYaml(string id = "tl.mods.alpha", string path = "mods/alpha", string displayName = "Alpha", string version = "0.1.0", string gdb = "1.3.2-test", string safeToRemove = "true") => $"""
+    indexFormatVersion: "0.1"
+    repo:
+      name: Test Repo
+    mods:
+      - id: {id}
+        path: {path}
+        displayName: {displayName}
+        description: Short catalog blurb.
+        version: {version}
+        gameDatabaseVersion: "{gdb}"
+        tags:
+          - qol
+        safetyFlags:
+          requiresNewGame: false
+          safeToRemove: {safeToRemove}
+          multiplayerSafe: unknown
+          campaignSafe: unknown
+    """;
+
+string CreateMirrorRepo(string indexYaml, params (string RelDir, string ModYaml)[] mods)
+{
+    var root = Path.Combine(Path.GetTempPath(), $"pagonia-index-mirror-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(root);
+    File.WriteAllText(Path.Combine(root, "index.yaml"), indexYaml);
+    foreach (var (relDir, modYaml) in mods)
+    {
+        var dir = Path.Combine(root, relDir.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "mod.yaml"), modYaml);
+    }
+
+    return root;
+}
+
+bool IndexCheckPassesWhenInSync()
+{
+    var root = CreateMirrorRepo(MirrorIndexYaml(), ("mods/alpha", MirrorModYaml()));
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Check(root);
+        return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+            && diagnostics.Any(d => d.Code == DiagnosticCodes.IndexMirrorInSync);
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexCheckFlagsSafetyDrift()
+{
+    // Index says safeToRemove true; the authoritative mod.yaml says unknown.
+    var root = CreateMirrorRepo(MirrorIndexYaml(safeToRemove: "true"), ("mods/alpha", MirrorModYaml(safeToRemove: "unknown")));
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Check(root);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.IndexMirrorMismatch
+            && d.Severity == PatchDiagnosticSeverity.Error
+            && d.Message.Contains("safeToRemove"));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexCheckFlagsVersionDrift()
+{
+    var root = CreateMirrorRepo(MirrorIndexYaml(version: "0.2.0"), ("mods/alpha", MirrorModYaml(version: "0.1.0")));
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Check(root);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.IndexMirrorMismatch
+            && d.Severity == PatchDiagnosticSeverity.Error
+            && d.Message.Contains("version"));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexCheckFlagsOrphanEntry()
+{
+    // Index lists mods/alpha but no mod.yaml is written there.
+    var root = CreateMirrorRepo(MirrorIndexYaml());
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Check(root);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.IndexEntryOrphaned
+            && d.Severity == PatchDiagnosticSeverity.Error);
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexCheckFlagsMissingEntry()
+{
+    // A second mod folder exists on disk but the index only lists alpha.
+    var root = CreateMirrorRepo(
+        MirrorIndexYaml(),
+        ("mods/alpha", MirrorModYaml()),
+        ("mods/beta", MirrorModYaml(id: "tl.mods.beta", name: "Beta")));
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Check(root);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.IndexEntryMissing
+            && d.Severity == PatchDiagnosticSeverity.Error
+            && d.Message.Contains("tl.mods.beta"));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexCheckFlagsIdMismatch()
+{
+    // Entry id and the mod.yaml id disagree.
+    var root = CreateMirrorRepo(MirrorIndexYaml(id: "tl.mods.alpha"), ("mods/alpha", MirrorModYaml(id: "tl.mods.renamed")));
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Check(root);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.IndexEntryIdMismatch
+            && d.Severity == PatchDiagnosticSeverity.Error);
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexCheckAllowsOmittedField()
+{
+    // The index is a curated subset: an entry may omit safetyFlags entirely even though the
+    // mod.yaml declares them. That is a curation choice, not drift.
+    var indexYaml = """
+        indexFormatVersion: "0.1"
+        repo:
+          name: Test Repo
+        mods:
+          - id: tl.mods.alpha
+            path: mods/alpha
+            displayName: Alpha
+            version: 0.1.0
+            gameDatabaseVersion: "1.3.2-test"
+        """;
+    var root = CreateMirrorRepo(indexYaml, ("mods/alpha", MirrorModYaml()));
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Check(root);
+        return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+            && diagnostics.Any(d => d.Code == DiagnosticCodes.IndexMirrorInSync);
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexBuildCheckDoesNotWrite()
+{
+    var indexYaml = MirrorIndexYaml(version: "0.2.0");
+    var root = CreateMirrorRepo(indexYaml, ("mods/alpha", MirrorModYaml(version: "0.1.0")));
+    try
+    {
+        var diagnostics = new RepoIndexMirror().Build(root, checkOnly: true);
+        var fileUnchanged = File.ReadAllText(Path.Combine(root, "index.yaml")) == indexYaml;
+        return fileUnchanged
+            && diagnostics.Any(d => d.Code == DiagnosticCodes.IndexMirrorMismatch && d.Severity == PatchDiagnosticSeverity.Error);
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexBuildSyncsAndPreservesFormatting()
+{
+    var driftedIndex = MirrorIndexYaml(safeToRemove: "true");
+    var root = CreateMirrorRepo(driftedIndex, ("mods/alpha", MirrorModYaml(safeToRemove: "false")));
+    try
+    {
+        var mirror = new RepoIndexMirror();
+        var buildDiagnostics = mirror.Build(root, checkOnly: false);
+        var rewritten = File.ReadAllText(Path.Combine(root, "index.yaml"));
+
+        var valueSynced = rewritten.Contains("safeToRemove: false") && !rewritten.Contains("safeToRemove: true");
+        var formattingPreserved = rewritten.Split('\n').Length == driftedIndex.Split('\n').Length;
+        var nowInSync = mirror.Check(root).All(d => d.Severity != PatchDiagnosticSeverity.Error);
+        var reportedUpdate = buildDiagnostics.Any(d => d.Code == DiagnosticCodes.IndexMirrorUpdated);
+
+        return valueSynced && formattingPreserved && nowInSync && reportedUpdate;
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexBuildQuotesUnsafeScalarInsteadOfCorrupting()
+{
+    // The mod.yaml name drifts to a colon-bearing value that is NOT safe as a plain YAML scalar,
+    // while the index's displayName is plain. The re-sync must quote it — never splice it raw and
+    // produce invalid YAML (R4-002). Afterwards Check must re-parse the index and report in sync.
+    var modYaml = MirrorModYaml(name: "\"Alpha: Deluxe\"");
+    var root = CreateMirrorRepo(MirrorIndexYaml(), ("mods/alpha", modYaml));
+    try
+    {
+        var mirror = new RepoIndexMirror();
+        mirror.Build(root, checkOnly: false);
+        var rewritten = File.ReadAllText(Path.Combine(root, "index.yaml"));
+
+        var quoted = rewritten.Contains("'Alpha: Deluxe'") || rewritten.Contains("\"Alpha: Deluxe\"");
+        var noRawCorruption = !rewritten.Contains("displayName: Alpha: Deluxe");
+        var reparsesAndInSync = mirror.Check(root).All(d => d.Severity != PatchDiagnosticSeverity.Error);
+
+        return quoted && noRawCorruption && reparsesAndInSync;
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool CliTweakFractionalIntegerWarns()
+{
+    // An integer-typed tweak given a fractional --tweak override must warn tweakValueInvalid,
+    // mirroring the manager's stored-override integrality check — the patcher's own override path
+    // was unchecked (R4-018). 3.5 is within softwood-cost's 1..8 range, so only the integrality
+    // warning fires (not an out-of-range one).
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var modPath = Path.Combine(patcherRoot, "fixtures", "mods", "tweakable-sawmill");
+    var result = reader.ReadMod(modPath);
+    if (!result.Success || result.Value is null) { return false; }
+
+    var (overrides, _) = TweakOverrides.Parse([
+        "pagonia-land.fixture.tweakable-sawmill:softwood-cost=3.5"]);
+    var plan = planner.Plan(gameRoot, [result.Value], TweakSelection.ForCli(overrides));
+
+    return plan.ModPlans.SelectMany(p => p.Diagnostics)
+        .Count(d => d.Code == DiagnosticCodes.TweakValueInvalid) == 1;
+}
+
+bool ArithmeticOverflowFailsWithNotFiniteDiagnostic()
+{
+    // A multiplyValue that overflows the double range (4 * 1e308) must fail planning with the
+    // specific arithmeticResultNotFinite diagnostic, never write the literal text "Infinity" (R4-030).
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var tempRoot = WriteTempArithmeticMod("overflow", """
+operations:
+  - id: overflow
+    operation: multiplyValue
+    risk: low
+    reason: overflow test
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    factor: "1e308"
+""");
+    try
+    {
+        var read = reader.ReadMod(tempRoot);
+        if (!read.Success || read.Value is null) { return false; }
+        var plan = planner.Plan(gameRoot, [read.Value]);
+        return !plan.Success
+            && plan.ModPlans.SelectMany(p => p.Diagnostics).Any(d => d.Code == DiagnosticCodes.ArithmeticResultNotFinite);
+    }
+    finally { if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); } }
+}
+
 // Fixtures for the patch-set gating tests. A static type keeps the const YAML out
 // of the top-level statement flow (which must precede local functions).
 static class PatchSetTests
@@ -4341,7 +4710,7 @@ patchFormatVersion: "0.1"
 id: pagonia-land.test.patchset
 name: PatchSet Test
 version: "0.1.0"
-author: TheLavaBlock
+author: Pagonia Land
 gameDatabaseVersion: "1.3.0-11768+193445"
 description: An optional patch set gated on dlc1.
 requiredPackages:

@@ -10,7 +10,7 @@ The schemas describe the CLI output contract for tools that do not link against 
 - [pak-unpack-report.schema.json](pak-unpack-report.schema.json) — JSON report written by `unpack --json <path>`. Captures the filter that was applied, per-entry outcomes (`extracted`, `skipped`, `failed`), and the on-disk output paths.
 - [pak-pack-report.schema.json](pak-pack-report.schema.json) — JSON report written by `pack --json <path>`. Captures the pakinfo source, the output pak, the filter that was applied, and how many entries actually ended up in the output.
 - [pak-patch-report.schema.json](pak-patch-report.schema.json) — JSON report written by `patch --json <path>`. Captures the input pak, the output pak, and the replacement files plus their target entry names.
-- [pak-classify-report.schema.json](pak-classify-report.schema.json) — JSON report written by `classify --json <path>`. Captures the pak's verdict (`module` / `user-map` / `overlay` / `unknown`), the module folder + manifest name + declared dependencies, and the inventory the classifier used (`HasGdBin`, `PopmapCount`, `OverridesAtRoot`).
+- [pak-classify-report.schema.json](pak-classify-report.schema.json) — JSON report written by `classify --json <path>`. Captures what the pak contributes as independent signals — `GdbScopes` (`global` / `map-scoped`), `PopmapCount`, `OverridesAtRoot` — plus the module folder, manifest name, and declared dependencies.
 - [gdbin-info-report.schema.json](gdbin-info-report.schema.json) — JSON report written by `gdbin info --json <path> <gdbin>`. Captures the seven-byte format header (as hex strings), the entry count, and the in-pak path list the index enumerates.
 
 ## Stability

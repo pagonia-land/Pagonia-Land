@@ -94,7 +94,7 @@ Then copy the current active state into a snapshot:
 ```powershell
 $snapshot = ".\snapshots\1.3.1-11826+193733"
 New-Item -ItemType Directory -Force -Path $snapshot | Out-Null
-Copy-Item -Recurse -Force .\game (Join-Path $snapshot "game-gdb")
+Copy-Item -Recurse -Force .\game-gdb (Join-Path $snapshot "game-gdb")
 Copy-Item -Recurse -Force .\generated (Join-Path $snapshot "generated")
 New-Item -ItemType Directory -Force -Path (Join-Path $snapshot "notes") | Out-Null
 ```

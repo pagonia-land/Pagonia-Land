@@ -26,7 +26,7 @@ hide:
 </div>
 
 !!! note "Looking for map editing instead?"
-    If your goal is **map-editor workflows** (custom maps, map packaging, texture file formats), see the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding). Pagonia Land does not cover that slice of modding.
+    Designing a map's **terrain, layout, and placement** in the editor — plus asset/texture file formats and the editor's own project format — is the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding)'s slice. The **GameDatabase changes** the 1.4.0 Pagonia Editor authors *are* covered here — it publishes them as ordinary `.pak` mods our tools handle.
 
 ## What You Get
 

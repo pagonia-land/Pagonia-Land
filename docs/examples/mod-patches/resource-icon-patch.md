@@ -11,8 +11,8 @@ patchFormatVersion: 0.1
 id: pagonia-land.example.wine-icon-test
 name: Wine Icon Test
 version: 0.1.0
-author: TheLavaBlock
-gameDatabaseVersion: "1.3.2-11873+194094"
+author: Pagonia Land
+gameDatabaseVersion: "1.4.0-11944+194631"
 description: Cosmetic DLC pack patch — swaps the Wine icon for the Grapes icon. Demonstrates how to ship a patch that only runs when the dlc1 package is installed.
 requiredPackages:
   - core
@@ -52,8 +52,8 @@ operations:
       entityName: Wine
       component: ResourceDescription
       path: Icon
-    expectedOldValue: dlc1/gui/icons/commodities/icon_com_wine_001.png
-    value: dlc1/gui/icons/commodities/icon_com_grapes_001.png
+    expectedOldValue: dlc1/gui/icons/commodities/icon_com_wine_001.image
+    value: dlc1/gui/icons/commodities/icon_com_grapes_001.image
 ```
 
 ## Intended Dry-Run Result
@@ -61,8 +61,8 @@ operations:
 ```text
 Operation: wine-icon-swap
 Target: Wine / ResourceDescription / Icon
-Expected old value: dlc1/gui/icons/commodities/icon_com_wine_001.png
-New value: dlc1/gui/icons/commodities/icon_com_grapes_001.png
+Expected old value: dlc1/gui/icons/commodities/icon_com_wine_001.image
+New value: dlc1/gui/icons/commodities/icon_com_grapes_001.image
 Risk: low
 Result: applied if dlc1 is installed and the expected old value matches; skipped if dlc1 is absent
 ```
@@ -75,13 +75,8 @@ Result: applied if dlc1 is installed and the expected old value matches; skipped
 - the new path is already known in the current database
 - the whole set is gated on `dlc1`, so a core-only player is unaffected
 
-## Validation Ideas
+## Validation
 
-A future validator could check:
+`pagonia-patcher plan --game <game-gdb> --mods <mod>` already checks the first three of these against a real game database: that the target entity exists (when the gating package is present), that `ResourceDescription/Icon` resolves, and that the `expectedOldValue` still matches. A drifted icon path — for example after a game update renames `.png` assets to `.image` — fails the plan with `expectedOldValueMismatch`. The repo runs this over every shipped example via `scripts/check-examples-against-gdb.ps1` (a stage of `scripts/preflight.ps1`), so a stale example is caught before release rather than at deploy time.
 
-- target entity exists (when the gating package is present)
-- `ResourceDescription/Icon` exists
-- old value matches
-- new value appears somewhere in `generated/catalog/asset-references.csv`
-
-That last check would not prove the asset exists in the pak, but it would catch many typos.
+A further check could confirm the **new** value appears in `generated/catalog/asset-references.csv`; that would not prove the asset exists in the pak, but it would catch many typos.

@@ -84,28 +84,28 @@ Pipes `<input>` through gzip decompression and writes the result to `<output>`.
 
 ### `classify [--json <report>] <pak>`
 
-Read a `.pak` and report which of the four Pioneers of Pagonia mod shapes it matches: `module`, `user-map`, `overlay`, or `unknown`. Useful for inspecting a downloaded mod before installing it, or for a mod manager to surface the pak's declared dependencies (`pagonia-manager` uses this internally during Pattern B classification).
+Inspect a `.pak` and report **what it contributes** — independent signals, not a single label:
+
+- **`GdbScopes`** — does the pak change the GameDatabase, and *where*? The key signal for understanding (and filtering) a mod at a glance. **Empty means no GameDatabase content** — an empty module-level `<m>.gd.bin` (the editor emits one even for a map-only mod) does *not* count, since it lists no `*.gd.xml` resources. Otherwise:
+    - **`global`** — a module-level `<m>.gd.bin` that lists at least one `*.gd.xml` → active in **all** game modes (your normal playthroughs). Shipped paks (`core` / `dlc1`) and globally-active editor mods land here.
+    - **`map-scoped`** — a `<m>/usermaps/*.gd.bin` (or raw `*.gd.xml`) → the per-map "hosted game database", active **only when playing that map**.
+    - A mod can be **both** (`global, map-scoped`) or neither (empty → no GameDatabase content).
+- **`PopmapCount`** — how many maps it bundles (`<m>/usermaps/*.popmap`).
+- **`OverridesAtRoot`** — root-level files it overlays that aren't standard pak metadata (the Pattern B config-override pattern, e.g. `system.json` from mod.io's camera-zoom mod).
+- **`Name` / `ModuleFolder` / `Dependencies`** — the module's identity from `<m>/manifest.json`.
 
 ```text
-Pak: game-paks/dlc1.pak
-Kind: module
-Module: dlc1
-Name: dlc1
-Dependencies: core
-HasGdBin: True
-Popmaps: 0
+Pak: Example Mod.pak          # a published editor map: map-only, no global changes
+Module: example mod
+Name: Example Mod
+Dependencies: core, decorations1
+GdbScopes: map-scoped
+Popmaps: 1
 ```
 
-With `--json <path>` the same information is written as a `PakClassifyReport` (kind, module folder, manifest Name, declared Dependencies, `HasGdBin` flag, `PopmapCount`, list of `OverridesAtRoot`, diagnostics). Exit code is 0 for any known shape including `unknown`; only a hard pak-parse failure trips a non-zero exit.
+> **Why no single "kind" label?** A pak isn't *one of* {module, user-map, overlay} — that was a lossy projection. The engine treats a pak as a **bag of contributions** (its `files.json` declares a GameDatabase, a Localization folder, …; `usermaps/` surfaces maps; same-path files overlay), and since 1.4.0 one pak routinely does several at once — a published editor map ships a **GameDatabase *and* a map**, and that GameDatabase may be global, map-scoped, or both. So `classify` reports the signals directly; collapsing them into one mutually-exclusive bucket would hide the rest. (Earlier builds emitted a single `Kind`; it was dropped as misleading.)
 
-Classification heuristic:
-
-| Kind | Trigger |
-| --- | --- |
-| `module` | `<m>/manifest.json` is present AND (`<m>/files.json` or top-level `files.json`) AND (`<m>/<m>.gd.bin` or top-level `<m>.gd.bin`) — i.e. the pak contributes to the GameDatabase. Both layouts seen in shipped paks (core/dlc1/decorations1 put the .gd.bin under `<m>/`; tools.pak puts it at the root). |
-| `user-map` | `<m>/manifest.json` is present AND at least one `<m>/usermaps/*.popmap` AND no GameDatabase contribution. Editor-output paks match this; a campaign mod that ships maps plus rules would still classify as `module` (rules take precedence). |
-| `overlay` | `<m>/manifest.json` is present AND neither GameDatabase nor popmap content. Includes the Pattern B config-override pattern (System.pak from mod.io: `system.json` at the pak root). `OverridesAtRoot` lists the root entries the overlay carries, excluding the standard pak metadata. |
-| `unknown` | No `<m>/manifest.json` is found, or the manifest can't be parsed. The pak still parsed (exit code stays 0); the diagnostics list says why. |
+With `--json <path>` the same information is written as a `PakClassifyReport` (module folder, manifest Name, declared Dependencies, `GdbScopes`, `PopmapCount`, `OverridesAtRoot`, diagnostics). Exit code is 0 whenever the pak parses — even if no module folder is found (`Name` / `ModuleFolder` are then null and a diagnostic says why); only a hard pak-parse failure trips a non-zero exit.
 
 Filter flags are rejected on this subcommand.
 

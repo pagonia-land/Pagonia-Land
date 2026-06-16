@@ -2,7 +2,7 @@
 
 This document records the known validation status for the currently extracted local game database. It is the reference point that distinguishes expected warnings from new problems introduced by a game update or a modding experiment.
 
-**Baseline:** `1.3.2-11873+194094` — 1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09. See [CHANGELOG.md](CHANGELOG.md#132-11873194094-2026-06-09-hotfix) for the delta from the previous baseline (`1.3.1-11826+193733`, 1.3.1 hotfix).
+**Baseline:** `1.4.0-11944+194631` — 1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, Steam Beta branch, 2026-06-16. See [CHANGELOG.md](CHANGELOG.md#140-11944194631-2026-06-16-pagonia-editor-update-beta-update-1) for the delta from the previous baseline (`1.4.0-11893+194274`, 1.4.0 Pagonia Editor Update beta).
 
 ## Current Status
 
@@ -16,9 +16,9 @@ Current result:
 
 | Check | Count |
 | --- | ---: |
-| XML files | 59 |
-| Entity definitions | 4,711 |
-| Unique entity GUIDs | 4,711 |
+| XML files | 60 |
+| Entity definitions | 4,715 |
+| Unique entity GUIDs | 4,715 |
 | GUID-like references | 31,763 |
 | Resolved references | 24,422 |
 | Null GUID references | 7,311 |

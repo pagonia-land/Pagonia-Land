@@ -141,7 +141,7 @@ internal static class AdvancedCollections
                     AdvancedHelpers.Header("Collections → show");
                     var list = new CollectionLister().List(layout);
                     if (list.Count == 0) { AnsiConsole.MarkupLine("[dim](none)[/]"); Pause(); break; }
-                    var id = AdvancedHelpers.Pick("Show:", list.Select(c => c.Id));
+                    if (!AdvancedHelpers.TryPickOrCancel("Show: [dim](Esc to cancel)[/]", list.Select(c => c.Id), out var id)) break;
                     var c = list.First(x => x.Id == id);
                     AnsiConsole.MarkupLine($"[bold]{Markup.Escape(c.Id)}@{Markup.Escape(c.Version)}[/]");
                     if (!string.IsNullOrEmpty(c.Name)) AnsiConsole.MarkupLine($"  name: {Markup.Escape(c.Name)}");
@@ -158,7 +158,7 @@ internal static class AdvancedCollections
                     AdvancedHelpers.Header("Collections → uninstall");
                     var list = new CollectionLister().List(layout);
                     if (list.Count == 0) { AnsiConsole.MarkupLine("[dim](none)[/]"); Pause(); break; }
-                    var id = AdvancedHelpers.Pick("Uninstall:", list.Select(c => c.Id));
+                    if (!AdvancedHelpers.TryPickOrCancel("Uninstall: [dim](Esc to cancel)[/]", list.Select(c => c.Id), out var id)) break;
                     if (!AdvancedHelpers.Confirm($"Really uninstall [aqua]{Markup.Escape(id)}[/]? (mods + profile are kept)", defaultValue: false))
                     {
                         AnsiConsole.MarkupLine("[dim]Aborted.[/]"); Pause(); break;

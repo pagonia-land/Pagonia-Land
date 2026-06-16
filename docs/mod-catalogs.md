@@ -23,6 +23,8 @@ pagonia-manager catalog browse
 
 `catalog browse` walks every subscribed catalog AND every catalog they federate to via the `catalogs:` field, recursively. It deduplicates on `(owner, repo)` and surfaces a `vouched by N catalogs` trust signal when multiple catalogs list the same repo. Per-source fetch failures are non-fatal — the aggregator returns everything it CAN see, with diagnostics for what failed.
 
+When you drill into a repo with `catalog show`, the **Mods** table includes a **Safety** column (needs-new-game / safe-to-remove / multiplayer / campaign) drawn from each entry's `safetyFlags` — so you can weigh a mod *before* installing, without fetching it. Those flags are a copy of the mod's own `mod.yaml`; if the catalog's copy has gone stale, **install warns you**: when fetching a mod from a repo with an `index.yaml`, the manager cross-checks what the catalog advertised (version / gameDatabaseVersion / safety) against the `mod.yaml` it actually downloads and prints a `manager.repoIndexMetadataMismatch` warning on any disagreement (the real `mod.yaml` still installs — the warning just tells you the browse list misled you). This is the consumer-side half of the author-side [`pagonia-patcher index-check`](mod-distribution.md#the-index-mirror-contract).
+
 ## Why Multi-Subscription + Federation
 
 A single central registry doesn't scale: it forces every mod author through a single approval queue, gives a single party gatekeeper power, and can't easily specialise by community. Pagonia Land instead treats catalogs as a **first-class data type** anyone can publish:

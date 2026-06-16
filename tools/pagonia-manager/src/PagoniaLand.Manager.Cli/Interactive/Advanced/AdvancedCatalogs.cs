@@ -52,7 +52,7 @@ internal static class AdvancedCatalogs
                         Pause();
                         break;
                     }
-                    var canonical = AdvancedHelpers.Pick("Remove which subscription?", subs.Select(s => s.Canonical));
+                    if (!AdvancedHelpers.TryPickOrCancel("Remove which subscription? [dim](Esc to cancel)[/]", subs.Select(s => s.Canonical), out var canonical)) break;
                     var result = new CatalogSubscriptionService().Remove(layout, canonical);
                     DiagnosticsRenderer.Render(result.Diagnostics);
                     Pause();

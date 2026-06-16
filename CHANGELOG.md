@@ -4,7 +4,97 @@ This file tracks local observations from extracted GameDatabase XML updates.
 
 The extracted XML files under `game-gdb/` are not committed to this repository. This changelog therefore records derived local observations, validation counts, and patch-note-driven review points.
 
-**Current baseline:** `1.3.2-11873+194094` — 1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09.
+**Current baseline:** `1.4.0-11944+194631` — 1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, Steam Beta branch, 2026-06-16.
+
+## 1.4.0-11944+194631 - 2026-06-16 Pagonia Editor Update (Beta Update #1)
+
+"Beta Update #1" for the 1.4.0 "Pagonia Editor Update" (QoL 8) on the Steam **Beta** branch. GameDatabase-side it is a **near no-op**: the structural diff against the previous beta baseline (`1.4.0-11893+194274`) shows zero added/removed/changed entities and zero reference deltas — every validation count holds (4,715 entities, 31,763 GUID-like references, 24,422 resolved, 7,311 null, 30 other-unresolved, 76.89% resolution rate; `InheritanceMode` `Template` 18 / `Replace` 14 / `Incremental` 19, `<InheritedIndex>` markers 4,447). Only **three `dlc1` XML files** changed, all value/schema edits *inside existing entities*. Cross-referenced against [`game-paks/patch_notes.txt`](game-paks/README.md).
+
+### Validation Delta (1.4.0-11893 → 1.4.0-11944)
+
+| Metric | 11893 | 11944 | Delta |
+| --- | ---: | ---: | ---: |
+| XML files | 60 | 60 | 0 |
+| Entity definitions | 4,715 | 4,715 | 0 |
+| Unique entity GUIDs | 4,715 | 4,715 | 0 |
+| GUID-like references | 31,763 | 31,763 | 0 |
+| Resolved references | 24,422 | 24,422 | 0 |
+| Null GUID references | 7,311 | 7,311 | 0 |
+| Other unresolved references | 30 | 30 | 0 |
+| Reference resolution rate | 76.89% | 76.89% | 0 |
+| Warnings | 2 | 2 | 0 |
+| Errors | 0 | 0 | 0 |
+
+### Changed XML files (3, all `dlc1`)
+
+- **Withered-area spread sampling reworked — modder-relevant schema change.** `dlc1/gdb/npcbases.gd.xml` and `dlc1/maps/meadowsong map database.gd.xml` drop the `<SpreadRadialProbCount>` (70 / 50) and `<SpreadDistanceProbCount>` (12 / 10) fields and replace them with `<SpreadProbSpacing>` (1.5) and `<SpreadProbRandomOffset>` (0.5). This is the data behind the patch-notes fixes *"Fixed a desync in multiplayer caused by withered area spread"* and *"Fixed withered area in some cases not spreading correctly."* The old field names are not documented by name anywhere in this repo, but any external mod that patched them by name will no longer match — re-author against the new fields.
+- **Boss heal-charge status icon recolour (cosmetic).** `dlc1/gdb/npcunits.gd.xml`: the `UiNPCBossHealingChargeEffectStatus` `<IconColor>` changed from `(0.937, 0.4086915, 0.9070957)` to `(1, 1, 1)` (white).
+
+`core`, `decorations1`, and `tools` are byte-for-byte unchanged. The complete diff is available locally under `generated/diffs/1.4.0-11893+194274_to_1.4.0-11944+194631/` after running `scripts/diff_versions.ps1`.
+
+## 1.4.0-11893+194274 - 2026-06-10 Pagonia Editor Update (Beta)
+
+The 1.4.0 "Pagonia Editor Update" (QoL 8) landed on the Steam **Beta** branch — its headline is the **modder-facing editor**, not new shipped content. The editor now authors **GameDatabase changes** (map-scoped *and* globally active) and publishes them as ordinary `.pak` mods. On the engine roadmap this is **Wave 1** (per-map GDB editing) plus an early slice of **Wave 2** (globally-active GDB mods) arriving together. Database-side the release is nearly empty: four new entities and one new file. Cross-referenced against [`game-paks/patch_notes.txt`](game-paks/README.md).
+
+### Validation Delta (1.3.2 → 1.4.0)
+
+| Metric | 1.3.2 | 1.4.0 | Delta |
+| --- | ---: | ---: | ---: |
+| XML files | 59 | 60 | +1 |
+| Entity definitions | 4,711 | 4,715 | +4 |
+| Unique entity GUIDs | 4,711 | 4,715 | +4 |
+| GUID-like references | 31,763 | 31,763 | 0 |
+| Resolved references | 24,422 | 24,422 | 0 |
+| Null GUID references | 7,311 | 7,311 | 0 |
+| Other unresolved references | 30 | 30 | 0 |
+| Reference resolution rate | 76.89% | 76.89% | 0 |
+| Warnings | 2 | 2 | 0 |
+| Errors | 0 | 0 | 0 |
+
+Per-package entity counts: `core` 4,147 → 4,149 (+2), `decorations1` 19 (=), `dlc1` 519 → 521 (+2), `tools` 26 (=). The unresolved set (two engine-magic GUIDs + 18 transient `NoMVP.*` orphans) is byte-for-byte the same as 1.3.2, and the `InheritanceMode` tallies hold steady (`Template` 18, `Replace` 14, `Incremental` 19; `<InheritedIndex>` markers 4,447) — none of the four new entities uses an inheritance relation.
+
+### Notable Shape Changes
+
+- **New mod-filter infrastructure.** A new file `core/gdb/modfilters.gd.xml` adds two `ModFilterCategory` entities — `Category` and `Required DLC`. This is the data backing the in-game mod browser's filter categories — the only directly modding-relevant data addition in the release.
+- **Two DLC1 withered-content entities.** `notifications.gd.xml` gains *"Alert Hostile Encounter unit infected by infected unit"* (and the pre-existing *"…infected"* notification is renamed to *"…infected by infected grounds"*), and `npcunits.gd.xml` gains `HealingChargeEffectUiStatus` (a `UiEffectStatus`) — backing the patch-notes items "withered units infect player units" and "Withered Hideouts display a status effect when an active heal effect is present". Both new references resolve, so the resolution rate is unchanged.
+
+### Asset-reference extension scheme (catalog heuristic updated)
+
+1.4.0 renamed **every asset-reference path extension**: the pre-1.4.0 double suffix `.<type>.json` became a bare `.<type>` (`foo.prefab.json` → `foo.prefab`, `foo.mesh.json` → `foo.mesh`), `.png` became `.image`, `.pile.json` became `.slicedmesh`, and texture-map references (`DiffuseMap` / `NormalMap` / `ParameterMap` / `VegetationLimiter` / `Map` / `FlowMap`) dropped their extension **entirely** (`…/cliffs_001_c.texture.json` → `…/cliffs_001_c`).
+
+The catalog's asset-detection heuristic ([`generate_catalog.ps1`](scripts/generate_catalog.ps1)) keyed off the old `.json`-suffixed extensions, so on raw 1.4.0 data it first *appeared* to lose 455 asset references (`5,406 → 4,951`) with a wild category reshuffle (`JsonAsset 157 → 0`, `Prefab 995 → 693`, `Texture 336 → 64`, `Mesh 811 → 1,110`). A base-name join of the 1.3.2 and 1.4.0 snapshots proved this was **catalog-tooling staleness, not a content change**: 458 references were silently dropped (their field names weren't in the detector's allowlist once the extension no longer matched) and exactly 302 flipped `Prefab → Mesh` purely from rule order — only the extensions had moved, no asset was removed.
+
+The heuristic was extended to recognise both the old and the new scheme (back-compatible, so cross-version diffs stay consistent). After the fix the corrected 1.4.0 catalog has the **same 5,406 asset-reference rows** as 1.3.2 with **zero uncategorised rows**, and `Prefab` (995) / `Mesh` (811) match 1.3.2 exactly. One intentional improvement falls out of the new scheme: texture maps the old `.texture.json` suffix could only file under the generic `JsonAsset` are now correctly `Texture`, so `Texture` rises `336 → 473` and `JsonAsset` falls `157 → 17`. REFERENCE.md and `docs/systems/visual-audio-assets.md` carry the corrected per-category figures.
+
+The complete diff (added/removed/changed entities, reference deltas, changed XML files) is available locally under `generated/diffs/1.3.2-11873+194094_to_1.4.0-11893+194274/` after running `scripts/diff_versions.ps1`.
+
+## 1.3.3-11931+194526 - 2026-06-15 Hotfix #3 (stable line)
+
+A stable-branch hotfix on the **release** channel, shipped *parallel* to the 1.4.0 "Pagonia Editor Update" beta — its build (`11931`, 2026-06-15) is **newer** than this repo's canonical beta baseline (`11893`, 2026-06-10), so these fixes are not yet in the extracted 1.4.0 beta data and should fold into a later beta build. GameDatabase-side it is a **no-op**: the structural diff against 1.3.2 shows zero added/removed/changed entities and not a single changed XML file — every fix is engine/behaviour only. The repo's canonical baseline therefore stays **1.4.0**; 1.3.3 is captured only as a local snapshot for the diff record. Cross-referenced against [`game-paks/patch_notes.txt`](game-paks/README.md).
+
+### Validation Delta (1.3.2 → 1.3.3)
+
+| Metric | 1.3.2 | 1.3.3 | Delta |
+| --- | ---: | ---: | ---: |
+| XML files | 59 | 59 | 0 |
+| Entity definitions | 4,711 | 4,711 | 0 |
+| Unique entity GUIDs | 4,711 | 4,711 | 0 |
+| GUID-like references | 31,763 | 31,763 | 0 |
+| Resolved references | 24,422 | 24,422 | 0 |
+| Null GUID references | 7,311 | 7,311 | 0 |
+| Other unresolved references | 30 | 30 | 0 |
+| Reference resolution rate | 76.89% | 76.89% | 0 |
+| Warnings | 2 | 2 | 0 |
+| Errors | 0 | 0 | 0 |
+
+### Modder-relevant fixes (no DB change)
+
+Two Core Game "Free Beer" bugfixes touch community-content handling even though they move no database counts (the kind of runtime/loader fix tracked in [docs/mod-distribution.md](docs/mod-distribution.md)):
+
+- *Enemy raids not starting correctly on older community maps* (and some campaign maps) — affects older user/mod maps.
+- *Rare crash when browsing community maps/packages* — affects the in-game community/mod browser.
+
+The DLC1 "Meadowsong" fixes (witch raid scheduling, withered-area-spread multiplayer desync, sick-bay newborn bug) are gameplay-only.
 
 ## 1.3.2-11873+194094 - 2026-06-09 Hotfix
 
@@ -33,6 +123,10 @@ Per-package entity counts: `core` 4,147 (=), `decorations1` 19 (=), `dlc1` 517 �
 - **Six XML files changed, all small tweaks.** `core/gdb/buildings.gd.xml`, `core/gdb/decorations.gd.xml`, `core/gdb/globals.gd.xml`, `dlc1/gdb/buildings.gd.xml`, `dlc1/gdb/globals.gd.xml`, and `dlc1/maps/meadowsong map database.gd.xml` changed content with **no net entity churn beyond the two additions above** (no entity names added, removed, or renamed in any of them) — value- and attribute-level edits backing the patch-notes bugfixes (Fruit Farm, decorations/minimap behaviour, the building-highlight feature). The diff does not pin each file to a specific patch-note line, so the per-file mapping is left unstated.
 
 The complete diff (added/removed/changed entities, reference deltas, changed XML files) is available locally under `generated/diffs/1.3.1-11826+193733_to_1.3.2-11873+194094/` after running `scripts/diff_versions.ps1`.
+
+### Dead / cut content audit (catalog + adversarial XML verify)
+
+A reachability sweep of the 1.3.2 baseline found **~60 fully-authored but unreachable entities** — cut, superseded, or never-wired-up content that ships with real assets yet no in-game path. They cluster into recognisable abandoned features: a transport/mechanisation chain (Wooden Cogwheel + `NoMVP.*` wheels/handcart/wheelbarrow), an unbuilt copper-tools tier (9 `*CopperRecipe` + the dead Hardwood Boards intermediate), a cut `Stone Mason` building with its dressed/border-stone recipes (the **Stone Block** output survives via the Quarry), a cut elemental-sorceress upgrade line (Mountain/Water II–III units + their gem-staff/wand goods and recipes), and the usual `*Old` / `* Deprecated` superseded revisions. No fully-cut *buildable* building exists — all non-techtree buildings are either `IsAbstract` leftovers or system pseudo-entities. Full grouped tables with GUIDs and decisive evidence in [docs/quirks-and-anomalies.md → Dead / cut content](docs/quirks-and-anomalies.md#dead-cut-content-fully-authored-but-unreachable). Method: `generated/catalog/*.csv` fan-out (`resource-flow.csv`, `building-production.csv`) then per-GUID raw-XML verification.
 
 ## 1.3.1-11826+193733 - 2026-06-02 Hotfix
 

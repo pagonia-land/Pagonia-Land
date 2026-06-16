@@ -120,6 +120,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("profile export output validates against collection.schema.json", ProfileExportSchemaValid),
     ("profile export refuses an empty profile (profileExportEmpty, writes nothing)", ProfileExportEmptyRefused),
     ("profile export -> collection install round-trips mods + order + tweaks", ProfileExportRoundTrip),
+    ("profile export canonicalises a stale alias tweak key to the current id", ProfileExportCanonicalisesAliasTweak),
 
     // Collection install / list / show / uninstall.
     ("collection install: happy path installs mods + writes manifest + lockfile + profile", CollectionInstallHappyPath),
@@ -163,7 +164,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("plan: markdown + json reports written to disk when paths given", PlanReportsWrittenToDisk),
     ("plan: load order from profile drives mod order in patcher plan", PlanRespectsLoadOrder),
 
-    // Tweak overrides (Phase 4) — read / set / reset + plan threading.
+    // Tweak overrides — read / set / reset + plan threading.
     ("tweak: read returns declarations + defaults with origin=default", TweakReadReturnsDeclarationsAndDefaults),
     ("tweak: set then read reflects the override with origin=profile-override", TweakSetThenReadReflectsOverride),
     ("tweak: set out-of-range number rejected (tweakValueOutOfRange), nothing stored", TweakSetOutOfRangeRejected),
@@ -178,6 +179,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("tweak: reset report (single + whole-mod) validates against schema", TweakResetReportValidates),
     ("tweak: alias migrates an old-id override forward + rewrites the profile", TweakAliasMigratesOldIdForward),
     ("tweak: alias conflict (old + new both stored) keeps the new id + warns", TweakAliasConflictNewIdWins),
+    ("tweak: two aliases to one current id keeps one deterministically + warns", TweakTwoAliasesToOneCurrentKeepsOneDeterministically),
     ("tweak: orphaned override (unknown id) is kept + surfaced as info", TweakOrphanedOverrideKept),
 
     // Deploy + rollback (XML patches).
@@ -399,6 +401,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("remote fetcher: refuses traversal mod path (defence-in-depth)", RemoteFetcherRefusesTraversal),
     ("remote fetcher: ResolvedSource embeds full SHA + mod-id from index", RemoteFetcherResolvedSourcePinsSha),
     ("remote fetcher -> ModInstaller round-trip installs cleanly from the fetched temp dir", RemoteFetcherEndToEndInstall),
+    ("remote fetcher: index metadata matching mod.yaml emits no drift warning", RemoteFetcherNoMetadataWarningWhenInSync),
+    ("remote fetcher: index advertising stale version/safety warns (repoIndexMetadataMismatch)", RemoteFetcherWarnsOnIndexMetadataDrift),
 
     // RemoteFetcher.FetchCollection — same-repo + cross-repo mod resolution.
     ("remote collection fetch: same-repo mods land in <tempDir>/mods/<id>/", RemoteFetcherCollectionSameRepoHappy),
@@ -468,6 +472,7 @@ var tests = new (string Name, Func<bool> Run)[]
     // UrlCatalogSource — http(s):// catalogs.
     ("url-catalog parser: https://host/path/catalog.yaml parses as UrlCatalogSource", UrlCatalogParserHttps),
     ("url-catalog parser: rejects loopback + link-local hosts (SSRF guard)", UrlCatalogParserRejectsLoopbackAndLinkLocal),
+    ("remote-host policy: blocks internal + IPv4-mapped hosts, allows public + LAN", RemoteHostPolicyBlocksInternalAndMappedHosts),
     ("url-catalog parser: http://... parses + IsInsecure=true", UrlCatalogParserHttpInsecure),
     ("url-catalog parser: garbage 'https://' alone rejected", UrlCatalogParserRejectsHostless),
     ("url-catalog canonical: HTTPS://Example.COM/x and https://example.com/x dedup", UrlCatalogCanonicalNormalisesSchemeAndHost),
@@ -567,7 +572,7 @@ return failed == 0 ? 0 : 1;
 // Scaffold helpers
 // ============================================================================
 
-// ManagerExitCodes moved to the CLI project (Phase 2.5 — exit codes are a
+// ManagerExitCodes moved to the CLI project (exit codes are a
 // shell-process concept, not a Core concern). The test project references only
 // Core, so the old ExitCodesAreStable smoke test was removed rather than reaching
 // across into the CLI binary for four constants.
@@ -2795,6 +2800,42 @@ static bool ProfileExportRoundTrip()
     }
 }
 
+static bool ProfileExportCanonicalisesAliasTweak()
+{
+    var tempRoot = NewTempRoot("profile-export-alias");
+    try
+    {
+        var (layout, modId) = SetupAliasedTweakProfile(tempRoot);
+        // Store the override under the OLD alias id, *without* going through
+        // TweakOverrideService.Read (which would migrate + rewrite the profile), so the
+        // profile still carries the stale alias key at export time.
+        SetRawProfileTweaks(layout, modId, new Dictionary<string, string> { ["softwood"] = "5" });
+
+        var exportPath = Path.Combine(tempRoot, "out.collection.yaml");
+        var result = new ProfileExportService().Export(layout, null, exportPath, new ProfileExportOptions());
+        if (!result.Success) return false;
+
+        // The export surfaces the rename and folds the value under the CURRENT id only.
+        if (!result.Diagnostics.Any(d =>
+                d.Code == ManagerDiagnosticCodes.TweakMigratedFromAlias
+                && d.Severity == ManagerDiagnosticSeverity.Info))
+        {
+            return false;
+        }
+
+        var manifest = new PagoniaLand.Patcher.ManifestReader().ReadCollectionManifest(exportPath).Value;
+        var mod = manifest?.Mods.FirstOrDefault(m => m.Id == modId);
+        return mod is not null
+            && mod.Tweaks is { } tw
+            && tw.TryGetValue("softwood-cost", out var v) && v == "5"
+            && !tw.ContainsKey("softwood");
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
 // ============================================================================
 // JSON reports + schemas + schema-validate helpers
 // ============================================================================
@@ -4242,7 +4283,7 @@ operations:
 }
 
 // ============================================================================
-// Tweak-override fixtures + tests (Phase 4)
+// Tweak-override fixtures + tests
 // ============================================================================
 
 static string MakeTweakableFixtureDir(string tempRoot, string modId, string version, string subdir)
@@ -4686,6 +4727,7 @@ tweaks:
     max: 8
     aliases:
       - softwood
+      - wood-cost
 patches:
   - patches/p.yaml
 """);
@@ -4787,6 +4829,42 @@ static bool TweakAliasConflictNewIdWins()
                 d.Code == ManagerDiagnosticCodes.TweakAliasConflict
                 && d.Severity == ManagerDiagnosticSeverity.Warning)
             && stored is { } s && s["softwood-cost"] == "7" && !s.ContainsKey("softwood");
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool TweakTwoAliasesToOneCurrentKeepsOneDeterministically()
+{
+    // Two legacy aliases ("softwood", "wood-cost") both map to the current id "softwood-cost", and
+    // a hand-edited profile stored BOTH (neither stores the current id). Migration must keep one
+    // deterministically (the ordinally-smaller alias) + warn, never let dictionary order silently
+    // clobber a value (R4-014).
+    var tempRoot = NewTempRoot("tweak-alias-two-to-one");
+    try
+    {
+        var (layout, modId) = SetupAliasedTweakProfile(tempRoot);
+        SetRawProfileTweaks(layout, modId, new Dictionary<string, string>
+        {
+            ["softwood"] = "5",   // ordinally smaller alias — should win
+            ["wood-cost"] = "8",  // ordinally larger alias — should be dropped with a warning
+        });
+
+        var read = new TweakOverrideService().Read(layout, null, modId);
+        var view = read.Tweaks.Single(t => t.Declaration.Id == "softwood-cost");
+        var stored = ReadStoredTweaks(layout, modId);
+
+        return read.Success
+            && view.Value == "5" // deterministic winner regardless of enumeration order
+            && read.Diagnostics.Any(d =>
+                d.Code == ManagerDiagnosticCodes.TweakAliasConflict
+                && d.Severity == ManagerDiagnosticSeverity.Warning)
+            && stored is { } s
+            && s["softwood-cost"] == "5"
+            && !s.ContainsKey("softwood")
+            && !s.ContainsKey("wood-cost");
     }
     finally
     {
@@ -6257,7 +6335,7 @@ static bool PreInstallsStateStaysReadable()
     try
     {
         var layout = InitLayout(tempRoot);
-        // Hand-write a pre-Phase-9 state.yaml: a v0.1 shape with no `installs:` key.
+        // Hand-write a legacy state.yaml: a v0.1 shape with no `installs:` key.
         File.WriteAllText(layout.StateFile,
             "storeVersion: 0.1\nactiveProfile: default\nsubscribedCatalogs: []\n");
 
@@ -9043,6 +9121,108 @@ static bool RemoteFetcherHappyPath()
     }
 }
 
+// Same shape as MakeRepoFixture, but the index entry advertises a stale version
+// (0.2.0) and a safeToRemove flag (true) that disagree with the mod.yaml the repo
+// actually ships (0.1.0 / unknown) — the drift an install-time check should warn on.
+static InMemoryRemoteContentFetcher MakeDriftRepoFixture()
+{
+    var fetcher = new InMemoryRemoteContentFetcher();
+    fetcher.AddRef("acme", "mods", "main", InMemoryRemoteContentFetcher.FakeSha);
+
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+        indexFormatVersion: "0.1"
+        repo:
+          name: ACME Mods
+        mods:
+          - id: pagonia-land.example.cheaper-sawmill
+            path: mods/cheaper-sawmill
+            version: 0.2.0
+            gameDatabaseVersion: "1.3.0-11694+192849"
+            safetyFlags:
+              requiresNewGame: false
+              safeToRemove: true
+              multiplayerSafe: unknown
+              campaignSafe: unknown
+        """);
+
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/mods/cheaper-sawmill/mod.yaml", """
+        patchFormatVersion: 0.1
+        id: pagonia-land.example.cheaper-sawmill
+        name: Cheaper Sawmill
+        version: 0.1.0
+        author: ACME
+        gameDatabaseVersion: "1.3.0-11694+192849"
+        description: Lowers the Sawmill Softwood Trunk cost by one.
+        requiredPackages:
+          - core
+        requiresNewGame: false
+        safeToRemove: unknown
+        multiplayerSafe: unknown
+        campaignSafe: unknown
+        patches:
+          - patches/buildings.yaml
+        """);
+
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/mods/cheaper-sawmill/patches/buildings.yaml", """
+        operations:
+          - id: cheaper-sawmill-softwood-cost
+            operation: replaceValue
+            risk: low
+            reason: Example patch.
+            target:
+              file: core/gdb/buildings.gd.xml
+              entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+              entityName: Sawmill
+              component: AspectBuildup
+              path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+            expectedOldValue: "4"
+            value: "3"
+        """);
+
+    return fetcher;
+}
+
+static bool RemoteFetcherNoMetadataWarningWhenInSync()
+{
+    // The happy-path fixture's index omits safetyFlags and its version matches the
+    // mod.yaml, so the cross-check must stay silent (present-only, no drift).
+    var result = new RemoteFetcher(MakeRepoFixture())
+        .FetchMod(new GitHubSource("acme", "mods", "main", "pagonia-land.example.cheaper-sawmill"));
+    try
+    {
+        return result.Success
+            && !result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.RepoIndexMetadataMismatch);
+    }
+    finally
+    {
+        if (result.TempDirectory is not null && Directory.Exists(result.TempDirectory))
+        { Directory.Delete(result.TempDirectory, true); }
+    }
+}
+
+static bool RemoteFetcherWarnsOnIndexMetadataDrift()
+{
+    var result = new RemoteFetcher(MakeDriftRepoFixture())
+        .FetchMod(new GitHubSource("acme", "mods", "main", "pagonia-land.example.cheaper-sawmill"));
+    try
+    {
+        var mismatches = result.Diagnostics
+            .Where(d => d.Code == ManagerDiagnosticCodes.RepoIndexMetadataMismatch
+                && d.Severity == ManagerDiagnosticSeverity.Warning)
+            .ToList();
+
+        // Still succeeds (warning, not fatal); flags both the version and the safeToRemove drift.
+        return result.Success
+            && mismatches.Any(d => d.Message.Contains("version"))
+            && mismatches.Any(d => d.Message.Contains("safeToRemove"));
+    }
+    finally
+    {
+        if (result.TempDirectory is not null && Directory.Exists(result.TempDirectory))
+        { Directory.Delete(result.TempDirectory, true); }
+    }
+}
+
 static bool RemoteFetcherUnknownModIdSurfacesDiagnostic()
 {
     var fetcher = MakeRepoFixture();
@@ -10092,6 +10272,23 @@ static bool UrlCatalogParserRejectsLoopbackAndLinkLocal()
         && CatalogSourceParser.TryParse("https://example.com/catalog.yaml", out _);
 }
 
+static bool RemoteHostPolicyBlocksInternalAndMappedHosts()
+{
+    // The shared SSRF policy (enforced at parse time AND on every HTTP/redirect hop) blocks
+    // loopback, link-local, the metadata IP, and IPv4-mapped IPv6 spellings of those — while a
+    // public host and private LAN mirrors stay allowed.
+    bool Blocked(string url) => RemoteHostPolicy.IsBlocked(new Uri(url));
+    return Blocked("http://127.0.0.1/")
+        && Blocked("http://[::1]/")
+        && Blocked("http://169.254.169.254/latest/meta-data/")
+        && Blocked("http://[fe80::1]/")
+        && Blocked("http://[::ffff:127.0.0.1]/")        // IPv4-mapped loopback
+        && Blocked("http://[::ffff:169.254.169.254]/")  // IPv4-mapped metadata IP
+        && !Blocked("https://example.com/")             // public host
+        && !Blocked("http://192.168.1.10/")             // private LAN mirror stays allowed
+        && !Blocked("http://10.0.0.5/");
+}
+
 static bool UrlCatalogCanonicalNormalisesSchemeAndHost()
 {
     var a = CatalogSourceParser.TryParse("HTTPS://Example.COM/x", out var srcA) ? srcA : null;
@@ -10140,9 +10337,9 @@ static bool UrlCatalogFetchHttpsLandsInAggregator()
     var (src, http, layout, tempRoot) = MakeUrlCatalogFixture("https-aggregate", url, """
         catalogFormatVersion: "0.1"
         catalog:
-          name: TheLavaBlock community
+          name: pagonia-land community
         repos:
-          - owner: TheLavaBlock
+          - owner: pagonia-land
             repo: pagonia-mods
             summary: community-hosted listing
         """);
@@ -10155,7 +10352,7 @@ static bool UrlCatalogFetchHttpsLandsInAggregator()
         // No insecure-http warning on https://.
         var hasInsecureWarn = result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CatalogInsecureHttp);
         return result.Repos.Count == 1
-            && result.Repos[0].Owner == "TheLavaBlock"
+            && result.Repos[0].Owner == "pagonia-land"
             && result.Repos[0].Repo == "pagonia-mods"
             && result.VisitedSources.Count == 1
             && !hasInsecureWarn;
@@ -10171,7 +10368,7 @@ static bool UrlCatalogFetchHttpNoOptInWarns()
         catalog:
           name: LAN
         repos:
-          - owner: TheLavaBlock
+          - owner: pagonia-land
             repo: lan-mods
         """);
     try
@@ -10193,7 +10390,7 @@ static bool UrlCatalogFetchHttpWithOptInSilent()
         catalog:
           name: LAN
         repos:
-          - owner: TheLavaBlock
+          - owner: pagonia-land
             repo: lan-mods
         """);
     try
@@ -10222,10 +10419,10 @@ static bool UrlCatalogCycleDetected()
             catalog:
               name: A
             catalogs:
-              - source: gh:TheLavaBlock/b-catalog
+              - source: gh:pagonia-land/b-catalog
             """);
-        http.AddRef("TheLavaBlock", "b-catalog", "HEAD", sha);
-        http.AddText($"https://raw.githubusercontent.com/TheLavaBlock/b-catalog/{sha}/catalog.yaml", """
+        http.AddRef("pagonia-land", "b-catalog", "HEAD", sha);
+        http.AddText($"https://raw.githubusercontent.com/pagonia-land/b-catalog/{sha}/catalog.yaml", """
             catalogFormatVersion: "0.1"
             catalog:
               name: B
@@ -10258,7 +10455,7 @@ static bool UrlCatalogVisitedSetDedup()
             catalog:
               name: X
             repos:
-              - owner: TheLavaBlock
+              - owner: pagonia-land
                 repo: only
             """);
 

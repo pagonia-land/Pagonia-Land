@@ -2,7 +2,7 @@ patchFormatVersion: "0.1"
 id: pagonia-land.test.overlay-replace-modifying
 name: Overlay Replace Modifying Test
 version: "0.1.0"
-author: TheLavaBlock
+author: Pagonia Land
 gameDatabaseVersion: "1.3.1-11826+193733"
 description: >-
   Artificial Pattern B overlay that Replaces the base Sawmill and changes an
@@ -18,6 +18,6 @@ entries:
 pak:
   name: overlay-replace-modifying-test
   summary: Advisor fixture — modifying Replace (not additive)
-  author: TheLavaBlock
+  author: Pagonia Land
   dependencies:
     - core

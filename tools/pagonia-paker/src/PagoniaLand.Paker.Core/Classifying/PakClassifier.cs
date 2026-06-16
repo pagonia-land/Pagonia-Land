@@ -4,16 +4,16 @@ using System.Text.Json.Serialization;
 namespace PagoniaLand.Paker;
 
 /// <summary>
-/// Decides which of the four shapes (<see cref="PakKinds"/>) a given pak
-/// matches, by reading its index, locating the single <c>&lt;m&gt;/manifest.json</c>
-/// inside (if any), checking for module-side files (<c>files.json</c>,
-/// <c>&lt;m&gt;/&lt;m&gt;.gd.bin</c>), counting popmaps under <c>&lt;m&gt;/usermaps/</c>,
-/// and noting any entries that live at the pak root (the Pattern B
-/// <c>system.json</c> override pattern).
+/// Inspects a pak and reports what it contributes — independent signals, not a
+/// single "kind" label: a compiled GameDatabase (<c>&lt;m&gt;.gd.bin</c>), maps
+/// (<c>&lt;m&gt;/usermaps/*.popmap</c>), and any root-level file overrides (the
+/// Pattern B <c>system.json</c> pattern), plus the module's name and
+/// dependencies. A pak can do several at once (a published editor map ships a
+/// GameDatabase and a map), so the signals are reported separately rather than
+/// collapsed into one mutually-exclusive bucket.
 ///
-/// The classifier never opens the on-disk pak data beyond what
-/// <see cref="PakReader"/> already does — index + the bytes of the one
-/// manifest.json entry are enough.
+/// It never opens the on-disk pak data beyond what <see cref="PakReader"/>
+/// already does — the index + the bytes of the one manifest.json entry are enough.
 /// </summary>
 public sealed class PakClassifier
 {
@@ -29,8 +29,8 @@ public sealed class PakClassifier
         if (!readResult.Success || readResult.Index is null)
         {
             return new PakClassifyResult(
-                PakKinds.Unknown, Name: null, ModuleFolder: null,
-                Dependencies: [], HasGdBin: false, PopmapCount: 0,
+                Name: null, ModuleFolder: null,
+                Dependencies: [], GdbScopes: [], PopmapCount: 0,
                 OverridesAtRoot: [], Diagnostics: diagnostics);
         }
 
@@ -53,8 +53,8 @@ public sealed class PakClassifier
             // tooling that wants to look at a "naked" pak still gets useful info.
             var rootOverrides = CollectOverridesAtRoot(readResult.Index, moduleFolder: null);
             return new PakClassifyResult(
-                PakKinds.Unknown, Name: null, ModuleFolder: null,
-                Dependencies: [], HasGdBin: false, PopmapCount: 0,
+                Name: null, ModuleFolder: null,
+                Dependencies: [], GdbScopes: [], PopmapCount: 0,
                 OverridesAtRoot: rootOverrides, Diagnostics: diagnostics);
         }
 
@@ -93,51 +93,54 @@ public sealed class PakClassifier
                 Path: $"{moduleFolder}/manifest.json"));
         }
 
-        // Inventory the module's contributions. Both files.json and the
-        // .gd.bin can live either under <m>/ (the common shipped layout) or
-        // at the pak root (tools.pak puts its .gd.bin at the root while
-        // keeping files.json under tools/). Accept either location.
-        var hasFilesJson = readResult.Index.Entries.Any(e =>
-            e.Filename == $"{moduleFolder}/files.json" || e.Filename == "files.json");
-        var hasGdBin = readResult.Index.Entries.Any(e =>
-            e.Filename == $"{moduleFolder}/{moduleFolder}.gd.bin"
-            || e.Filename == $"{moduleFolder}.gd.bin");
+        // Inventory the module's contributions, by SCOPE of the GameDatabase
+        // content. A gd.bin lists the *.gd.xml resources the module ships, so an
+        // empty gd.bin (the editor emits a module-level one even for a map-only
+        // mod) lists nothing and is correctly NOT counted as content.
         var usermapsPrefix = $"{moduleFolder}/usermaps/";
+        var scopes = new List<string>();
+
+        // global: a module-level <m>.gd.bin (under <m>/ as shipped paks do, or at
+        // the pak root as tools.pak does) that actually lists at least one resource.
+        bool ModuleGdBinHasContent(string filename) =>
+            readResult.Index.Entries.FirstOrDefault(e => e.Filename == filename) is { } e
+            && _reader.GdBinHasEntries(pakStream, e);
+        if (ModuleGdBinHasContent($"{moduleFolder}/{moduleFolder}.gd.bin")
+            || ModuleGdBinHasContent($"{moduleFolder}.gd.bin"))
+        {
+            scopes.Add("global");
+        }
+
+        // map-scoped: a <m>/usermaps/*.gd.bin with entities, or a raw
+        // <m>/usermaps/*.gd.xml — the per-map "hosted game database".
+        var hasMapScopedGdb = readResult.Index.Entries.Any(e =>
+            e.Filename.StartsWith(usermapsPrefix, StringComparison.Ordinal)
+            && e.Filename.EndsWith(".gd.bin", StringComparison.OrdinalIgnoreCase)
+            && _reader.GdBinHasEntries(pakStream, e));
+        var hasMapScopedXml = readResult.Index.Entries.Any(e =>
+            e.Filename.StartsWith(usermapsPrefix, StringComparison.Ordinal)
+            && e.Filename.EndsWith(".gd.xml", StringComparison.OrdinalIgnoreCase));
+        if (hasMapScopedGdb || hasMapScopedXml)
+        {
+            scopes.Add("map-scoped");
+        }
+
         var popmapCount = readResult.Index.Entries.Count(e =>
             e.Filename.StartsWith(usermapsPrefix, StringComparison.Ordinal)
             && e.Filename.EndsWith(".popmap", StringComparison.OrdinalIgnoreCase));
 
         var overridesAtRoot = CollectOverridesAtRoot(readResult.Index, moduleFolder);
 
-        // Decision: GameDatabase contribution wins (module), then popmap (user-map),
-        // then anything else with a manifest is treated as overlay. Order matters
-        // for paks that mix shapes (e.g. a future campaign mod with new buildings
-        // AND user maps would classify as "module" so its rule additions take
-        // priority over the map browser surface).
-        string kind;
-        if (hasFilesJson && hasGdBin)
-        {
-            kind = PakKinds.Module;
-        }
-        else if (popmapCount > 0)
-        {
-            kind = PakKinds.UserMap;
-        }
-        else
-        {
-            kind = PakKinds.Overlay;
-        }
-
         diagnostics.Add(new PakDiagnostic(
             PakDiagnosticSeverity.Info,
             DiagnosticCodes.PakClassified,
-            $"Classified as '{kind}' (module='{moduleFolder}', name='{name ?? "?"}', " +
-            $"gdbin={(hasGdBin ? "yes" : "no")}, popmaps={popmapCount}, " +
+            $"Inspected module '{moduleFolder}' (name='{name ?? "?"}', " +
+            $"gdb=[{string.Join(", ", scopes)}], popmaps={popmapCount}, " +
             $"overridesAtRoot={overridesAtRoot.Count}, deps=[{string.Join(", ", dependencies)}]).",
             Path: moduleFolder));
 
         return new PakClassifyResult(
-            kind, name, moduleFolder, dependencies, hasGdBin, popmapCount,
+            name, moduleFolder, dependencies, scopes, popmapCount,
             overridesAtRoot, diagnostics);
     }
 

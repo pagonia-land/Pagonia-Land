@@ -294,6 +294,68 @@ public sealed class PakReader
     }
 
     /// <summary>
+    /// Reports whether a gd.bin entry lists at least one <c>*.gd.xml</c> resource path — i.e. whether
+    /// the module contributes GameDatabase content. Only the 7-byte header is pulled (cheap even for a
+    /// multi-MB gd.bin, since a compressed entry is decompressed lazily): it is validated for the
+    /// gd.bin magic <c>[0x03][versionMinor][0x02]</c> followed by three zero bytes, and content is
+    /// then decided by whether any entry record follows the header. An empty module-level gd.bin —
+    /// the editor emits one even for a map-only mod — is exactly the 7-byte header and reports
+    /// <c>false</c>.
+    /// </summary>
+    /// <remarks>
+    /// Byte 3 of the header is <c>entries.Count - 1</c> (see <see cref="GdBinFormatConstants"/>), NOT a
+    /// usable count: it reads as 0 for both an empty index AND a single-entry one, and wraps modulo 256.
+    /// So the presence of an entry record — not byte 3 — is the source of truth for "has content".
+    /// </remarks>
+    public bool GdBinHasEntries(Stream pakStream, PakEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(pakStream);
+        ArgumentNullException.ThrowIfNull(entry);
+        if (entry.BeginOffset < 0 || entry.SizeInPak < 0 || entry.Size < 7) return false;
+
+        Span<byte> head = stackalloc byte[7];
+        try
+        {
+            pakStream.Seek(entry.BeginOffset, SeekOrigin.Begin);
+            if (entry.Compressed)
+            {
+                using var limited = new LimitedStream(pakStream, entry.SizeInPak);
+                using var gzip = new GZipStream(limited, CompressionMode.Decompress, leaveOpen: true);
+                if (!TryReadExactly(gzip, head)) return false;
+            }
+            else
+            {
+                if (!TryReadExactly(pakStream, head)) return false;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            return false;
+        }
+
+        // gd.bin header: [0x03][versionMinor][0x02][entries.Count-1][0x00][0x00][0x00].
+        if (head[0] != 0x03 || head[2] != 0x02 || head[4] != 0x00 || head[5] != 0x00 || head[6] != 0x00)
+            return false;
+
+        // Any bytes beyond the 7-byte header are entry records (a uint32 length + a UTF-16 path that
+        // the reader walks until EOF). A decompressed size past the header therefore means the index
+        // lists at least one resource — the reliable signal byte 3 cannot give for a single entry.
+        return entry.Size > 7;
+    }
+
+    private static bool TryReadExactly(Stream source, Span<byte> buffer)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = source.Read(buffer[offset..]);
+            if (read == 0) return false;
+            offset += read;
+        }
+        return true;
+    }
+
+    /// <summary>
     /// Copy exactly <paramref name="expectedSize"/> decompressed bytes from
     /// <paramref name="source"/> (a <see cref="GZipStream"/>) to
     /// <paramref name="destination"/>. Throws <see cref="InvalidDataException"/> if the

@@ -14,7 +14,7 @@ Concept guides and reference docs for actually writing and shipping mods:
 | [✅ Safe Edits](safe-edits.md) | What changes are low-risk vs. likely to break things. Read this before your first edit. |
 | [⚠️ Modding Risk Map](modding-risk-map.md) | Specific high-risk areas: objectives, tech tree, unit attachments, rare components. Practical "be careful here" map. |
 | [🚚 Mod Distribution Patterns](mod-distribution.md) | The three observed mod shapes: Pattern A (patched canonical pak), Pattern B (side-by-side overlay), Pattern C (user maps). Plus Meadowsong cross-pak entity merging. |
-| [📄 Declarative Patch Format](mod-patch-format.md) | The `mod.yaml` schema, the eight patch operations, target resolution, optional metadata. The reference for hand-authoring patches. |
+| [📄 Declarative Patch Format](mod-patch-format.md) | The `mod.yaml` schema, the ten patch operations, target resolution, optional metadata. The reference for hand-authoring patches. |
 | [✨ Mod Tweaks](mod-tweaks.md) | User-adjustable mod values — how an author declares them, a curator presets them in a collection, and a player configures them in the manager. The end-to-end map of the feature. |
 | [💥 Patch Conflict Model](mod-conflicts.md) | What counts as a conflict between two mods, how the patcher detects it, the resolution model the manager surfaces. |
 | [📚 Mod Collections](mod-collections.md) | Curated mod lists, lockfiles, profiles, collection-vs-mod boundary, safety rules. |
@@ -48,4 +48,4 @@ Downloads on the [latest release](https://github.com/pagonia-land/Pagonia-Land/r
 
 ## Where Modding Fits
 
-Pagonia Land covers the **GameDatabase modding** slice — changing what already exists in the game (buildings, units, recipes, costs, objectives) by editing the XML the engine reads from `.pak` archives. If you're looking for **map editor workflows** (custom maps, map packaging, texture file formats), that's a different slice covered by the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding).
+Pagonia Land covers the **GameDatabase modding** slice — changing what the game is made of (buildings, units, recipes, costs, objectives), whether by editing the XML the engine reads from `.pak` archives or via the GameDatabase changes the 1.4.0 Pagonia Editor authors. We **complement** EE's editor rather than duplicate it: the editor owns the authoring UI and publishes mods as ordinary `.pak`s; our tools work against that published output and cover the parts the editor doesn't — hand-authored / programmatic edits and the install / deploy / rollback lifecycle. **Map authoring** itself — a map's terrain, layout, and placement in the editor, plus asset/texture file formats and the editor's own project format — is a different slice, covered by the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding).

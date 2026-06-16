@@ -13,6 +13,18 @@ public static class ArithmeticPatchOps
     public static bool IsArithmetic(string operationType)
         => operationType is PatchOperationTypes.MultiplyValue or PatchOperationTypes.AddValue;
 
+    /// <summary>True when combining the two finite inputs stays finite. Guards against an overflow
+    /// to ±Infinity (e.g. two near-<c>double.MaxValue</c> operands) that <see cref="Compute"/> would
+    /// otherwise serialise as the literal text "Infinity" into a game field. The combine logic lives
+    /// here so the caller's check can't drift from what <see cref="Compute"/> actually does.</summary>
+    public static bool ResultIsFinite(string operationType, double oldValue, double operand)
+    {
+        var combined = operationType == PatchOperationTypes.AddValue
+            ? oldValue + operand
+            : oldValue * operand;
+        return double.IsFinite(combined);
+    }
+
     /// <summary>Invariant-culture float parse, shared so every caller accepts the same number shapes.
     /// Rejects NaN / ±Infinity so they surface as a clean "not numeric" diagnostic instead of
     /// silently computing nonsensical results from a target leaf or operand that literally holds

@@ -8,7 +8,7 @@ namespace PagoniaLand.Manager;
 /// override already applied by <see cref="ExpansionResolver"/>), emits the
 /// diagnostics that turn a would-be silent no-op into an actionable message.
 ///
-/// <para>The load-bearing rule (Phase 9): <strong>presence blocks, ownership
+/// <para>The load-bearing rule: <strong>presence blocks, ownership
 /// only warns</strong>. A required expansion that isn't on disk is a hard error
 /// (there is no pak to patch). Present-but-not-owned / unknown are warnings that
 /// never block deployment — because Envision ships every pak, a non-owner must

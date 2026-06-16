@@ -56,9 +56,6 @@ if ($Clean -and (Test-Path -LiteralPath $outFull)) {
 
 New-Item -ItemType Directory -Path $outFull -Force | Out-Null
 
-$totalExtracted = 0
-$totalSkipped = 0
-
 foreach ($pak in $paks) {
     Write-Host ""
     Write-Host "=== $($pak.Name) ==="

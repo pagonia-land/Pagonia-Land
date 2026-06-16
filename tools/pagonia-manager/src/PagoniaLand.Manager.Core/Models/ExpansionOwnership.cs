@@ -59,7 +59,7 @@ public enum OwnershipState
 /// <c>false</c> = not owned, absent/<c>null</c> = unknown) and
 /// <see cref="OwnershipState"/>. Keeping the on-disk form a nullable bool lets
 /// an unknown expansion simply be omitted from <c>ownedExpansions</c> (via the
-/// serializer's OmitNull), so a pre-Phase-9 store with no <c>installs:</c> map
+/// serializer's OmitNull), so an older store with no <c>installs:</c> map
 /// reads back as every expansion unknown with no migration step.
 /// </summary>
 public static class OwnershipStateExtensions

@@ -142,10 +142,10 @@ Suggested result: warning, not automatic failure.
 Every mod should declare the snapshot it was authored against:
 
 ```yaml
-gameDatabaseVersion: "1.3.2-11873+194094"
+gameDatabaseVersion: "1.4.0-11944+194631"
 ```
 
-The validator should compare this with the local current snapshot. Prefer exact program versions such as `1.3.2-11873+194094` over descriptive labels.
+The validator should compare this with the local current snapshot. Prefer exact program versions such as `1.4.0-11944+194631` over descriptive labels.
 
 If the snapshot differs:
 
@@ -248,6 +248,8 @@ hyphen in `very-high`):
 | Operation | Default `risk:` |
 | --- | --- |
 | `replaceValue` | `low` |
+| `multiplyValue` | `low` |
+| `addValue` | `low` |
 | `replaceAttribute` | `medium` |
 | `addListItem` | `medium` |
 | `mergeComponent` | `medium` |

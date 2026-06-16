@@ -44,6 +44,7 @@ public static class DiagnosticCodes
     public const string TweakDefaultNotInteger = "tweakDefaultNotInteger";
     public const string TweakDefaultNotEnumValue = "tweakDefaultNotEnumValue";
     public const string TweakMinGreaterThanMax = "tweakMinGreaterThanMax";
+    public const string TweakStepInvalid = "tweakStepInvalid";
     public const string TweakDeclaredButUnused = "tweakDeclaredButUnused";
     public const string TweakTernaryOnNonBoolean = "tweakTernaryOnNonBoolean";
 
@@ -80,6 +81,7 @@ public static class DiagnosticCodes
     public const string ArithmeticTargetNotNumeric = "arithmeticTargetNotNumeric";
     public const string ArithmeticOperandNotNumeric = "arithmeticOperandNotNumeric";
     public const string ArithmeticResultClamped = "arithmeticResultClamped";
+    public const string ArithmeticResultNotFinite = "arithmeticResultNotFinite";
     public const string ClampMinGreaterThanMax = "clampMinGreaterThanMax";
 
     // Planning
@@ -145,7 +147,18 @@ public static class DiagnosticCodes
     public const string SchemaValidationOk = "schemaValidationOk";
     public const string SchemaValidationFailed = "schemaValidationFailed";
 
-    // Authoring advisor (Phase 5 — conflict-minimising lint over a mod's own overlay *.gd.xml)
+    // Repo-index mirror sync (index.yaml's per-mod copy vs each mod.yaml — see RepoIndexMirror)
+    public const string IndexReadFailed = "indexReadFailed";
+    public const string IndexMirrorMismatch = "indexMirrorMismatch";
+    public const string IndexEntryOrphaned = "indexEntryOrphaned";
+    public const string IndexEntryMissing = "indexEntryMissing";
+    public const string IndexEntryIdMismatch = "indexEntryIdMismatch";
+    public const string IndexMirrorInSync = "indexMirrorInSync";
+    public const string IndexMirrorUpdated = "indexMirrorUpdated";
+    public const string IndexMirrorManualFixNeeded = "indexMirrorManualFixNeeded";
+    public const string IndexMirrorWriteAborted = "indexMirrorWriteAborted";
+
+    // Authoring advisor — conflict-minimising lint over a mod's own overlay *.gd.xml
     public const string OverlayGdbFileMissing = "overlayGdbFileMissing";
     public const string OverlayGdbUnreadable = "overlayGdbUnreadable";
     public const string UsesDestructiveInheritanceMode = "usesDestructiveInheritanceMode";

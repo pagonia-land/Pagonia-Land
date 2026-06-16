@@ -5,7 +5,7 @@ namespace PagoniaLand.Manager;
 /// <c>{ present, owned, effective }</c> triple the rest of the manager reasons
 /// about, where <c>effective = present ∧ owned</c> describes the
 /// <em>solo runtime effect</em> for messaging — <strong>not</strong>
-/// deploy-ability (deployment keys off <c>present</c> alone; see the Phase-9
+/// deploy-ability (deployment keys off <c>present</c> alone — the
 /// load-bearing rule). Pure function of its inputs: presence (an on-disk fact),
 /// the declared ownership record, and an optional in-memory override map. The
 /// override lets a CLI flag or a headless/CI run simulate entitlement without

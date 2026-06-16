@@ -590,13 +590,21 @@ function Get-AssetType([string]$FieldName, [string]$Value) {
   if ($text -match "^event:/") { return "AudioEvent" }
   if ($field -match "Audio|Sound|Music|Ambience|Announcement") { return "Audio" }
   if ($field -match "Icon" -or $text -match "/icons?/") { return "Icon" }
-  if ($field -match "CharacterKit" -or $text -match "\.characterkit\.json$") { return "CharacterKit" }
-  if ($field -match "Prefab" -or $text -match "\.prefab\.json$") { return "Prefab" }
-  if ($field -match "Mesh" -or $text -match "\.mesh\.json$") { return "Mesh" }
-  if ($field -match "Texture|Mask|Foam|Caustic" -or $text -match "\.(png|jpg|jpeg|tga|dds)$") { return "Texture" }
+  # Extension matching accepts both the pre-1.4.0 `.<type>.json` double suffix and
+  # the 1.4.0 "Pagonia Editor Update" bare `.<type>` scheme (and png -> image,
+  # pile.json -> slicedmesh). Keeping both keeps cross-version diffs classifying
+  # consistently. See CHANGELOG (1.4.0) "Asset-reference extension scheme".
+  if ($field -match "CharacterKit" -or $text -match "\.characterkit(\.json)?$") { return "CharacterKit" }
+  if ($field -match "Prefab" -or $text -match "\.prefab(\.json)?$") { return "Prefab" }
+  if ($field -match "Mesh" -or $text -match "\.(mesh|slicedmesh)(\.json)?$") { return "Mesh" }
+  # The `[/\\]textures?[/\\]` path clause catches 1.4.0 texture-map references
+  # (DiffuseMap / NormalMap / ParameterMap / VegetationLimiter / Map / FlowMap),
+  # which the 1.4.0 update stripped of any extension entirely
+  # (`…/cliffs_001_c.texture.json` -> `…/cliffs_001_c`).
+  if ($field -match "Texture|Mask|Foam|Caustic" -or $text -match "\.(png|jpg|jpeg|tga|dds|image|texture)$" -or $text -match "[/\\]textures?[/\\]") { return "Texture" }
   if ($field -match "Material" -or $text -match "\.(mat|material)(\.json)?$") { return "Material" }
-  if ($field -match "Vfx|Effect|Particle" -or $text -match "/vfx/") { return "VFX" }
-  if ($text -match "\.json$") { return "JsonAsset" }
+  if ($field -match "Vfx|Effect|Particle" -or $text -match "/vfx/" -or $text -match "\.effect$") { return "VFX" }
+  if ($text -match "\.json$" -or $text -match "\.(preset|llpreset|video)$") { return "JsonAsset" }
   if ($text -match "\.(asset|bank|wav|ogg|mp3)$") { return "Asset" }
   return ""
 }
@@ -606,7 +614,14 @@ function Test-LooksLikeAssetReference([string]$FieldName, [string]$Value) {
   $text = $Value.Trim()
   if (Test-GuidString $text) { return $false }
   if ($text -match "^event:/") { return $true }
-  if ($text -match "^[a-zA-Z0-9_./ -]+\.(png|jpg|jpeg|tga|dds|prefab\.json|mesh\.json|characterkit\.json|json|asset|mat|material|bank|wav|ogg|mp3)$") { return $true }
+  # Accepts the pre-1.4.0 `.<type>.json` suffixes and the 1.4.0 bare `.<type>`
+  # scheme (image/prefab/mesh/slicedmesh/texture/characterkit/effect/preset/
+  # llpreset/video). Without the bare forms, 1.4.0 asset paths whose field name
+  # isn't in the allowlist below silently fall out of the catalog.
+  if ($text -match "^[a-zA-Z0-9_./ -]+\.(png|jpg|jpeg|tga|dds|image|prefab\.json|mesh\.json|characterkit\.json|prefab|mesh|slicedmesh|texture|characterkit|effect|preset|llpreset|video|json|asset|mat|material|bank|wav|ogg|mp3)$") { return $true }
+  # 1.4.0 texture-map references lost their extension entirely; recognise them by
+  # the `textures/` asset folder so they don't fall out of the catalog.
+  if ($text -match "[/\\]textures?[/\\]") { return $true }
   $field = [string]$FieldName
   if ($field -match "Icon|Mesh|Prefab|Texture|Material|CharacterKit|Vfx|Effect|Audio|Sound|Music|Ambience|Announcement" -and $text -match "[/\\]") { return $true }
   return $false

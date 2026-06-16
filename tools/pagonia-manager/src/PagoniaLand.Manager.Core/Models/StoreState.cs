@@ -80,7 +80,7 @@ public sealed class StoreState
     /// fingerprint (the same <see cref="GameFingerprint"/> the deploy history
     /// uses). Ownership is a fact about the installation/account, stable across
     /// every profile — so it lives here at store scope, never in a portable
-    /// profile. Absent / empty (a pre-Phase-9 store) ⇒ every declarable
+    /// profile. Absent / empty (an older store with no installs map) ⇒ every declarable
     /// expansion resolves as <c>unknown</c>, with no migration step. Read-modify-
     /// write paths must carry this map forward so an unrelated state write (a
     /// deploy stamp, a catalog edit) never silently drops ownership.

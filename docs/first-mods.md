@@ -99,9 +99,9 @@ Where to look:
 game-gdb/core/gdb/productionrecipes.gd.xml
 ```
 
-Find a `ProductionRecipe`, then find an `Output` step. The resource and its
-amount live under a `Content/InputOutput` wrapper inside the step's `Item` —
-search for `InputOutput` to land on the exact element:
+Find a `ProductionRecipe`, then find an `Output` step. The output resource
+lives under a `Content/InputOutput` wrapper inside the step's `Item` — search
+for `InputOutput` to land on the exact element:
 
 ```xml
 <Item>
@@ -110,17 +110,33 @@ search for `InputOutput` to land on the exact element:
     ...
     <InputOutput>
       <Resource>resource-guid</Resource>
-      <Amount>number</Amount>
     </InputOutput>
   </Content>
 </Item>
 ```
 
+Notice there is **no** `<Amount>` inside `<InputOutput>`. Most
+`ProductionRecipe` rows express their input/output *quantities* through step
+state, not through a per-resource amount field — so don't add one. The recipes
+that *do* carry an explicit, safely-editable amount are the shrine-style
+recipes, where the amount sits inside a `WorkplacePile` (no `Resource` child):
+
+```xml
+<Wait>
+  <WorkplacePile>
+    <Amount>10</Amount>
+  </WorkplacePile>
+</Wait>
+```
+
 Safer change:
 
-- adjust `Amount`
-- keep `Resource` unchanged
+- search `<Amount>` in `productionrecipes.gd.xml` to find a recipe that
+  already has one, then adjust that number
 - keep step order unchanged
+
+The dedicated walkthrough [Change A Recipe Resource Amount](examples/change-recipe-resource-amount.md)
+covers this end to end.
 
 Why this is useful:
 

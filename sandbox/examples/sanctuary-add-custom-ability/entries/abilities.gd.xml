@@ -27,7 +27,7 @@
             <ShrineAbility>
               <Name>IconicBuilding Sanctuary RemoveInfectedArea Ability Name</Name>
               <Description>IconicBuilding Sanctuary RemoveInfectedArea Ability Description</Description>
-              <Icon>dlc1/gui/icons/magics/icon_spell_sanctuary_cleanse_area_001.png</Icon>
+              <Icon>dlc1/gui/icons/magics/icon_spell_sanctuary_cleanse_area_001.image</Icon>
               <TargetRange>500</TargetRange>
               <Type>RemoveDepositsArea</Type>
               <UsageType>ActiveTargeted</UsageType>

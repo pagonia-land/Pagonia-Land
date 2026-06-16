@@ -73,12 +73,22 @@ public static class AtomicFile
         }
 
         var tempPath = dest + TempSuffix;
-        using (var inStream = File.OpenRead(source))
-        using (var outStream = File.Create(tempPath))
+        try
         {
-            inStream.CopyTo(outStream);
+            using (var inStream = File.OpenRead(source))
+            using (var outStream = File.Create(tempPath))
+            {
+                inStream.CopyTo(outStream);
+            }
+            File.Move(tempPath, dest, overwrite: true);
         }
-        File.Move(tempPath, dest, overwrite: true);
+        catch
+        {
+            // Delete the partial .tmp eagerly on any mid-copy failure before rethrowing (mirrors
+            // PakRebuilder). CleanupLeftoverTempFiles is the backstop, but not every caller runs it.
+            try { if (File.Exists(tempPath)) { File.Delete(tempPath); } } catch { /* best effort */ }
+            throw;
+        }
     }
 
     public static IEnumerable<string> EnumerateFilesIgnoringTemp(string directory, string searchPattern = "*")

@@ -11,7 +11,7 @@ patchFormatVersion: 0.1
 id: pagonia-land.example.cheaper-sawmill-a
 name: Cheaper Sawmill A
 version: 0.1.0
-gameDatabaseVersion: "1.3.2-11873+194094"
+gameDatabaseVersion: "1.4.0-11944+194631"
 requiredPackages:
   - core
 patches:
@@ -39,7 +39,7 @@ patchFormatVersion: 0.1
 id: pagonia-land.example.cheaper-sawmill-b
 name: Cheaper Sawmill B
 version: 0.1.0
-gameDatabaseVersion: "1.3.2-11873+194094"
+gameDatabaseVersion: "1.4.0-11944+194631"
 requiredPackages:
   - core
 patches:

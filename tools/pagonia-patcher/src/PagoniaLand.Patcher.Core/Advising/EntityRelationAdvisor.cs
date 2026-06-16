@@ -3,7 +3,7 @@ using System.Xml.Linq;
 namespace PagoniaLand.Patcher;
 
 /// <summary>
-/// Conflict-minimising authoring advisor (patcher roadmap Phase 5). Lints a mod's own overlay <c>*.gd.xml</c> for the engine's
+/// Conflict-minimising authoring advisor. Lints a mod's own overlay <c>*.gd.xml</c> for the engine's
 /// entity-relation primitives and encodes EE's 2026-06-06 guidance: prefer the
 /// additive, stackable modes (<c>Incremental</c> / <c>Template</c>) over the
 /// destructive, last-loaded-wins modes (<c>Replace</c> / <c>Unload</c>), so a
@@ -70,12 +70,18 @@ public sealed class EntityRelationAdvisor
             .GroupBy(entity => entity.InheritedGuid!, StringComparer.OrdinalIgnoreCase))
         {
             var target = group.Key;
-            var unloadPointers = group.Count();
+            // Subtract every entity that POINTS at this target via InheritanceMode (Unload, but also a
+            // sibling Replace/Template/Incremental whose InheritedGuid is the same target) — those
+            // InheritedGuid values are themselves in ReferenceValues and are not genuine value-position
+            // dependents. Only references beyond those count as "still needs the target".
+            var inheritancePointers = model.Entities.Count(entity =>
+                !string.IsNullOrWhiteSpace(entity.InheritedGuid)
+                && string.Equals(entity.InheritedGuid!.Trim(), target, StringComparison.OrdinalIgnoreCase));
             // Match the base-aware path's exact-GUID semantics (ReferenceGdbIndex treats a
             // value as a reference only when the whole trimmed value is a GUID), rather than a
             // loose substring scan that could over-count an embedded GUID.
             var inOwnOverlay = model.ReferenceValues
-                .Count(value => string.Equals(value.Trim(), target, StringComparison.OrdinalIgnoreCase)) > unloadPointers;
+                .Count(value => string.Equals(value.Trim(), target, StringComparison.OrdinalIgnoreCase)) > inheritancePointers;
             var inBaseGame = reference?.IsReferenced(target) == true;
 
             if (inOwnOverlay || inBaseGame)

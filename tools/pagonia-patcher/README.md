@@ -49,9 +49,11 @@ dotnet run --project .\src\PagoniaLand.Patcher.Cli -- plan --game .\fixtures\gam
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- plan --game .\fixtures\game-gdb-mini --mods .\fixtures\mods\cheaper-sawmill --out .\fixtures\out\plan.md --json .\fixtures\out\plan.json
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- plan --game .\fixtures\game-gdb-mini --mods .\fixtures\mods\cheaper-sawmill .\fixtures\mods\conflicting-sawmill
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- apply --game .\fixtures\game-gdb-mini --mods .\fixtures\mods\cheaper-sawmill --out .\fixtures\out
+dotnet run --project .\src\PagoniaLand.Patcher.Cli -- index-check ..\..\official-mods
+dotnet run --project .\src\PagoniaLand.Patcher.Cli -- index build ..\..\official-mods --check
 ```
 
-`--version`, `inspect-mod`, `validate-mod`, `schema-validate`, `inspect-collection`, `resolve-collection`, `inspect-lock`, `export-collection`, `plan`, and `apply` for one or more mod directories are implemented right now.
+`--version`, `inspect-mod`, `validate-mod`, `schema-validate`, `inspect-collection`, `resolve-collection`, `inspect-lock`, `export-collection`, `plan`, and `apply` for one or more mod directories are implemented right now, along with `index-check` and `index build` for keeping a repo's `index.yaml` in sync with its mods.
 
 ## C# Structure
 

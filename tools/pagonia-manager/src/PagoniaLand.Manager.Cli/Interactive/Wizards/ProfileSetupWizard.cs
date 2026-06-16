@@ -56,9 +56,8 @@ internal static class ProfileSetupWizard
                     .AddChoices(installedMods.Select(m => $"{m.Id}@{m.Version}")));
         }
 
-        var switchToIt = AnsiConsole.Prompt(
-            new ConfirmationPrompt($"Switch to [aqua]{Markup.Escape(profileName)}[/] as the active profile after setup?")
-                { DefaultValue = true });
+        var switchToIt = AdvancedHelpers.Confirm(
+            $"Switch to [aqua]{Markup.Escape(profileName)}[/] as the active profile after setup?", defaultValue: true);
 
         AnsiConsole.WriteLine();
 

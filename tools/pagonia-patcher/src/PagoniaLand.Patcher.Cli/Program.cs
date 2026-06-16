@@ -66,7 +66,7 @@ if (args.Length >= 3 && args[0] == "validate-mod" && args[1] == "--mod")
 
     var diagnostics = validator.ValidateMod(result.Value).ToList();
 
-    // Conflict-minimising authoring advisor (Phase 5): lint the mod's own
+    // Conflict-minimising authoring advisor: lint the mod's own
     // overlay *.gd.xml for InheritanceMode usage. Advisory only — Info notices
     // plus an unload-dangling Warning; never blocks validate-mod. An optional
     // --game-root turns on the base-aware checks (unload-vs-whole-DB, and
@@ -138,6 +138,39 @@ if (args is ["schema-validate", "--repo-index", var schemaRepoIndexPath])
 if (args is ["schema-validate", "--catalog", var schemaCatalogPath])
 {
     var diagnostics = schemaValidator.ValidateCatalog(schemaCatalogPath);
+    PrintDiagnostics(diagnostics);
+    return diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error)
+        ? PatcherExitCodes.Error
+        : PatcherExitCodes.Success;
+}
+
+if (args is ["index-check", var indexCheckRoot])
+{
+    var diagnostics = new RepoIndexMirror().Check(indexCheckRoot);
+    PrintDiagnostics(diagnostics);
+    return diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error)
+        ? PatcherExitCodes.Error
+        : PatcherExitCodes.Success;
+}
+
+// Accept --check on either side of the path: `index build --check <root>` and the
+// equally-natural `index build <root> --check` both run the write-nothing CI gate.
+string? indexBuildCheckRoot =
+    args is ["index", "build", "--check", var flagFirstRoot] ? flagFirstRoot
+    : args is ["index", "build", var flagLastRoot, "--check"] ? flagLastRoot
+    : null;
+if (indexBuildCheckRoot is not null)
+{
+    var diagnostics = new RepoIndexMirror().Build(indexBuildCheckRoot, checkOnly: true);
+    PrintDiagnostics(diagnostics);
+    return diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error)
+        ? PatcherExitCodes.Error
+        : PatcherExitCodes.Success;
+}
+
+if (args is ["index", "build", var indexBuildRoot])
+{
+    var diagnostics = new RepoIndexMirror().Build(indexBuildRoot, checkOnly: false);
     PrintDiagnostics(diagnostics);
     return diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error)
         ? PatcherExitCodes.Error
@@ -459,6 +492,8 @@ static void PrintUsage()
     Console.WriteLine("  pagonia-patcher schema-validate --lock <collection-lock-yaml>");
     Console.WriteLine("  pagonia-patcher schema-validate --repo-index <repo-index-yaml>");
     Console.WriteLine("  pagonia-patcher schema-validate --catalog <catalog-yaml>");
+    Console.WriteLine("  pagonia-patcher index-check <repo-root>");
+    Console.WriteLine("  pagonia-patcher index build <repo-root> [--check]");
     Console.WriteLine("  pagonia-patcher plan --game <game-root> --mods <mod-directory> [--tweak <mod-id>:<tweak-id>=<value>] [--out <plan.md>] [--json <plan.json>]");
     Console.WriteLine("  pagonia-patcher plan --game <game-root> --collection <collection-yaml> [--collection <collection-yaml>] --mods-root <mods-root> [--out <plan.md>] [--json <plan.json>]");
     Console.WriteLine("  pagonia-patcher plan --game <game-root> --lock <collection-lock-yaml> --mods-root <mods-root> [--out <plan.md>] [--json <plan.json>]");

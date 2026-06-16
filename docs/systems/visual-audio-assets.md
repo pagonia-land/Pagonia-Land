@@ -37,7 +37,7 @@ generated/catalog/filters/packages/<package>/asset-references.md
 generated/catalog/filters/packages/<package>/visual-audio-components.md
 ```
 
-The local catalog currently detects 5,406 asset reference rows and 2,759 visual/audio component rows.
+The local catalog currently detects 5,406 asset reference rows and 2,760 visual/audio component rows.
 
 ## Asset Reference Catalog
 
@@ -63,14 +63,16 @@ Current asset type counts:
 
 | Asset type | Count |
 | --- | ---: |
-| Icon | 1,976 |
+| Icon | 1,978 |
 | Prefab | 995 |
-| AudioEvent | 943 |
+| AudioEvent | 944 |
 | Mesh | 811 |
-| Texture | 336 |
-| JsonAsset | 157 |
+| Texture | 473 |
 | CharacterKit | 125 |
 | VFX | 63 |
+| JsonAsset | 17 |
+
+> **1.4.0 asset-extension scheme.** The 1.4.0 "Pagonia Editor Update" renamed every asset-reference path extension — the pre-1.4.0 double suffix `.<type>.json` became a bare `.<type>` (and `.png` → `.image`, `.pile.json` → `.slicedmesh`), and texture-map references (`DiffuseMap` / `NormalMap` / `ParameterMap` / …) dropped their extension entirely. The classifier ([`Get-AssetType`](../../scripts/generate_catalog.ps1)) was updated to recognise both schemes, so the total row count is unchanged (no content was lost). One genuine improvement falls out of the new scheme: texture maps that the old `.texture.json` suffix could only bucket as the generic `JsonAsset` are now correctly `Texture` — which is why `Texture` is higher (and `JsonAsset` lower) than in the pre-1.4.0 snapshots. See [CHANGELOG.md → Asset-reference extension scheme](../../CHANGELOG.md#140-11893194274-2026-06-10-pagonia-editor-update-beta).
 
 The catalog classifies references by field names and path-like values. It is intentionally broad enough to catch likely reusable assets, but it does not prove that every referenced file exists in a pak or that swapping it is safe.
 

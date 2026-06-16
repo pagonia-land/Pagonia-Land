@@ -36,6 +36,7 @@ Common building components:
 | `IdleLocators` | Worker/visual idle locator setup |
 | `AspectProduction` | Production recipes and worker behavior |
 | `AspectStorage` | Storage behavior |
+| `AspectPiles` | Delivery/output piles — the building's interface to the carrier logistics network (`Incoming` / `Outgoing`) |
 | `AspectHome` | Housing/residence behavior |
 | `AspectGatherer` | Gathering behavior |
 | `AspectRecruitmentPlace` | Unit recruitment behavior |
@@ -193,6 +194,21 @@ Some buildings include components such as:
 - `AspectTradeDepot`
 
 These systems often connect to population, logistics, trade, and UI. Treat them as medium/high risk until the reference chain is documented.
+
+## Piles (`AspectPiles`)
+
+`AspectPiles` is one of a building's most load-bearing components: it defines the building's **piles**, and piles are how a building plugs into the **carrier logistics network**. Nearly every working building has them.
+
+Each pile declares a `Usage`:
+
+- **`Incoming`** — goods carriers *deliver* to the building: production inputs, construction materials, and **food for the workers**. If a needed good has no incoming pile, it never arrives and the building stalls.
+- **`Outgoing`** — goods the building *produces* and exposes for carriers to *collect*. No outgoing pile means the product can't leave.
+
+A pile also carries a `MaxCapacity`, a `PileLocator` (where the pile sits on the building), a `PositionType`, and a `Resources` list naming the goods it holds or accepts — each by resource GUID, inside `<Description>`.
+
+**Why it matters in the design.** Piles are the physical join points of the economy: one building's `Outgoing` pile → a carrier → the next building's `Incoming` pile *is* a production chain. The same component underlies production, gathering, construction supply, and worker feeding. That makes pile edits **medium/high risk** — a wrong resource GUID, a flipped `Usage`, or a missing pile silently breaks delivery or pickup and stalls the chain, usually with no error message.
+
+**Worked example — feeding a "Super Hut".** The Pagonia Editor's official Example Mod adds a new woodcutter ("Super Hut") with no bespoke food mechanic; it reuses this pattern. Its six workers consume stamina while gathering (`AspectGatherer` → `<ConsumedStamina>1</ConsumedStamina>` on the gather jobs), and an **`Incoming` pile** lists `Ration` + `NutritionMeal` as the goods to deliver — so carriers bring meals, the workers eat, and stamina refills. In the editor that pile was layered onto the inherited Woodcutter as a sparse `<InheritedIndex>` override (set `Usage=Incoming`, then append the two food resources) — see [How `<InheritedIndex>` list-merge works](dlc-patch-override-model.md#how-inheritedindex-list-merge-works).
 
 ## Placement And Terrain
 

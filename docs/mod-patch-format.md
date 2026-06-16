@@ -81,8 +81,8 @@ patchFormatVersion: 0.1
 id: pagonia-land.example.cheaper-sawmill
 name: Cheaper Sawmill
 version: 0.1.0
-author: TheLavaBlock
-gameDatabaseVersion: "1.3.2-11873+194094"
+author: Pagonia Land
+gameDatabaseVersion: "1.4.0-11944+194631"
 description: Lowers one Sawmill construction cost for local testing.
 requiredPackages:
   - core
@@ -125,7 +125,7 @@ operations:
 | `name` | Human-readable mod name |
 | `version` | Mod version |
 | `author` | Author or team |
-| `gameDatabaseVersion` | Exact program/database version the mod was authored against, such as `1.3.2-11873+194094` |
+| `gameDatabaseVersion` | Exact program/database version the mod was authored against, such as `1.4.0-11944+194631` |
 | `description` | Short description |
 | `requiredPackages` | Packages that must be present, such as `core`, `dlc1`, `decorations1`, or `tools` |
 | `optionalPackages` | Packages that enable optional patch sets when present |
@@ -142,7 +142,7 @@ operations:
 Use the exact program version that belongs to the extracted GameDatabase XML set:
 
 ```yaml
-gameDatabaseVersion: "1.3.2-11873+194094"
+gameDatabaseVersion: "1.4.0-11944+194631"
 ```
 
 Prefer this exact version over descriptive names such as "Meadowsong release". Human labels can still be used in notes, but validators and patch files need stable, unambiguous identifiers.
@@ -257,7 +257,7 @@ Start with a small operation set. More operations can be added later after real 
 | `mergeComponent` | Add missing fields to an existing component | Medium |
 | `removeListItem` | Remove one matching item from a list | High |
 | `replaceNode` | Replace a whole XML node | High |
-| `addEntity` | Add a new entity with a new GUID | High |
+| `addEntity` | Add a new entity with a new GUID (⚠ advanced — container contract not yet finalised; see note below) | High |
 | `removeEntity` | Remove an entity | Very high |
 
 The **Beginner Risk** column above is descriptive guidance. It is *not* the
@@ -397,7 +397,7 @@ The `entries:` workflow above produces a patched copy of an existing base pak �
 pak:
   name: pagonia-overlay-example         # required — becomes the module folder + .gd.bin filename
   summary: One-line description shown in mod browsers
-  author: TheLavaBlock
+  author: Pagonia Land
   image: pagonia-overlay-example/images/preview.image
   dependencies:                          # optional — defaults to ["core"] when omitted
     - core

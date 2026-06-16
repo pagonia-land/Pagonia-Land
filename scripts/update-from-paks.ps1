@@ -23,7 +23,7 @@
 #
 # Usage:
 #   pwsh ./scripts/update-from-paks.ps1                                # auto-reads version from the game-paks/ exe
-#   pwsh ./scripts/update-from-paks.ps1 -NewVersion 1.3.1-11826+193733
+#   pwsh ./scripts/update-from-paks.ps1 -NewVersion 1.4.0-11944+194631
 #
 # Without -NewVersion, the version is read from the game executable staged in
 # game-paks/ (its ProductVersion — the same string mods declare as
@@ -48,6 +48,12 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $scripts = Join-Path $repoRoot "scripts"
+
+# -Clean is accepted for backward compatibility only; the extract step below
+# always cleans game-gdb/, so the switch is a no-op. Note it if explicitly set.
+if ($Clean) {
+    Write-Host "Note: -Clean is a no-op (game-gdb/ is always cleaned before extraction)."
+}
 
 function Invoke-Step([string]$Label, [string]$ScriptName, [string[]]$ScriptArgs = @()) {
     Write-Host ""

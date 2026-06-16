@@ -40,14 +40,14 @@ When packages are active, their XML entities appear to be combined into one usab
 
 ## Evidence From The Current Data
 
-Current scan (`1.3.2-11873+194094`, regenerated 2026-06-09):
+Current scan (`1.4.0-11944+194631`, regenerated 2026-06-16):
 
 | Observation | Count |
 | --- | ---: |
-| Total entities | 4,711 |
+| Total entities | 4,715 |
 | Duplicate entity GUIDs | 0 |
-| `core` entities | 4,147 |
-| `dlc1` entities | 519 |
+| `core` entities | 4,149 |
+| `dlc1` entities | 521 |
 | `decorations1` entities | 19 |
 | `tools` entities | 26 |
 | `<Entity InheritanceMode="...">` uses (across packages) | 51 |
@@ -142,7 +142,7 @@ So `dlc1.pak` sitting in `pak/` tells the tooling nothing about whether *this* p
 
 `Effective = Present ∧ Owned` therefore describes **solo runtime effect** (used for honest messaging — "this stays inactive in single-player"), **not** deploy-ability. `Owned = unknown` resolves to `Effective = false` (the tool never silently assumes ownership) but stays distinct from a hard `not-owned`, so a surface can *prompt you to declare* rather than mislead you into thinking you don't own it.
 
-Co-op parity (everyone deploying the same mod bytes) is a separate concern from ownership, handled by the manager's `profile export` → collection mechanism — not by flipping an ownership flag.
+Co-op parity (everyone deploying the same mod bytes) is a separate concern from ownership, handled by the manager's `profile export` → collection mechanism — not by flipping an ownership flag. This is the **byte-patch** path (Pattern A/B mods, where each player patches their own local paks). The 1.4.0 Pagonia Editor adds a second, newer path — a map's "hosted game database" (its map-scoped GameDatabase changes), published as a pak — whose co-op distribution may work differently (plausibly host-provided like custom maps today, not yet confirmed).
 
 ## Same File Names, Different Contributions
 
@@ -185,7 +185,7 @@ DLC1 mixes three approaches:
 - new tech-tree groups
 - new campaign/scenario database
 
-**Inheritance-mode relations** (Meadowsong-introduced; 49 uses in 1.3.0). Where DLC1 wants to formally relate to a core entity rather than just point at it:
+**Inheritance-mode relations** (Meadowsong-introduced; 51 uses across packages in 1.4.0, up from 49 at the 1.3.0 release). Where DLC1 wants to formally relate to a core entity rather than just point at it:
 
 - `InheritanceMode="Template"` — a new abstract base entity clones structure from a core base. DLC1's `BuildingBase` (Guid `07a9d5fe-...`) inherits from core's building base and overrides DLC-specific fields.
 - `InheritanceMode="Replace"` — a new entity wholesale replaces the inherited one in the merged dataset. Campaign Map 1 swaps in `TechTreeUnlockedT4StoneBlocks DLC1CM1 replace` instead of the core node.

@@ -98,7 +98,7 @@ internal static class SettingsWizard
     private static void RunRemove(StoreLayout layout, IReadOnlyList<CatalogSource> subs)
     {
         AnsiConsole.WriteLine();
-        var canonical = AdvancedHelpers.Pick("Remove which subscription?", subs.Select(s => s.Canonical));
+        if (!AdvancedHelpers.TryPickOrCancel("Remove which subscription? [dim](Esc to cancel)[/]", subs.Select(s => s.Canonical), out var canonical)) { return; }
         var r = new CatalogSubscriptionService().Remove(layout, canonical);
         DiagnosticsRenderer.Render(r.Diagnostics);
         Pause();

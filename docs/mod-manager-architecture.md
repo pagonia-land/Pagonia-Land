@@ -213,7 +213,7 @@ A third-party tool can integrate at three levels:
 Every mod declares the GameDatabase version it was authored against:
 
 ```yaml
-gameDatabaseVersion: "1.3.2-11873+194094"
+gameDatabaseVersion: "1.4.0-11944+194631"
 ```
 
 Package requirements:

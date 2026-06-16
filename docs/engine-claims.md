@@ -11,7 +11,7 @@ It exists for two audiences:
 
 > **Maintenance rule.** When a claim is confirmed, corrected, or refuted, update its row here *and* the canonical page it links to. Never let this register and a detail page disagree. When you add a new engine/database claim anywhere in the docs, add its row here too. See the methodology note in [quirks-and-anomalies.md → `InheritanceMode="Unload"` ships but is unused](quirks-and-anomalies.md#inheritancemodeunload-ships-but-is-unused) for *why* a data scan alone is not enough.
 
-**Baseline:** `1.3.1-11826+193733` (1.3.1 hotfix, 2026-06-02). **Register captured:** 2026-06-06.
+**Baseline:** `1.4.0-11944+194631` (1.4.0 Pagonia Editor Update, Beta Update #1). **Register captured:** 2026-06-14 (register unchanged through 1.4.0-11944 — the structural diff against the previous beta is a no-op).
 
 ## How to read the status column
 
@@ -32,7 +32,7 @@ Direct developer statements — each row's **Source** links straight to the quot
 | The engine merges every loaded module's `*.gd.xml` into one logical entity set per game session. | [Dev statement 1](mod-distribution.md#dev-statement-1) |
 | Modders relate entities across paks via four primitives the devs named: **unload / replace / template / extend**. | [Dev statement 1](mod-distribution.md#dev-statement-1) |
 | GDB modding rolls out in two waves: **per-map first**, then **globally active** while the mod is enabled. | [Dev statement 2](mod-distribution.md#dev-statement-2) |
-| There is an internal **editor for the game database** (EE's own authoring tool); a modder-facing GDB editor is planned by extending the Pagonia Editor, not in the current build. | [Dev reply](mod-distribution.md#dev-reply) |
+| There is an internal **editor for the game database** (EE's own authoring tool); the modder-facing GDB editor is being delivered by extending the Pagonia Editor — **map-scoped editing shipped in the 1.4.0 beta (Wave 1)**, globally-active GDB mods remain planned (Wave 2, Q3 2026). | [Dev reply](mod-distribution.md#dev-reply) |
 | **Custom mesh import is not supported yet** — new entities must reuse shipped meshes/textures/audio. | [Dev reply](mod-distribution.md#dev-reply) |
 | **`InheritanceMode="Unload"` is engine-implemented since Meadowsong but unused in shipped content.** A proxy entity unloads a target so the merged DB omits it entirely. | [Dev statement 3](mod-distribution.md#dev-statement-3) |
 | An `Unload` is **safe only when nothing else references the target**; an effective unload usually means unloading the target's dependents together. Some subsystems validate references, others don't → finding the safe set is currently trial-and-error. | [Dev statement 3](mod-distribution.md#dev-statement-3) |
@@ -48,13 +48,13 @@ Measured from local scans of the shipped paks and version diffs. Reproduce with 
 
 | Claim | Evidence |
 | --- | --- |
-| 4,711 entity definitions, **0 duplicate GUIDs** (1.3.2). | [dlc-patch-override-model.md → Current Evidence](dlc-patch-override-model.md#current-evidence) |
+| 4,715 entity definitions, **0 duplicate GUIDs** (1.4.0). | [dlc-patch-override-model.md → Current Evidence](dlc-patch-override-model.md#current-evidence) |
 | `InheritanceMode` use in shipped data: **18 Template / 14 Replace / 19 Incremental / 0 Unload**. | [mod-distribution.md → Confirmed primitives](mod-distribution.md#confirmed-primitives) |
 | Each of the 51 shipped `InheritanceMode` uses targets a **distinct** `InheritedGuid` — no two-mods-on-one-target conflicts exist *in shipped data*. | [quirks-and-anomalies.md → Each InheritedGuid target is hit exactly once](quirks-and-anomalies.md#each-inheritedguid-target-is-hit-exactly-once) |
 | The encounter-level null-GUID `<ReplaceSelf>` "unload" pattern is pre-Meadowsong (13 in 1.2.2 → 17 in 1.3.0). It is **distinct** from the entity-level `Unload` mode. | [mod-distribution.md → Confirmed primitives](mod-distribution.md#confirmed-primitives) |
 | The `.gd.bin` index format (7-byte v3 header) is stable across the 1.2.2 → Meadowsong jump. | [mod-distribution.md](mod-distribution.md#cross-pak-entity-merging-meadowsong) |
 | Reference resolution rate ≈ **77%**; null-GUID share ≈ **23%** and rising — driven by optional-empty fields, not reference rot. | [quirks-and-anomalies.md → Reference resolution rate drops](quirks-and-anomalies.md#reference-resolution-rate-drops-with-each-new-version) |
-| Component vocabulary grew 281 → 313 (Meadowsong) → 315 (1.3.1) types. | [CHANGELOG.md](../CHANGELOG.md) |
+| Component vocabulary grew 281 → 313 (Meadowsong) → 315 (1.3.1) types; unchanged through 1.4.0. | [CHANGELOG.md](../CHANGELOG.md) |
 | The Pattern B overlay model is real and shipping in the wild (the mod.io camera/zoom mod overrides `system.json` from a side-by-side pak). | [mod-distribution.md → Pattern B](mod-distribution.md) |
 
 ---

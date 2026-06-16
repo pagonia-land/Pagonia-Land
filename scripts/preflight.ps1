@@ -27,6 +27,10 @@
          (sandbox/examples/manager-walkthrough/run.ps1) which drives every
          pagonia-manager command against a fixture game tree and verifies
          the SHA-256 round trip after deploy + rollback.
+      8. Dry-run every example/official mod against a real game-gdb
+         (scripts/check-examples-against-gdb.ps1) to catch patch targets that
+         drifted after a game update. Skips itself (no-op) when no local
+         game-gdb is available, so CI stays green while local runs gate.
 
     If any stage fails, the script stops and reports the failing stage.
 
@@ -86,20 +90,25 @@ Step 'Workflow lint (actionlint)' {
     pwsh -NoProfile -File (Join-Path $PSScriptRoot 'check-workflows.ps1')
 }
 
-# Step-N policy: internal roadmap step references ("Step 56", "Step-32") must
-# never appear in shipped source. Gate the C# tree (comments + identifiers);
-# tutorial "Step 1/2/3" headings in docs/examples are legitimate and not checked.
-Step 'Step-N policy (no roadmap step refs in C#)' {
+# Roadmap-leak policy: internal roadmap references ("Step 56", "Step-32",
+# "Phase 9", "patcher roadmap ...") must never appear in shipped source — the
+# public repo ships without the roadmaps/ tree, so these refs would dangle and
+# they couple the code to internal planning. Gate the C# tree (comments +
+# identifiers). Capitalised "Step N" / "Phase N" only, so lowercase algorithm
+# prose ("step 1", "steps 2-3") and tutorial "Step 1/2/3" headings in
+# docs/examples are legitimate and not flagged. "roadmap" is matched
+# case-insensitively.
+Step 'Roadmap-leak policy (no Step/Phase/roadmap refs in C#)' {
     $hits = Get-ChildItem -Path 'tools' -Recurse -Filter *.cs -File |
         Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
-        Select-String -Pattern 'Step[- ]?\d+' -CaseSensitive
+        Select-String -Pattern '(?-i:(Step|Phase)[- ]?\d+)|(?i:roadmap)' -CaseSensitive
     if ($hits) {
-        Write-Host 'Found roadmap "Step N" references in C# source (remove them — they belong in internal planning notes only):' -ForegroundColor Red
+        Write-Host 'Found roadmap references in C# source (remove them — they belong in internal planning notes only):' -ForegroundColor Red
         $hits | ForEach-Object { Write-Host "  $($_.Path):$($_.LineNumber): $($_.Line.Trim())" -ForegroundColor Red }
         $global:LASTEXITCODE = 1
     }
     else {
-        Write-Host 'Step-N policy: clean.' -ForegroundColor Green
+        Write-Host 'Roadmap-leak policy: clean.' -ForegroundColor Green
         $global:LASTEXITCODE = 0
     }
 }
@@ -146,6 +155,12 @@ if (-not $SkipSchemaValidate) {
     Step 'schema-validate official-mods index' {
         dotnet run --project $patcherCli --no-build -c Debug -- schema-validate --repo-index official-mods/index.yaml
     }
+    # Cross-check that the index's mirrored fields (displayName / version /
+    # gameDatabaseVersion / safetyFlags) still match each mod.yaml — the index is a
+    # browse cache that can silently drift from the manifests it copies.
+    Step 'index-check official-mods (mirror vs mod.yaml)' {
+        dotnet run --project $patcherCli --no-build -c Debug -- index-check official-mods
+    }
     foreach ($mod in @('cheaper-sawmill', 'cheaper-quarry', 'bigger-storage')) {
         Step "schema-validate official-mods/$mod" {
             dotnet run --project $patcherCli --no-build -c Debug -- schema-validate --mod "official-mods/mods/$mod"
@@ -170,6 +185,15 @@ if (-not $SkipSchemaValidate) {
 # drift fails here loudly.
 Step 'Manager walkthrough (end-to-end)' {
     pwsh -NoProfile -File $managerWalk
+}
+
+# Example-mod drift: dry-run every shipped example/official mod against a real
+# game database (the out-of-band `plan` check the schema-validate stages refer
+# to). Catches stale expectedOldValue / expectedOldXml / target GUIDs after a
+# game update. Skips itself (exit 0) when no local game-gdb is available, so it
+# is a no-op in CI and a real gate locally.
+Step 'Example mods resolve against game-gdb' {
+    pwsh -NoProfile -File (Join-Path $PSScriptRoot 'check-examples-against-gdb.ps1') -NoBuild
 }
 
 Write-Host ''

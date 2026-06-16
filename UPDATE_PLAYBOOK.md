@@ -101,6 +101,7 @@ If you skip `-NewVersion`, the orchestrator reads the version from the game exe 
 After the orchestrator finishes, **the following are still manual**:
 
 - `pwsh ./scripts/diff_versions.ps1 -Old snapshots/<old> -New snapshots/<NewVersion>` — produces `generated/diffs/<old>_to_<new>/` with the structural diff (entities added/removed/changed, reference deltas).
+- **`pwsh ./scripts/check-examples-against-gdb.ps1` — run this every update, no exceptions.** It dry-runs every shipped example/sandbox/official mod against the freshly-extracted `game-gdb` and fails if any patch target drifted (renamed asset, moved entity, changed value, new child element). This is the only thing that reliably catches an example still pointing at the old data after the update — the version *string* matching tells you nothing about whether the *targets* still resolve. Run it, then fix every drift it names: update the example mod **and** any doc that quotes the same value (see the example-manifests checklist item under [Version Currency](#version-currency)). Do not consider the update done until this passes clean. Also runs as the final stage of `scripts/preflight.ps1`.
 - Write a [CHANGELOG.md](CHANGELOG.md) entry summarising the changes, cross-referencing `game-paks/patch_notes.txt` if present.
 - Update [REFERENCE.md](REFERENCE.md) and [VALIDATION_BASELINE.md](VALIDATION_BASELINE.md) counts as needed.
 - Commit. Only Markdown changes and any small text updates are tracked; `game-gdb/`, `generated/`, and `snapshots/` stay local.
@@ -167,7 +168,7 @@ Manual (not auto-checked — verify by hand against the new diff/catalog):
 - **Patch-notes review — read *both* sections.** `game-paks/patch_notes.txt` usually splits into a **DLC** block and a **Core Game** block. Skim *both* for changes that affect modders even when they don't move the database counts — pak / package naming and casing, mod-map or mod loading, load order, `.gd.bin` / pak format, file-name rules. (1.3.2's core-game "Fixed loading of mod maps when the package name is not written entirely in lower case" is the worked example — captured in [docs/mod-distribution.md](docs/mod-distribution.md) and the CHANGELOG entry.) Record anything actionable in the relevant modding doc, not only the changelog.
 - **docs/quirks-and-anomalies.md** — **add** a new row to the reference-resolution-rate history table (don't overwrite the old version's row).
 - **CHANGELOG.md** — add a new per-version entry with the validation delta (old→new). The previous entry stays.
-- **Example manifests + illustrative versions** — bump `gameDatabaseVersion` in example mods/collections and "e.g. `<version>`" strings to the new version. Policy: update example and illustrative versions too, but **keep** genuine historical statements (e.g. "Meadowsong shipped as 1.3.0", version diffs), version-drift teaching examples that need two versions, and test fixtures / test code / C# version constants (tests must not be pinned to a specific version unless the test is specifically about versioning).
+- **Example manifests + illustrative versions** — bump `gameDatabaseVersion` in example mods/collections and "e.g. `<version>`" strings to the new version. Policy: update example and illustrative versions too, but **keep** genuine historical statements (e.g. "Meadowsong shipped as 1.3.0", version diffs), version-drift teaching examples that need two versions, and test fixtures / test code / C# version constants (tests must not be pinned to a specific version unless the test is specifically about versioning). Beyond the version *string*, the example **patch targets** can drift too (a renamed asset path, an added child element, a moved GUID). Run `pwsh ./scripts/check-examples-against-gdb.ps1` to find those — it dry-runs every example against the new `game-gdb` and names any whose target no longer resolves. Fix both the example mod and any doc that quotes the same value.
 
 ### Annotation convention
 
@@ -505,8 +506,10 @@ When an AI assistant refreshes the repo, it should:
 6. resolve GUID references
 7. compare key numbers to the previous docs
 8. update Markdown files
-9. mention any unusual changes or unresolved references
-10. avoid modifying extracted XML files unless explicitly asked
+9. **run `scripts/check-examples-against-gdb.ps1` and fix every drift it reports** — realign the example/sandbox/official mods *and* every doc that quotes the same game data (asset paths, expected values, cost XML). This is mandatory on every update, not optional.
+10. re-read the modding docs for stale game data even where the check is silent — prose snippets, asset-path examples, and value walkthroughs that no longer match the new database must be corrected too
+11. mention any unusual changes or unresolved references
+12. avoid modifying extracted XML files unless explicitly asked
 
 ## What Not To Do By Default
 

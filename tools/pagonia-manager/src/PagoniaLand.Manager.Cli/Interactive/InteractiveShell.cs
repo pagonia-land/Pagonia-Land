@@ -36,6 +36,18 @@ internal static class InteractiveShell
                 return ManagerExitCodes.Success;
             }
 
+            // Esc at the main menu is a quick-exit gesture: confirm (Enter quits,
+            // Esc stays) instead of bailing straight out like Ctrl+C does.
+            if (choice == MainMenu.EscapeQuit)
+            {
+                if (ConfirmQuitOnEscape())
+                {
+                    AnsiConsole.MarkupLine("[dim]Bye.[/]");
+                    return ManagerExitCodes.Success;
+                }
+                continue;
+            }
+
             try
             {
                 switch (choice)
@@ -175,6 +187,22 @@ internal static class InteractiveShell
         AnsiConsole.WriteLine();
     }
 
+    // Confirm step shown when Esc is pressed at the main menu. The first (default)
+    // entry is "Quit", so Enter quits immediately; Esc backs out via the cancel
+    // result, landing on "Stay" → returns to the menu. A SelectionPrompt (not a
+    // ConfirmationPrompt) because only it supports Esc-to-cancel.
+    private static bool ConfirmQuitOnEscape()
+    {
+        const string Quit = "Quit";
+        const string Stay = "Stay in the manager";
+        var prompt = new SelectionPrompt<string>()
+            .Title("[bold]Quit Pagonia Land Manager?[/] [dim](Enter to quit, Esc to stay)[/]")
+            .HighlightStyle(new Style(foreground: Color.Aqua))
+            .AddChoices(Quit, Stay);
+        prompt.AddCancelResult(Stay);
+        return AnsiConsole.Prompt(prompt) == Quit;
+    }
+
     private static bool IsCancellation(Exception ex)
         => ex is OperationCanceledException
         // Spectre throws an internal type containing "CancellationRequested" on Ctrl+C
@@ -196,7 +224,7 @@ internal static class InteractiveShell
                 .LeftJustified()
                 .Color(Color.Aqua));
         AnsiConsole.MarkupLine($"[bold]Manager[/] [aqua]{ManagerInfo.Version}[/]");
-        AnsiConsole.MarkupLine("[dim]Interactive mode. Arrow keys to navigate, Enter to select. Submit an empty line to cancel a prompt, or pick \"Back\" in a menu; Ctrl+C quits.[/]");
+        AnsiConsole.MarkupLine("[dim]Interactive mode. Arrow keys to navigate, Enter to select. Submit an empty line to cancel a prompt, or pick \"Back\" in a menu; Esc at the main menu (or Ctrl+C) quits.[/]");
         AnsiConsole.MarkupLine("[dim]Pass a CLI command (e.g. --version, status, install ...) to skip this and use scripted mode instead.[/]");
         AnsiConsole.WriteLine();
     }

@@ -133,8 +133,9 @@ public sealed class DirectUrlFetcher
             : rootFull + Path.DirectorySeparatorChar;
 
         // Bound the extraction independently of the (already-capped) download size: a small
-        // compressed archive can declare a huge number of entries or huge uncompressed sizes
-        // (a zip bomb). Cap both the entry count and the cumulative declared uncompressed bytes.
+        // compressed archive can declare a huge number of entries or inflate hugely (a zip bomb).
+        // Cap the entry count, and cap the ACTUAL decompressed bytes as they are written (not the
+        // attacker-controlled declared entry.Length, which a bomb understates).
         const long maxUncompressedBytes = 8L * 1024 * 1024 * 1024; // 8 GiB
         const int maxEntries = 100_000;
         long totalUncompressed = 0;
@@ -152,11 +153,10 @@ public sealed class DirectUrlFetcher
             }
 
             entryCount++;
-            totalUncompressed += entry.Length;
-            if (entryCount > maxEntries || totalUncompressed > maxUncompressedBytes)
+            if (entryCount > maxEntries)
             {
                 diagnostics.Add(Error(ManagerDiagnosticCodes.DirectUrlArchiveTooLarge,
-                    $"Archive is too large to extract safely ({entryCount} entries, {totalUncompressed} declared uncompressed bytes) — refused (possible zip bomb)."));
+                    $"Archive declares too many entries ({entryCount}) to extract safely — refused (possible zip bomb)."));
                 return false;
             }
 
@@ -191,11 +191,28 @@ public sealed class DirectUrlFetcher
                 Directory.CreateDirectory(destDir);
             }
 
-            // overwrite: true so partial / interrupted extracts don't leave the
-            // temp tree in a broken half-extracted state on retry. The temp
-            // root is unique per fetch anyway, so no real overwrite happens in
-            // a single happy-path run.
-            entry.ExtractToFile(destFull, overwrite: true);
+            // Copy through a counting loop and abort if the ACTUAL decompressed bytes blow past the
+            // cap — entry.Length is attacker-controlled header metadata, so a bomb can declare a tiny
+            // size yet inflate to gigabytes on disk. The temp root is unique per fetch and the caller
+            // deletes it on failure, so a half-written file here is cleaned up.
+            using (var entryStream = entry.Open())
+            using (var destStream = new FileStream(destFull, FileMode.Create, FileAccess.Write, FileShare.None, CopyBufferBytes))
+            {
+                var buffer = new byte[CopyBufferBytes];
+                int read;
+                while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    totalUncompressed += read;
+                    if (totalUncompressed > maxUncompressedBytes)
+                    {
+                        diagnostics.Add(Error(ManagerDiagnosticCodes.DirectUrlArchiveTooLarge,
+                            $"Archive expands past the {maxUncompressedBytes / (1024L * 1024 * 1024)} GiB uncompressed limit — refused (possible zip bomb)."));
+                        return false;
+                    }
+
+                    destStream.Write(buffer, 0, read);
+                }
+            }
         }
         return true;
     }

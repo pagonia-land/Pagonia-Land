@@ -81,7 +81,7 @@ if (-not (Test-Path -LiteralPath $quickstart)) {
         # Resolve relative to the quickstart's location.
         $resolved = Join-Path (Split-Path -Parent $quickstart) $pathOnly
         try {
-            $abs = Resolve-Path -LiteralPath $resolved -ErrorAction Stop
+            Resolve-Path -LiteralPath $resolved -ErrorAction Stop | Out-Null
             Pass "link -> $target"
         } catch {
             Fail "broken link -> $target  (looked for: $resolved)"

@@ -19,7 +19,7 @@ Pagonia Land tools ship as **Native AOT single-file binaries** — no .NET runti
 | macOS Intel | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-manager-osx-x64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-patcher-osx-x64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-paker-osx-x64.tar.gz) |
 | macOS Apple Silicon | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-manager-osx-arm64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-patcher-osx-arm64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-paker-osx-arm64.tar.gz) |
 
-The download URLs above always point at the latest published release. The filename inside each archive carries the version (e.g. `pagonia-manager-0.1.0-win-x64/`).
+The download URLs above always point at the latest published release. The filename inside each archive carries the version (e.g. `pagonia-manager-0.3.0-win-x64/`).
 
 !!! tip "Most modders only need the manager"
     `pagonia-manager` wraps the patcher and paker cores. Unless you're writing mods by hand or scripting `.pak` operations, the manager is the only download you need.

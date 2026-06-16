@@ -175,6 +175,14 @@ public sealed partial class ManifestValidator
                             $"tweak '{label}' has min {min.ToString(CultureInfo.InvariantCulture)} greater than max {max.ToString(CultureInfo.InvariantCulture)}."));
                     }
 
+                    // A non-positive step makes the wizard's stepper meaningless (no movement, or
+                    // backwards). The schema can't express "> 0" cleanly, so lint it here.
+                    if (tweak.Step is { } step && step <= 0)
+                    {
+                        diagnostics.Add(Warning(DiagnosticCodes.TweakStepInvalid,
+                            $"tweak '{label}' has a non-positive step {step.ToString(CultureInfo.InvariantCulture)}; step must be greater than zero."));
+                    }
+
                     break;
                 case "enum":
                     ValidateEnumTweakDefault(tweak, label, diagnostics);

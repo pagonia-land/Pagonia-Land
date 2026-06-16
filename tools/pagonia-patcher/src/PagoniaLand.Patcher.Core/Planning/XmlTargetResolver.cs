@@ -159,6 +159,14 @@ public sealed class XmlTargetResolver
             clampMax = parsedMax;
         }
 
+        if (!ArithmeticPatchOps.ResultIsFinite(operationType, oldNumber, operandNumber))
+        {
+            return TargetResolveResult.Failed(Error(
+                DiagnosticCodes.ArithmeticResultNotFinite,
+                $"{operationType} on target value '{oldValue}' with {operandField} '{operand}' overflows to a non-finite value.",
+                fullPath));
+        }
+
         var newValue = ArithmeticPatchOps.Compute(
             operationType, oldNumber, operandNumber, operation.Rounding, clampMin, clampMax, out var clamped);
 
@@ -887,6 +895,14 @@ public sealed class XmlTargetResolver
         return current;
     }
 
+    // Strip exactly one matching surrounding quote pair, so a value like 'O''Brien' or a
+    // genuinely-quoted literal is handled cleanly while a mismatched/duplicated quote isn't
+    // silently swallowed (the old char-set Trim removed any run of leading/trailing quotes).
+    private static string StripOneQuotePair(string value)
+        => value.Length >= 2 && (value[0] == '\'' || value[0] == '"') && value[^1] == value[0]
+            ? value[1..^1]
+            : value;
+
     private static XElement? ResolveSegment(XElement current, string segment)
     {
         var predicateStart = segment.IndexOf('[', StringComparison.Ordinal);
@@ -911,7 +927,7 @@ public sealed class XmlTargetResolver
         // space would leave the opening quote in place (" 'Widget" survives a
         // quote-only Trim).
         var predicatePath = predicateParts[0].Trim();
-        var expectedValue = predicateParts[1].Trim().Trim('\'', '"');
+        var expectedValue = StripOneQuotePair(predicateParts[1].Trim());
 
         return current.Elements(elementName)
             .FirstOrDefault(element => ResolvePath(element, predicatePath)?.Value == expectedValue);
@@ -930,9 +946,16 @@ public sealed class XmlTargetResolver
                 return true;
             }
 
-            if (segment.IndexOf('[', StringComparison.Ordinal) == 0)
+            var open = segment.IndexOf('[', StringComparison.Ordinal);
+            if (open == 0)
             {
                 reason = $"the segment '{segment}' has a predicate with no element name before '['";
+                return true;
+            }
+
+            if (open > 0 && !segment.EndsWith(']'))
+            {
+                reason = $"the segment '{segment}' has a predicate that is missing its closing ']'";
                 return true;
             }
         }

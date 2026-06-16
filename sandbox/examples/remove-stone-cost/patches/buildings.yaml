@@ -17,4 +17,4 @@ operations:
     # expectedOldXml must match an existing child of <Costs> exactly (after
     # whitespace normalisation). The patcher refuses to remove anything else.
     expectedOldXml: |
-      <Item><Content><Resource>d8dd765a-ac73-49cc-a9b9-f6102f6f8e07</Resource><Amount>4</Amount></Content></Item>
+      <Item><Content><Resource>d8dd765a-ac73-49cc-a9b9-f6102f6f8e07</Resource><Amount>4</Amount><PileLocator>stc_input_construction_1</PileLocator></Content></Item>

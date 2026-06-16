@@ -30,6 +30,9 @@ Thumbs.db
 *.tmp
 *.log
 
+# Local scratch / probe workspace.
+/tmp/
+
 # .NET build output.
 **/bin/
 **/obj/

@@ -53,3 +53,11 @@ jobs:
             echo "--- $collection"
             pagonia-patcher schema-validate --collection "$collection"
           done
+
+      # Cross-check that index.yaml's mirrored fields (displayName / version /
+      # gameDatabaseVersion / safetyFlags) still match each mod.yaml. schema-validate
+      # only checks the index's shape; this catches a manifest edited without
+      # updating its index entry, an orphaned entry, or a mod missing from the index.
+      # (Requires a pagonia-patcher release that ships the index-check command.)
+      - name: Check index.yaml mirrors each mod.yaml
+        run: pagonia-patcher index-check .

@@ -67,7 +67,7 @@ This is version-specific data. When the game database changes, regenerate the ca
 
 ## Current Local Snapshot
 
-The latest local catalog generation produced (as of `1.3.2-11873+194094`, 1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09):
+The latest local catalog generation produced (as of `1.4.0-11944+194631`, 1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, Steam Beta branch, 2026-06-16):
 
 | Catalog | Count |
 | --- | ---: |
@@ -80,11 +80,11 @@ The latest local catalog generation produced (as of `1.3.2-11873+194094`, 1.3.2 
 | Resources | 149 |
 | Resource flow rows | 149 |
 | Resource usage rows | 1,489 |
-| Localization rows | 6,166 |
-| Unique localization keys | 4,874 |
+| Localization rows | 6,172 |
+| Unique localization keys | 4,880 |
 | Declared localization tags | 261 |
-| Referenced localization-like keys | 5,905 |
-| Keys not in local tag index | 5,823 |
+| Referenced localization-like keys | 5,911 |
+| Keys not in local tag index | 5,829 |
 | Objective flow rows | 814 |
 | Objective flow rows with preconditions | 249 |
 | Objective flow rows with rewards | 124 |
@@ -102,25 +102,25 @@ The latest local catalog generation produced (as of `1.3.2-11873+194094`, 1.3.2 
 | Seasonal rows | 256 |
 | Seasonal rows with allowed seasons | 1 |
 | Asset reference rows | 5,406 |
-| Icon references | 1,976 |
+| Icon references | 1,978 |
 | Prefab references | 995 |
 | Mesh references | 811 |
-| Texture references | 336 |
-| Audio event references | 943 |
+| Texture references | 473 |
+| Audio event references | 944 |
 | Character kit references | 125 |
-| Visual/audio component rows | 2,759 |
+| Visual/audio component rows | 2,760 |
 | Visual/audio components with assets | 1,859 |
-| Visual/audio components with audio | 417 |
+| Visual/audio components with audio | 418 |
 | Tools/editor rows | 29 |
 | Tools terrain sediment rows | 4 |
 | Tools vegetation group rows | 3 |
 | Tools vegetation rows | 10 |
 | Tools texture rows | 7 |
 | Tools globals and brush rows | 5 |
-| Notification and narration rows | 495 |
-| Notification rows | 152 |
+| Notification and narration rows | 496 |
+| Notification rows | 153 |
 | Narration dialog rows | 336 |
-| Referenced notification and narration rows | 416 |
+| Referenced notification and narration rows | 417 |
 | Unreferenced notification and narration rows | 78 |
 | Terrain props | 737 |
 | Terrain props with blocking | 505 |
@@ -151,7 +151,7 @@ The latest local catalog generation produced (as of `1.3.2-11873+194094`, 1.3.2 
 | Shrine recipes | 35 |
 | Production graph edges | 277 |
 | Production chain graph edges | 450 |
-| Search index items | 26,858 |
+| Search index items | 26,870 |
 | Package filters | 4 |
 | Buildings with recipes | 26 |
 | Buildings with dependencies | 146 |

@@ -40,7 +40,20 @@ public sealed class ReferenceGdbIndex
             return new ReferenceGdbIndex(entitiesByGuid, referencedGuids);
         }
 
-        foreach (var path in Directory.EnumerateFiles(gameRoot, "*.gd.xml", SearchOption.AllDirectories))
+        // The enumeration itself is lazy: an IOException / access error can surface mid-iteration
+        // (e.g. a subtree becomes unreadable). Catch around the loop so we keep whatever was indexed
+        // so far rather than aborting the whole advisory pass — consistent with the per-file skip below.
+        IEnumerable<string> paths;
+        try
+        {
+            paths = Directory.EnumerateFiles(gameRoot, "*.gd.xml", SearchOption.AllDirectories).ToList();
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            return new ReferenceGdbIndex(entitiesByGuid, referencedGuids);
+        }
+
+        foreach (var path in paths)
         {
             XDocument document;
             try

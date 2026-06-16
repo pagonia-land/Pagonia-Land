@@ -51,16 +51,14 @@ internal static class AdvancedMods
             return;
         }
 
-        var modId = AdvancedHelpers.Pick("[bold]Mod to uninstall[/]", installed.Select(m => m.Id).Distinct());
+        if (!AdvancedHelpers.TryPickOrCancel("[bold]Mod to uninstall[/] [dim](Esc to cancel)[/]", installed.Select(m => m.Id).Distinct(), out var modId)) return;
 
         var versions = installed.Where(m => m.Id == modId).Select(m => m.Version).ToList();
         string? version = null;
         if (versions.Count > 1)
         {
-            version = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("[bold]Which version?[/]")
-                    .AddChoices(versions));
+            if (!AdvancedHelpers.TryPickOrCancel("[bold]Which version?[/] [dim](Esc to cancel)[/]", versions, out var picked, search: false)) return;
+            version = picked;
         }
 
         UninstallResult? r = null;
@@ -91,7 +89,7 @@ internal static class AdvancedMods
     }
 
     // Conflict-minimising authoring advisor over an installed mod's overlay
-    // *.gd.xml (patcher Phase 5). Base-free by default; offers an optional game
+    // *.gd.xml. Base-free by default; offers an optional game
     // root to switch on the base-aware checks (cross-DB unload + replace-could-
     // be-incremental).
     private static void RunAdvise(SessionState session)
@@ -106,11 +104,18 @@ internal static class AdvancedMods
             return;
         }
 
-        var modId = AdvancedHelpers.Pick("[bold]Mod to inspect[/]", installed.Select(m => m.Id).Distinct());
+        if (!AdvancedHelpers.TryPickOrCancel("[bold]Mod to inspect[/] [dim](Esc to cancel)[/]", installed.Select(m => m.Id).Distinct(), out var modId)) return;
         var versions = installed.Where(m => m.Id == modId).Select(m => m.Version).ToList();
-        var version = versions.Count > 1
-            ? AnsiConsole.Prompt(new SelectionPrompt<string>().Title("[bold]Which version?[/]").AddChoices(versions))
-            : versions[0];
+        string version;
+        if (versions.Count > 1)
+        {
+            if (!AdvancedHelpers.TryPickOrCancel("[bold]Which version?[/] [dim](Esc to cancel)[/]", versions, out var picked, search: false)) return;
+            version = picked;
+        }
+        else
+        {
+            version = versions[0];
+        }
 
         var read = new ManifestReader().ReadMod(layout.ModVersionDirectory(modId, version));
         if (!read.Success || read.Value is null)

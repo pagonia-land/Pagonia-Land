@@ -261,6 +261,10 @@ public sealed class DeployCleanService
         if (!_stateReader.Exists(layout)) return null;
         var state = _stateReader.Read(layout);
         if (state.LastDeploy is null) return null;
+        // A malformed lastDeploy with an empty GameRoot would throw in GameFingerprint.Compute and
+        // crash `deploys clean`. Treat it as "no active deploy to protect" — the per-fingerprint
+        // keep>=1 floor still preserves each fingerprint's newest backup as the rollback anchor.
+        if (string.IsNullOrWhiteSpace(state.LastDeploy.GameRoot)) return null;
         var fp = GameFingerprint.Compute(state.LastDeploy.GameRoot);
         return (fp, state.LastDeploy.Timestamp);
     }

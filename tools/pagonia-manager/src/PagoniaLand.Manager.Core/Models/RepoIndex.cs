@@ -61,6 +61,32 @@ public sealed class RepoIndexMod
 
     [YamlMember(Alias = "gameDatabaseVersion")]
     public string GameDatabaseVersion { get; init; } = string.Empty;
+
+    [YamlMember(Alias = "safetyFlags")]
+    public RepoIndexSafetyFlags? SafetyFlags { get; init; }
+}
+
+/// <summary>
+/// The four catalog-level safety markers an index entry may carry, so the browse
+/// view can warn users <em>before</em> install. Modelled as strings (<c>true</c> /
+/// <c>false</c> / <c>unknown</c>) to mirror the YAML verbatim without coupling the
+/// manager's general-purpose index deserializers to the patcher's <c>SafetyState</c>
+/// converter. The authoritative copy lives in each mod's <c>mod.yaml</c>; this is the
+/// mirrored cache the manager cross-checks at install time.
+/// </summary>
+public sealed class RepoIndexSafetyFlags
+{
+    [YamlMember(Alias = "requiresNewGame")]
+    public string? RequiresNewGame { get; init; }
+
+    [YamlMember(Alias = "safeToRemove")]
+    public string? SafeToRemove { get; init; }
+
+    [YamlMember(Alias = "multiplayerSafe")]
+    public string? MultiplayerSafe { get; init; }
+
+    [YamlMember(Alias = "campaignSafe")]
+    public string? CampaignSafe { get; init; }
 }
 
 public sealed class RepoIndexCollection

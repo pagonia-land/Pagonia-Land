@@ -9,5 +9,5 @@ operations:
       entityName: Wine
       component: ResourceDescription
       path: Icon
-    expectedOldValue: dlc1/gui/icons/commodities/icon_com_wine_001.png
-    value: dlc1/gui/icons/commodities/icon_com_grapes_001.png
+    expectedOldValue: dlc1/gui/icons/commodities/icon_com_wine_001.image
+    value: dlc1/gui/icons/commodities/icon_com_grapes_001.image

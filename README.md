@@ -24,22 +24,22 @@ The goal is to shorten the path from "I have an idea" to "it works in-game" — 
 
 ## Why This Exists
 
-Pioneers of Pagonia modding has two distinct slices, and they don't overlap much:
+Pioneers of Pagonia modding has two slices — and since the 1.4.0 Pagonia Editor they overlap:
 
-- **Map editor workflow** — making custom maps with the official editor and packaging them for distribution. Documented in the [Pioneers of Pagonia community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding), which covers the editor tooling, map package structure, and a handful of file formats (textures, scenario data).
-- **GameDatabase modding** — changing what already exists in the game: buildings, units, recipes, costs, objectives. Covered by this repository.
+- **Map authoring** — designing a map's terrain, layout, and placement in the official editor, plus the asset/texture file formats. The [Pioneers of Pagonia community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) is the place for that.
+- **GameDatabase modding** — changing what the game is made of: buildings, units, recipes, costs, objectives. Covered by this repository. The 1.4.0 Pagonia Editor now authors GameDatabase changes too (per-map and globally active) and publishes them as ordinary `.pak` mods — our tools work against that published output. The editor's own authoring UI and project format are EE's domain, not ours; we complement the editor rather than duplicate it.
 
-Pagonia Land focuses on the second slice: a structured map of the game's XML data, a declarative patch format with conflict detection, command-line tooling for the install / deploy / rollback lifecycle, and end-to-end worked examples. It does not try to be the place for map editing — for that, the wiki is the right starting point.
+Pagonia Land focuses on the GameDatabase slice: a structured map of the game's XML data, a declarative patch format with conflict detection, command-line tooling for the install / deploy / rollback lifecycle, and end-to-end worked examples. For the map-authoring side — terrain, layout, textures — the wiki is the right starting point.
 
 ## What's Inside
 
-Current snapshot: **`1.3.2-11873+194094`** (1.3.2 Hotfix #2 / "Free Beer" core update, 2026-06-09).
+Current snapshot: **`1.4.0-11944+194631`** (1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, 2026-06-16).
 
 > **Work in progress.** This repository is actively maintained alongside Pioneers of Pagonia itself — every game update gets a snapshot refresh, every new mechanic gets documented, every reported bug or doc gap gets fixed. Things will move and improve. If something looks off or out of date, the next refresh probably covers it.
 
 | Area | What you get |
 | --- | --- |
-| Database snapshot | 59 XML files · 4,711 entities · 31,763 GUID references · 0 errors / 2 stable warnings ([details](VALIDATION_BASELINE.md)) |
+| Database snapshot | 60 XML files · 4,715 entities · 31,763 GUID references · 0 errors / 2 stable warnings ([details](VALIDATION_BASELINE.md)) |
 | Documentation | 30+ guides across six chapters — orientation, database concepts, gameplay data, cross-file systems, modding practice, generated reference ([jump](#documentation-chapters)) — plus a [catalog browser](https://pagonia-land.github.io/Pagonia-Land/catalog/) to explore every entity, recipe, building, and unit in your browser |
 | Patcher | `pagonia-patcher` — declarative `mod.yaml`, ten XML operations, binary pak-entry ops, conflict detection, collections + lockfiles, AOT single-file binary ([CLI](tools/pagonia-patcher/CLI.md)) |
 | Paker | `pagonia-paker` — list / unpack / pack / patch / compress / decompress / classify, `.gd.bin` index encode-decode, Pattern B overlay scaffold, parallel encoding, AOT single-file binary ([CLI](tools/pagonia-paker/CLI.md)) |

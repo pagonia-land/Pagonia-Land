@@ -145,6 +145,10 @@ public static class ManagerDiagnosticCodes
     public const string RemoteIndexMalformed = "manager.remoteIndexMalformed";
     public const string ModNotInRepoIndex = "manager.modNotInRepoIndex";
     public const string RemoteResolvedToCommit = "manager.remoteResolvedToCommit";
+    // The catalog index advertised metadata (version / gameDatabaseVersion / safety)
+    // that disagrees with the mod.yaml actually fetched — the browse list may have
+    // misled the user. Warning, not fatal: the authoritative mod.yaml still installs.
+    public const string RepoIndexMetadataMismatch = "manager.repoIndexMetadataMismatch";
 
     // remote collections — collection install --from gh:<owner>/<repo>[#<ref>]/<id>.
     public const string CrossRepoSourceResolved = "manager.crossRepoSourceResolved";

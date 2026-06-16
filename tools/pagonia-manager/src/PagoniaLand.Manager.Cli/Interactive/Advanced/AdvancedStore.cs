@@ -47,7 +47,7 @@ internal static class AdvancedStore
         {
             AnsiConsole.MarkupLine($"[bold]Status:[/] [green]initialised[/]");
             AnsiConsole.MarkupLine($"  store version: [aqua]{info.StoreVersion}[/]");
-            AnsiConsole.MarkupLine($"  active profile: [aqua]{info.ActiveProfile ?? "(none)"}[/]");
+            AnsiConsole.MarkupLine($"  active profile: [aqua]{Markup.Escape(info.ActiveProfile ?? "(none)")}[/]");
             AnsiConsole.MarkupLine($"  mods: {info.InstalledModCount} • profiles: {info.ProfileCount} • collections: {info.CollectionCount}");
         }
         Pause();

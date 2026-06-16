@@ -81,12 +81,12 @@ public sealed class OverlayGdbReader
             {
                 document = XDocument.Load(path);
             }
-            catch (XmlException exception)
+            catch (Exception exception) when (exception is XmlException or System.IO.IOException or UnauthorizedAccessException)
             {
                 diagnostics.Add(new PatchDiagnostic(
                     PatchDiagnosticSeverity.Warning,
                     DiagnosticCodes.OverlayGdbUnreadable,
-                    $"Could not parse overlay gd.xml: {exception.Message}",
+                    $"Could not read overlay gd.xml: {exception.Message}",
                     path));
                 continue;
             }

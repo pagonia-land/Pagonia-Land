@@ -26,7 +26,7 @@ For example, the current DLC resource `Apples` has:
 Name: Apples
 NamePlural: Apples
 Description: Apples Description
-Icon: dlc1/gui/icons/commodities/icon_com_apples_001.png
+Icon: dlc1/gui/icons/commodities/icon_com_apples_001.image
 ```
 
 ## Step 2: Find The Resource XML
@@ -52,13 +52,13 @@ Icon
 Example style of change:
 
 ```xml
-<Icon>dlc1/gui/icons/commodities/icon_com_apples_001.png</Icon>
+<Icon>dlc1/gui/icons/commodities/icon_com_apples_001.image</Icon>
 ```
 
 to another known icon path that already exists in the database:
 
 ```xml
-<Icon>dlc1/gui/icons/commodities/icon_com_grapes_001.png</Icon>
+<Icon>dlc1/gui/icons/commodities/icon_com_grapes_001.image</Icon>
 ```
 
 For a text-key experiment, change a display key only:

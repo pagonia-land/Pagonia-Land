@@ -35,7 +35,7 @@ internal static class AdvancedProfiles
                 {
                     AdvancedHelpers.Header("Profiles → list");
                     var r = svc.List(layout);
-                    AnsiConsole.MarkupLine($"[bold]Active:[/] [aqua]{r.ActiveProfile}[/]");
+                    AnsiConsole.MarkupLine($"[bold]Active:[/] [aqua]{Markup.Escape(r.ActiveProfile ?? "(none)")}[/]");
                     var t = new Table().Border(TableBorder.Rounded).AddColumn("Name").AddColumn("Default").AddColumn("Active").AddColumn("Enabled");
                     foreach (var p in r.Profiles)
                         t.AddRow(
@@ -52,7 +52,7 @@ internal static class AdvancedProfiles
                     AdvancedHelpers.Header("Profiles → use");
                     var list = svc.List(layout);
                     if (list.Profiles.Count == 0) { AnsiConsole.MarkupLine("[yellow]No profiles.[/]"); Pause(); break; }
-                    var name = AdvancedHelpers.Pick("Switch to:", list.Profiles.Select(p => p.Name));
+                    if (!AdvancedHelpers.TryPickOrCancel("Switch to: [dim](Esc to cancel)[/]", list.Profiles.Select(p => p.Name), out var name)) break;
                     var r = svc.Use(layout, name);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success) AnsiConsole.MarkupLine($"[green]Active profile is now[/] [aqua]{Markup.Escape(name)}[/]");
@@ -64,7 +64,7 @@ internal static class AdvancedProfiles
                     AdvancedHelpers.Header("Profiles → copy");
                     var list = svc.List(layout);
                     if (list.Profiles.Count == 0) { AnsiConsole.MarkupLine("[yellow]No profiles.[/]"); Pause(); break; }
-                    var source = AdvancedHelpers.Pick("Copy which profile:", list.Profiles.Select(p => p.Name));
+                    if (!AdvancedHelpers.TryPickOrCancel("Copy which profile: [dim](Esc to cancel)[/]", list.Profiles.Select(p => p.Name), out var source)) break;
                     if (!AdvancedHelpers.TryPromptText("New profile name:", out var target,
                             n => ProfileNameValidator.IsValid(n, out var why)
                                 ? ValidationResult.Success() : ValidationResult.Error(why)))
@@ -92,7 +92,7 @@ internal static class AdvancedProfiles
                         Pause();
                         break;
                     }
-                    var name = AdvancedHelpers.Pick("Export which profile:", exportable);
+                    if (!AdvancedHelpers.TryPickOrCancel("Export which profile: [dim](Esc to cancel)[/]", exportable, out var name)) break;
                     if (!AdvancedHelpers.TryPromptText("Write collection to file path:", out var outPath)) { break; }
                     var id = AdvancedHelpers.PromptText("Collection id (optional):", allowEmpty: true);
                     var displayName = AdvancedHelpers.PromptText("Collection name (optional):", allowEmpty: true);
@@ -120,7 +120,7 @@ internal static class AdvancedProfiles
                         Pause();
                         break;
                     }
-                    var name = AdvancedHelpers.Pick("Delete:", deletable);
+                    if (!AdvancedHelpers.TryPickOrCancel("Delete: [dim](Esc to cancel)[/]", deletable, out var name)) break;
                     if (!AdvancedHelpers.Confirm($"Really delete [aqua]{Markup.Escape(name)}[/]?", defaultValue: false))
                     {
                         AnsiConsole.MarkupLine("[dim]Aborted.[/]"); Pause(); break;
@@ -136,7 +136,7 @@ internal static class AdvancedProfiles
                     AdvancedHelpers.Header("Profiles → show");
                     var list = svc.List(layout);
                     if (list.Profiles.Count == 0) { AnsiConsole.MarkupLine("[yellow]No profiles.[/]"); Pause(); break; }
-                    var name = AdvancedHelpers.Pick("Show:", list.Profiles.Select(p => p.Name));
+                    if (!AdvancedHelpers.TryPickOrCancel("Show: [dim](Esc to cancel)[/]", list.Profiles.Select(p => p.Name), out var name)) break;
                     var r = svc.Show(layout, name);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success && r.Profile is not null)

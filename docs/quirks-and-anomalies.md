@@ -115,8 +115,10 @@ The fraction of references that resolve to a real entity is going **down** over 
 | 1.3.0-11768+193445 | 31,776 | 24,451 | 7,313 | 12 | 76.95% |
 | 1.3.1-11826+193733 | 31,761 | 24,420 | 7,311 | 30 | 76.89% |
 | 1.3.2-11873+194094 | 31,763 | 24,422 | 7,311 | 30 | 76.89% |
+| 1.4.0-11893+194274 | 31,763 | 24,422 | 7,311 | 30 | 76.89% |
+| 1.4.0-11944+194631 | 31,763 | 24,422 | 7,311 | 30 | 76.89% |
 
-The null-GUID share grew from **18.89%** (1.2.2) to **23.01%** (1.3.0 Meadowsong) and held at **23.02%** in the 1.3.1 hotfix — Meadowsong added 2,371 new null-GUID references (+47%) while only adding 615 new entities (+15%); the 1.3.1 hotfix barely moved the totals, and the 1.3.2 "Free Beer" update moved them less still (+2 entities, +2 resolved refs, the "Other" column steady at 30, resolution rate flat at 76.89%). Note the "Other" unresolved column jumping 12 → 30 in 1.3.1 is *not* reference rot: the 1.3.1 `NoMVP.*` resource cleanup deleted six placeholder resource entities but left four of them still referenced by recipes, adding 18 dangling references. See [VALIDATION_BASELINE.md → Unresolved Non-Null GUID References](../VALIDATION_BASELINE.md#1-unresolved-non-null-guid-references-30).
+The null-GUID share grew from **18.89%** (1.2.2) to **23.01%** (1.3.0 Meadowsong) and held at **23.02%** in the 1.3.1 hotfix — Meadowsong added 2,371 new null-GUID references (+47%) while only adding 615 new entities (+15%); the 1.3.1 hotfix barely moved the totals, the 1.3.2 "Free Beer" update moved them less still (+2 entities, +2 resolved refs, the "Other" column steady at 30, resolution rate flat at 76.89%), and the 1.4.0 "Pagonia Editor Update" beta held everything flat (+4 entities, but reference totals, resolved/null counts, and the 76.89% rate are all unchanged — the editor is the story, not the shipped data); its **Beta Update #1** (`11944`) moved nothing further — three `dlc1` value/schema edits, every count identical. Note the "Other" unresolved column jumping 12 → 30 in 1.3.1 is *not* reference rot: the 1.3.1 `NoMVP.*` resource cleanup deleted six placeholder resource entities but left four of them still referenced by recipes, adding 18 dangling references. See [VALIDATION_BASELINE.md → Unresolved Non-Null GUID References](../VALIDATION_BASELINE.md#1-unresolved-non-null-guid-references-30).
 
 **Likely meaning.** Meadowsong-era XML uses more optional-with-default-null fields than 1.2.2 XML did. The encounter-level `<ReplaceSelf><ReplaceWithEntity>null</ReplaceWithEntity></ReplaceSelf>` "unload" pattern is one example, but the bulk of the increase is probably new component shapes that ship with empty-by-default sub-fields.
 
@@ -247,6 +249,126 @@ The numbers scale roughly with pak size and content complexity. Working hypothes
 
 **Implication for modders.** The bundled paker's Pattern B scaffold writes 28 zero bytes, and this hasn't broken anything observably. Don't try to engineer the values without verification — the field is undocumented.
 
+## Dead / cut content: fully-authored but unreachable
+
+Roughly **60 entities ship with real, player-facing assets (icons, meshes, complete recipe bodies, recruitment costs) yet have no reachable path in normal play.** They are not bugs and not the null-GUID "intentionally empty field" pattern — they are *cut, superseded, or never-wired-up* content that EE left in the shipped database. They cluster into a handful of recognisable abandoned features.
+
+**Methodology.** Candidates were surfaced fast from the generated entity catalog (`generated/catalog/resource-flow.csv` carries `ProducedBy` / `ConsumedBy` / `ConstructionCostFor` / `RecruitmentCostFor` / `UsageCount`; `building-production.csv` is the real building→recipe wiring), then each was re-verified adversarially against the raw `.gd.xml`. The catalog is only a *projection* — it tracks production / construction / recruitment / storage / treasure, but **not** references from objectives, landing parties, techtree, abilities, campaign maps, or mapgen — so the XML is authoritative. An entity counts as "cut" only when *every* reference to its GUID lives inside an `IsAbstract="true"` parent (or a dev/test container), and no reachability root (techtree unlock, a *non-abstract* building's `<ProductionRecipes>`, map placement, concrete landing party, NPC spawn) touches it.
+
+> Two verification gotchas worth recording. (1) The indexed `Grep` tool silently returns **zero hits** for some `.gd.xml` GUID searches (a UTF-16/BOM artifact on the large `productionrecipes.gd.xml`); raw `grep`/`rg` via shell is authoritative — several entities here were nearly mis-filed as "not found" because of it. (2) `building-production.csv` does **not** filter abstract buildings, so an abstract (un-buildable) building's recipes look "produced" in the catalog. That is exactly how the cut *Stone Mason* chain hid: the catalog shows Border Stone as produced by "Stone Mason", but the building itself is `IsAbstract`.
+
+### Cut transport / mechanisation feature (cogwheel + carts + wheels)
+
+The clearest abandoned feature: a transport / mechanisation chain — a cogwheel, wooden and iron-bound wheels, a handcart and a wheelbarrow. The `Wooden Cogwheel` is fully modelled (icon, mesh, pile mesh, carry attachment) but `IsAbstract`; its only producing recipe is assigned to no building, and it is requested only by the abstract `Test all` landing party and orphan objective templates. The wheel/cart recipes carry EE's `NoMVP.` prefix (its internal "not part of the MVP" marker — see the NoMVP section above) and were superseded before ship.
+
+| Entity | GUID | Defining file | Evidence |
+| --- | --- | --- | --- |
+| Wooden Cogwheel (resource) | `80ca9b4e-06cd-4a53-9cfb-a63af8a00a08` | `core/gdb/resources.gd.xml` | All refs abstract; producing recipe in no building, not in techtree |
+| WoodenCogWheelRecipe | `3c7515a2-752a-48c4-913f-b23ea8d9997d` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; assigned to no building |
+| NoMVP.WoddenWheelRecipe | `ec10ab0a-f42c-485c-9efb-4d0fb594d90a` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; child of `BaseRecipe1In1Out` |
+| NoMVP.IronboundWheelRecipe | `96398754-6d6b-4164-84de-bf0dec514936` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| NoMVP.HandcartRecipe | `78faccbf-fc66-4c2c-a76c-3095d8cf3756` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| NoMVP.WheelbarrowRecipe | `23fcda6d-a4e9-48da-b7f1-19cf2f4306a0` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; inputs point at deleted NoMVP resources |
+
+### Unbuilt copper-tools tier
+
+A complete first-generation **copper tool tier** — one fully-authored recipe per tool — that no building or techtree ever wires up. The game instead ships iron tools and a later workshop "3-copper" tier (`Axe3CopperRecipe`, `Pincers3CopperRecipe`, … are live); the single-tool copper recipes below, plus the orphaned `Pickaxe3CopperRecipe`, are the cut remnants. Their shared intermediate good, `Hardwood Boards`, is dead alongside them (consumed only by these cut recipes; the live chain uses Hardwood Trunk).
+
+| Entity | GUID | Defining file | Evidence |
+| --- | --- | --- | --- |
+| AxeCopperRecipe | `7f870c83-ab09-4acc-9644-5766ba2e0a04` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; superseded by `Axe3CopperRecipe` |
+| HammerCopperRecipe | `632fb9a3-2e6d-4bf7-9dd6-dc3ad88d00d1` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| ChiselCopperRecipe | `984199e8-028d-4816-aa73-7f123e363208` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def (unlike live `ChiselIronRecipe`) |
+| KnifeCopperRecipe | `4d8c53ee-5d75-4314-b314-c29818fe4b69` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| PickaxeCopperRecipe | `b67670de-ff96-40f2-8d73-5e0364a64392` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| PincersCopperRecipe | `2e74ff04-1a57-4992-ab5f-558abffb3093` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; live tier is `Pincers3CopperRecipe` |
+| SawCopperRecipe | `793c130c-496e-4894-a365-642f59d4b53b` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; live saw is `SawIronRecipe` |
+| ShovelCopperRecipe | `86d28a9e-46fb-4c5a-9ac8-3e84ac942b97` | `core/gdb/productionrecipes.gd.xml` | No reachable ref (GUID returns 0 hits — likely already removed) |
+| SickleCopperRecipe | `42a83f80-1616-411c-b1d5-39b0d5ac0d7a` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| Pickaxe3CopperRecipe | `2522ca7a-d04a-42c6-a0fe-ee437038e544` | `core/gdb/productionrecipes.gd.xml` | Single self-def; orphaned 3-copper variant (siblings are live) |
+| Hardwood Boards (resource) | `aa3e19cc-14d9-439f-b4d9-ceedfaa620f2` | `core/gdb/resources.gd.xml` | Consumed only by cut copper-tool recipes; live chain uses Hardwood Trunk |
+| HardwoodBoardsRecipe | `184dd446-7031-459a-9c95-270cfa97f8e2` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+
+### Cut "Stone Mason" building and its dressed/border-stone chain
+
+An entire production **building** was cut: `Stone Mason` ships as an `IsAbstract` entity with full assets (`icon_build_stonemason_001.png`, name, description) but is not buildable. Its two recipes — `DressedStoneRecipe` (Stone Block) and `BorderStoneRecipe` (Border Stone) — and the `Border Stone` resource go with it. Note the live game still has the **Stone Block** resource: it survived because the Quarry / Master Quarry produce it directly, so only the Stone Mason *path* is dead, not its output good.
+
+| Entity | GUID | Defining file | Evidence |
+| --- | --- | --- | --- |
+| Stone Mason (building) | `8ba32781-9df4-426e-b32b-924d06479df9` | `core/gdb/buildings.gd.xml` | `IsAbstract`; not in techtree, not placed on any map; no reachable ref |
+| DressedStoneRecipe | `1d493222-c92d-4937-8801-dbdbf3b653a2` | `core/gdb/productionrecipes.gd.xml` | Run only by the abstract Stone Mason; Stone Block comes from the Quarry instead |
+| BorderStoneRecipe | `ecd1d7b5-671a-4451-b1e6-da13228c5866` | `core/gdb/productionrecipes.gd.xml` | Abstract self-def + one `<Recipe>` ref, both inside the abstract Stone Mason |
+| Border Stone (resource) | `7486fadc-0bc5-4b88-ab3c-ed736549ff68` | `core/gdb/resources.gd.xml` | Fully modelled; every ref inside abstract entities; no live consumer |
+
+### Cut elemental-sorceress upgrade line
+
+The spiritual training building (Arcane Academy) trains a base sorceress, but the **elemental upgrade variants** — Mountain II/III and Water II/III — were cut, and they take their cut recruitment goods (gem staffs and wands) and the staff/wand production recipes down with them. The catalog shows the cross-links (e.g. `Ruby Staff` is `RecruitCostFor` `Sorceress Mountain III`, `Sapphire Wand` for `Sorceress Water II`) — but every entity in the chain is unreachable.
+
+| Entity | GUID | Defining file | Evidence |
+| --- | --- | --- | --- |
+| Sorceress Mountain II (unit) | `1c370f86-3b3a-46fa-9310-526e3d27b6d4` | `core/gdb/units.gd.xml` | Single abstract self-def; never spawned or recruited |
+| Sorceress Mountain III (unit) | `179a94aa-5b09-4994-8939-eaa8a9098328` | `core/gdb/units.gd.xml` | Single abstract self-def |
+| Sorceress Water II (unit) | `29c09296-1d1b-4087-b1ae-ac8d54d34d1f` | `core/gdb/units.gd.xml` | Single abstract self-def |
+| Sorceress Water III (unit) | `fa678790-18eb-4183-b9ab-db86523b891b` | `core/gdb/units.gd.xml` | Single abstract self-def |
+| Ruby Staff (resource) | `bff6017c-6ed4-4ad1-8440-062bb98fc8af` | `core/gdb/resources.gd.xml` | All refs abstract; recruit-cost for cut Sorceress Mountain III |
+| Sapphire Staff (resource) | `c0ea5d13-f32f-4ed9-9902-7d92f24dffeb` | `core/gdb/resources.gd.xml` | All refs abstract; recruit-cost for cut Sorceress Water III |
+| Iron Wand (resource) | `583dfb98-33d4-4ee1-acbe-e676d1ea8b11` | `core/gdb/resources.gd.xml` | Produced/consumed only by cut staff/wand recipes |
+| Ruby Wand (resource) | `bf16030f-9b00-4024-8201-556efc8fe760` | `core/gdb/resources.gd.xml` | All refs abstract; recruit-cost for cut Sorceress Mountain II |
+| Sapphire Wand (resource) | `48f7675f-d379-470c-9799-6def7c632cf8` | `core/gdb/resources.gd.xml` | All refs abstract; recruit-cost for cut Sorceress Water II |
+| IronStaffRecipe | `06482375-1229-4f5c-9397-80224a025d5e` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| IronWandRecipe | `57a89026-cfb0-4c8d-b104-623f44d09602` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| EmeraldStaffRecipe | `d8353c68-6702-4079-bd6a-d0f86fdbd38e` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| DiamondStaffRecipe | `e53fd615-fa1b-403f-872c-a463bebe373e` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| RubyStaffRecipe | `91a530ef-4750-4586-8f5d-8212d112dc73` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| StaffRuby | `4450a182-fd22-4483-b1d0-2619be22223e` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| StaffSapphire | `9658c9a8-d802-4c0a-a14c-591fe8252711` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| WandRuby | `ec07af1d-f5bb-4cf7-83b5-49163bde8b89` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| WandSapphire | `699b3bb5-aad2-4e05-ad77-8dc5e7c68f61` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+| NoMVP.SapphireStaffRecipe | `c9d9944a-3786-4d17-a051-9f6a49b3b28e` | `core/gdb/productionrecipes.gd.xml` | Single abstract NoMVP self-def |
+
+### Superseded revisions (`*Old`, `Deprecated`, variant)
+
+A textbook revision pattern: a recipe or building is reworked, the new version keeps the clean name, and the predecessor is renamed `…Old` / `… Deprecated` and left dangling. In each case the live twin is wired into a real building (and often a campaign map) while the `Old` GUID appears only at its own self-definition.
+
+| Entity | GUID | Defining file | Evidence |
+| --- | --- | --- | --- |
+| Copper Hut old (building) | `ec98dbc8-a92f-4f11-b080-07f314900876` | `core/gdb/buildings.gd.xml` | `IsAbstract`; refs only within its own block; live `Copper Hut` is separate |
+| Artisan Blacksmith 3x4 Deprecated (building) | `2323e08a-8727-4a54-9888-8469ebc8f23e` | `core/gdb/buildings.gd.xml` | `IsAbstract`; single self-def, no external ref |
+| Guild Hall 3x3 Deprecated (building) | `301c11c1-8a39-4d56-b6e0-09517f4f6c51` | `core/gdb/buildings.gd.xml` | `IsAbstract`; single self-def, no external ref |
+| IronChainMailRecipeOld | `a5382b19-9d60-49f8-958f-493e058e1433` | `core/gdb/productionrecipes.gd.xml` | Single self-def; live `IronChainMailRecipe` in building + campaign map 2 |
+| IronShieldRecipeOld | `ae7b6381-4bae-450d-ab85-2fbc10203262` | `core/gdb/productionrecipes.gd.xml` | Single self-def; live `IronShieldRecipe` in building + campaign map 2 |
+| SteelDaggersRecipeOld | `ea74ce7e-6f51-4963-9cbd-9acd0b634fd3` | `core/gdb/productionrecipes.gd.xml` | Single self-def; live `SteelDaggersRecipe` in smith + campaign map 4 |
+| SteelHalberdRecipeOld | `0522135b-4353-4e16-a00a-463ae77b97f6` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; live `SteelHalberdRecipe` exists |
+| SteelMaceRecipeOld | `752e8098-b66b-4172-8b9c-15835210711e` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; replaced by `SteelMaceRecipe` |
+| SteelStaffRecipeOld | `d391ee15-5bd2-406d-8135-8d4e6950f853` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; live `SteelStaffRecipe` in building |
+| BronzeSwordRecipe | `90938792-54c8-4374-bbfe-de3cfc96da19` | `core/gdb/productionrecipes.gd.xml` | Single self-def; superseded by `BronzeSword1CopperRecipe` |
+| ReinforcedLeatherArmorClothRecipe | `4a821cbf-2c0b-4a29-a110-715c46ba28de` | `core/gdb/productionrecipes.gd.xml` | Single self-def; superseded "cloth" armor variant |
+| WoodenSpearRecipe | `333a3462-46df-4592-989b-47c57da8ea21` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def; superseded by `StoneSpearRecipe` |
+| MacheteRecipe | `0d13639b-ad9e-45c8-871d-938c01fa7449` | `core/gdb/productionrecipes.gd.xml` | Single abstract self-def |
+
+### Miscellaneous cut leftovers
+
+| Entity | GUID | Defining file | Evidence |
+| --- | --- | --- | --- |
+| NoMVP.GoldCoinsRecipe | `a585e9c2-6656-4370-9c78-7e8387541c2f` | `core/gdb/productionrecipes.gd.xml` | Single abstract NoMVP self-def; live `GoldCoinsRecipe` ships |
+| NoMVP.GoldIngotRecipe | `015acb0f-9113-4df1-b2c1-5e2c381b0e4d` | `core/gdb/productionrecipes.gd.xml` | Single abstract NoMVP self-def; live `GoldIngotRecipe` ships |
+| Enhanced Robe (resource) | `1de66cab-46f5-4b53-b675-a03264eb8458` | `core/gdb/resources.gd.xml` | `IsAbstract` with assets; `UsageCount=0`, no producer/consumer |
+| TotemFlash (ability) | `38d849eb-1afa-4161-9336-9871e7f44a04` | `core/gdb/abilities.gd.xml` | Concrete ability (InstantKill VFX) referenced by no unit/encounter |
+| DecorativeBuilding006 "Village Tree" | `dd28349a-3856-4093-83af-12ae6a8a71e7` | `core/gdb/decorations.gd.xml` | Single abstract self-def; not placed by mapgen/terrainprops |
+| DecorativeBuilding008 "Bird Bath" | `964b8004-ce22-4d7c-bd91-c3fde30fe58f` | `core/gdb/decorations.gd.xml` | Abstract; re-shipped later as the DLC1 Birdbath |
+| DCL1DecorativeBuilding33 FestivalGround (building) | `d784a9d4-0f4e-442e-b01a-2c54290d2195` | `dlc1/gdb/buildings.gd.xml` | Concrete, real assets, but no techtree/map placement |
+| Veteran Adventurer B (unit) | `5d7a7041-9f1d-478b-a02b-e27c00312bd5` | `core/gdb/units.gd.xml` | Single self-def; the unused half of a NoMVP A/B ranger pair |
+| CheckifObsolete.Woodworks_Worker (unit) | `9d670423-7917-49df-830e-e59b70c81db9` | `core/gdb/units.gd.xml` | Abstract; the name *is* EE's own "check if obsolete" dev marker |
+
+### What yielded nothing, and what this means for modders
+
+- **Player-buildable buildings:** no fully-cut *buildable* building exists — every concrete building reaches a techtree node or a map. The cut buildings above are all `IsAbstract` (Stone Mason, the two `Deprecated`/`old` revisions) or an unplaced decorative DLC entity. The ~44 other "not in techtree" buildings are **system pseudo-entities** (ranges, markers, focus points, toggle-order buttons, `Tag Impress *` groups) — not content.
+- **Implication.** Treat `IsAbstract="true"` entities, `NoMVP.*`, `*Old`, `* Deprecated`, and `CheckifObsolete.*` as **internal/cut** — do not target them by GUID or name in a mod; they may vanish or get renamed without notice (consistent with the `NoMVP.Beer → Beer` precedent above). If you *want* to revive one (e.g. re-enable the copper-tool tier), the recipe bodies are intact — you only need to assign the recipe to a building and add a techtree unlock.
+
+### Reproducing and extending this audit
+
+The fast path is **catalog-first**: read the relevant `generated/catalog/*.csv` before grepping raw XML. `resource-flow.csv` (`ProducedBy`/`ConsumedBy`/`UsageCount`) and `building-production.csv` (real building→recipe wiring) answer most reachability questions in one pass; only then confirm survivors against the `.gd.xml` (remembering the two gotchas above: shell-`grep`, not the indexed tool, on `productionrecipes.gd.xml`; and that `building-production.csv` keeps abstract buildings). If "is X reachable / used?" becomes a recurring question, it is worth promoting to a generated artifact — e.g. a `reachability.csv` that flags each entity `reachable | abstract-only | orphan` with its decisive reference — so future audits are a single table lookup rather than a re-derivation.
+
 ## How to refresh this log
 
 Every game-version update worth a snapshot is also worth a quick pass through these probes. Re-run the queries in this doc against the new `game-gdb/`:
@@ -254,5 +376,6 @@ Every game-version update worth a snapshot is also worth a quick pass through th
 - `grep -rh 'InheritanceMode="[^"]*"' game-gdb/ | sort | uniq -c | sort -rn` to enumerate inheritance modes
 - `find game-gdb -name "*.gd.xml" -type f | grep -v "/gdb/"` for files outside the canonical convention
 - `node generated/_curiosities.js` would give the dangling-reference list if you have that local script around (it's transient — gitignored under `generated/`)
+- for the [dead / cut content](#dead-cut-content-fully-authored-but-unreachable) set: re-diff `generated/catalog/recipes.csv` against `building-production.csv` (recipes assigned to no building) and scan `resource-flow.csv` for `UsageCount` 0 / abstract-only resources, then re-verify survivors against the raw XML. Watch for `NoMVP.*` / `*Old` / `* Deprecated` / `CheckifObsolete.*` naming markers appearing or disappearing across versions
 
 When a new quirk shows up, add it here. When an old one resolves itself in a new version, mark it resolved rather than deleting the entry — the history of "what was once weird" is valuable context.

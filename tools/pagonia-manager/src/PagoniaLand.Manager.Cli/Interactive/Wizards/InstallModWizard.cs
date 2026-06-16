@@ -103,9 +103,8 @@ internal static class InstallModWizard
     internal static void OfferEnable(StoreLayout layout, string modId)
     {
         AnsiConsole.WriteLine();
-        var enableNow = AnsiConsole.Prompt(
-            new ConfirmationPrompt($"Enable [aqua]{Markup.Escape(modId)}[/] in the active profile now?")
-                { DefaultValue = true });
+        var enableNow = AdvancedHelpers.Confirm(
+            $"Enable [aqua]{Markup.Escape(modId)}[/] in the active profile now?", defaultValue: true);
 
         if (!enableNow)
         {

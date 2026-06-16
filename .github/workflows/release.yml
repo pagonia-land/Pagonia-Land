@@ -25,10 +25,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (no v prefix, e.g. 0.1.0)'
+        description: 'Release version (no v prefix, e.g. 0.3.0)'
         required: true
         type: string
-        default: '0.1.0'
+        default: '0.3.0'
       draft:
         description: 'Create as draft (admin reviews + publishes in GitHub UI)'
         required: true
@@ -49,8 +49,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Validate the dispatch input ONCE, before it flows into build args, archive
+  # filenames, the schema bundle, and the git tag. The version is read via env (not
+  # interpolated into the script line), and a non-semver value fails the whole run —
+  # a defence-in-depth guard against an accidental or malicious dispatch input.
+  guard:
+    name: validate inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate the release version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$ ]]; then
+            echo "::error::Release version '$VERSION' is not valid (expected e.g. 0.3.0)." >&2
+            exit 1
+          fi
+          echo "Release version '$VERSION' accepted."
+
   build:
     name: build ${{ matrix.rid }}
+    needs: guard
     strategy:
       fail-fast: false
       matrix:
@@ -199,6 +219,7 @@ jobs:
 
   schemas:
     name: package schemas
+    needs: guard
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -86,30 +86,9 @@ public static class CatalogSourceParser
         return true;
     }
 
-    private static bool IsBlockedHost(Uri uri)
-    {
-        if (uri.IsLoopback)
-        {
-            return true;
-        }
-        if (IPAddress.TryParse(uri.Host, out var ip))
-        {
-            if (IPAddress.IsLoopback(ip))
-            {
-                return true;
-            }
-            var bytes = ip.GetAddressBytes();
-            if (ip.AddressFamily == AddressFamily.InterNetwork && bytes[0] == 169 && bytes[1] == 254)
-            {
-                return true; // IPv4 link-local 169.254/16
-            }
-            if (ip.AddressFamily == AddressFamily.InterNetworkV6 && ip.IsIPv6LinkLocal)
-            {
-                return true; // IPv6 link-local fe80::/10
-            }
-        }
-        return false;
-    }
+    // The catalog parse-time SSRF reject delegates to the shared policy, which the HTTP fetcher also
+    // enforces on every request + redirect hop (so the guard survives a 3xx to an internal host).
+    private static bool IsBlockedHost(Uri uri) => RemoteHostPolicy.IsBlocked(uri);
 
     private static bool TryParseGitHub(string rest, [NotNullWhen(true)] out CatalogSource? source)
     {

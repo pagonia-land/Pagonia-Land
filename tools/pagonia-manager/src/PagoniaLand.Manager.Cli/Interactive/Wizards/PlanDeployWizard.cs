@@ -128,18 +128,32 @@ internal static class PlanDeployWizard
         var hasConflicts = patcherPlan is not null
             && (patcherPlan.Conflicts.Count > 0 || patcherPlan.EntryConflicts.Count > 0);
 
+        // Mirror exactly what DeployService gates on (DeployBlockedByWarnings): any manager
+        // warning that isn't a non-blocking advisory, plus any patcher warning. Previously the
+        // wizard only prompted on patcher *conflicts*, so a manager-level warning — most often a
+        // mod whose gameDatabaseVersion doesn't match the install — fell straight through to a
+        // hard "pass --accept-warnings" abort, forcing the user to quit and re-run on the scripted
+        // CLI. Now they get the same inline opt-in the drift/conflict paths already offer.
+        var managerWarnings = planResult.ManagerDiagnostics
+            .Any(d => d.Severity == ManagerDiagnosticSeverity.Warning && !ExpansionGate.IsNonBlockingAdvisory(d.Code));
+        var patcherWarnings = patcherPlan is not null
+            && patcherPlan.Diagnostics.Concat(patcherPlan.ModPlans.SelectMany(mp => mp.Diagnostics))
+                .Any(d => d.Severity == PatchDiagnosticSeverity.Warning);
+
         bool acceptWarnings = false;
-        if (hasConflicts)
+        if (hasConflicts || managerWarnings || patcherWarnings)
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[yellow]The patcher found conflicts — applying anyway would still execute every write but conflicting mods may overwrite each other.[/]");
+            AnsiConsole.MarkupLine(hasConflicts
+                ? "[yellow]The plan has warnings (shown above), including conflicts where mods may overwrite each other's writes.[/]"
+                : "[yellow]The plan has warnings (shown above) — e.g. a mod targeting a different game version than the install. They won't stop the writes, but it's worth a look first.[/]");
             var resolve = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
-                    .Title("How do you want to handle them?")
-                    .AddChoices("Abort", "Deploy anyway (--accept-warnings)"));
+                    .Title("How do you want to proceed?")
+                    .AddChoices("Abort", "Deploy anyway (accept the warnings)"));
             if (resolve == "Abort")
             {
-                AnsiConsole.MarkupLine("[dim]Aborted. Use 'Manage active profile' -> Disable a mod, then retry.[/]");
+                AnsiConsole.MarkupLine("[dim]Aborted. Disable the affected mod ('Manage active profile' -> Disable a mod) or update it, then retry.[/]");
                 return;
             }
             acceptWarnings = true;

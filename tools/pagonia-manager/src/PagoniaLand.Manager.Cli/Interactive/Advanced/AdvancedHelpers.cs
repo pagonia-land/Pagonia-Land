@@ -60,8 +60,12 @@ internal static class AdvancedHelpers
         });
     }
 
+    // The single y/n gate used everywhere. RequireEnter = false makes it a true
+    // one-keystroke confirm: pressing 'y' or 'n' submits immediately, no Enter
+    // needed (the bare Enter still accepts the default). Every yes/no question in
+    // the shell routes through here so the keystroke behaviour stays uniform.
     public static bool Confirm(string question, bool defaultValue)
-        => AnsiConsole.Prompt(new ConfirmationPrompt(question) { DefaultValue = defaultValue });
+        => AnsiConsole.Prompt(new ConfirmationPrompt(question) { DefaultValue = defaultValue, RequireEnter = false });
 
     // Renders a navigation SelectionPrompt where the trailing "Back" entry is set
     // apart from the action items above it. The separator is a blank, non-selectable
@@ -164,6 +168,57 @@ internal static class AdvancedHelpers
             return false;
         }
         choice = Pick(titleMarkup, list);
+        return true;
+    }
+
+    // Sentinel returned by Spectre when the user presses ESC on a
+    // TryPickOrCancel prompt. A NUL-prefixed string can't collide with any real
+    // choice (mod ids, profile names, "before"/"after"), so reference/ordinal
+    // comparison cleanly distinguishes "cancelled" from a genuine pick.
+    private const string CancelSentinel = " __cancel__";
+
+    /// <summary>
+    /// Like <see cref="Pick"/> but cancellable: pressing ESC backs out and
+    /// returns <c>false</c> instead of forcing a choice (an empty list does the
+    /// same). Use in multi-step flows — e.g. reorder — where the user must be
+    /// able to abandon the operation at any prompt, mirroring the "empty line
+    /// cancels" rule on free-text prompts. Set <paramref name="search"/> to
+    /// <c>false</c> for short fixed lists where type-to-filter is noise.
+    /// </summary>
+    public static bool TryPickOrCancel(string titleMarkup, IEnumerable<string> items, out string choice, bool search = true)
+    {
+        var list = items as IReadOnlyList<string> ?? items.ToList();
+        if (list.Count == 0)
+        {
+            choice = string.Empty;
+            return false;
+        }
+
+        var prompt = new SelectionPrompt<string>()
+            .Title(titleMarkup)
+            .HighlightStyle(new Style(foreground: Color.Aqua))
+            .WrapAround()
+            .PageSize(Math.Clamp(list.Count + 1, 3, 25))
+            // Escape display text so a choice carrying markup metacharacters
+            // (e.g. '[' / ']') renders literally; the returned value is unescaped.
+            .UseConverter(Markup.Escape)
+            .AddChoices(list);
+        if (search)
+        {
+            prompt.EnableSearch();
+            prompt.SearchPlaceholderText("(type to filter, Esc to cancel)");
+        }
+        // ESC backs out → Spectre returns the sentinel, which we surface to the
+        // caller as "cancelled". Same mechanism NavSelect uses for its Back entry.
+        prompt.AddCancelResult(CancelSentinel);
+
+        var picked = AnsiConsole.Prompt(prompt);
+        if (string.Equals(picked, CancelSentinel, StringComparison.Ordinal))
+        {
+            choice = string.Empty;
+            return false;
+        }
+        choice = picked;
         return true;
     }
 

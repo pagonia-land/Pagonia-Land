@@ -16,8 +16,8 @@ patchFormatVersion: 0.1
 id: pagonia-land.example.production-tuning
 name: Production Tuning With Optional DLC Support
 version: 0.1.0
-author: TheLavaBlock
-gameDatabaseVersion: "1.3.2-11873+194094"
+author: Pagonia Land
+gameDatabaseVersion: "1.4.0-11944+194631"
 description: Demonstrates package-aware patch sets.
 
 requiredPackages:
@@ -82,8 +82,8 @@ operations:
       entityName: Wine
       component: ResourceDescription
       path: Icon
-    expectedOldValue: dlc1/gui/icons/commodities/icon_com_wine_001.png
-    value: dlc1/gui/icons/commodities/icon_com_grapes_001.png
+    expectedOldValue: dlc1/gui/icons/commodities/icon_com_wine_001.image
+    value: dlc1/gui/icons/commodities/icon_com_grapes_001.image
 ```
 
 ## Expected Validator Behavior

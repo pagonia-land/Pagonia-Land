@@ -37,6 +37,7 @@ public sealed class ProfileExportService
 {
     private readonly StoreStateReader _stateReader = new();
     private readonly ProfileStore _profileStore = new();
+    private readonly ManifestReader _manifestReader = new();
 
     // AOT: the manager serialises a Patcher.CollectionManifest (built here) and reads a
     // Patcher.CollectionLock for source recovery via YamlDotNet. Both live in
@@ -108,6 +109,7 @@ public sealed class ProfileExportService
         // Locate each enabled mod's install directory; a missing one means the profile drifted
         // from the store (out-of-band uninstall) — surface it before building anything.
         var modDirectories = new List<string>();
+        var directoryById = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var enabled in ordered)
         {
             var directory = layout.ModVersionDirectory(enabled.Id, enabled.Version);
@@ -121,6 +123,7 @@ public sealed class ProfileExportService
             }
 
             modDirectories.Add(directory);
+            directoryById[enabled.Id] = directory;
         }
 
         var collectionId = string.IsNullOrWhiteSpace(options.Id) ? DeriveCollectionId(name) : options.Id!;
@@ -153,9 +156,29 @@ public sealed class ProfileExportService
 
         var baseManifest = export.Value;
         var lockfile = TryReadCollectionLock(layout, profile.Collection);
-        var tweaksById = ordered
-            .Where(mod => mod.Tweaks is { Count: > 0 })
-            .ToDictionary(mod => mod.Id, mod => mod.Tweaks!, StringComparer.Ordinal);
+
+        // Canonicalise stored tweak keys forward through any author rename (the declaration's
+        // aliases:) before folding them into the collection, so an exported manifest never carries a
+        // stale alias id. Mirrors the lazy migration TweakOverrideService runs on read, but read-only
+        // here — the profile itself is not rewritten, only the values we hand to the export.
+        var tweaksById = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+        foreach (var mod in ordered)
+        {
+            if (mod.Tweaks is not { Count: > 0 })
+            {
+                continue;
+            }
+
+            IReadOnlyList<TweakDeclaration> declarations = directoryById.TryGetValue(mod.Id, out var dir)
+                ? _manifestReader.ReadMod(dir).Value?.Manifest.Tweaks ?? []
+                : [];
+            var (migrated, migrationDiagnostics, _) = TweakAliasMigrator.Migrate(mod.Id, mod.Tweaks, declarations);
+            diagnostics.AddRange(migrationDiagnostics);
+            if (migrated is { Count: > 0 })
+            {
+                tweaksById[mod.Id] = migrated;
+            }
+        }
 
         var mods = new List<CollectionMod>();
         foreach (var baseMod in baseManifest.Mods)

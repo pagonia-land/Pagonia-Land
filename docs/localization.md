@@ -5,7 +5,7 @@ The game database uses many text-like keys for names, descriptions, tooltips, no
 For modding, these keys matter because a building, unit, recipe, objective, or artifact may not store final translated text directly. It often stores a technical key such as:
 
 ```text
-Resource Apple Name
+Resource Depot Name
 MapSelection TutMap1 Name
 IconicBuilding Name Sanctuary
 ```
@@ -72,7 +72,7 @@ rg --no-ignore "IconicBuilding Name Sanctuary" .\generated\catalog\localization-
 Search where a name field comes from in the extracted XML:
 
 ```powershell
-rg --no-ignore "Resource Apple Name" .\game-gdb\core
+rg --no-ignore "Resource Depot Name" .\game-gdb\core
 ```
 
 Search all objective-style text keys:
@@ -110,13 +110,13 @@ The latest local generation reports:
 
 | Metric | Count |
 | --- | ---: |
-| Localization rows | 6,166 |
-| Unique localization keys | 4,874 |
+| Localization rows | 6,172 |
+| Unique localization keys | 4,880 |
 | Declared `LocaParkplatz` tags | 261 |
 | Unique declared tags | 261 |
-| Referenced localization-like keys | 5,905 |
-| Unique referenced keys | 4,679 |
-| References not in the local tag index | 5,823 |
-| Unique keys not in the local tag index | 4,611 |
+| Referenced localization-like keys | 5,911 |
+| Unique referenced keys | 4,685 |
+| References not in the local tag index | 5,829 |
+| Unique keys not in the local tag index | 4,617 |
 
 These numbers describe the current local extraction only and should be regenerated after each game update.

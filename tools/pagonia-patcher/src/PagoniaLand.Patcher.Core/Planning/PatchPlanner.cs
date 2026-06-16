@@ -198,6 +198,16 @@ public sealed class PatchPlanner
                         $"Tweak '{mod.Manifest.Id}:{tweak.Id}' value '{value}' is not a valid boolean (true/false); a ternary on it resolves to the false branch."));
                 }
 
+                if (tweak.Type == "integer"
+                    && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var intCandidate)
+                    && intCandidate != Math.Floor(intCandidate))
+                {
+                    diagnostics.Add(new PatchDiagnostic(
+                        PatchDiagnosticSeverity.Warning,
+                        DiagnosticCodes.TweakValueInvalid,
+                        $"Tweak '{mod.Manifest.Id}:{tweak.Id}' value '{value}' is not a whole number for an integer tweak; using it anyway."));
+                }
+
                 if (origin == TweakOrigins.Lockfile && !string.Equals(value, tweak.Default, StringComparison.Ordinal))
                 {
                     diagnostics.Add(new PatchDiagnostic(

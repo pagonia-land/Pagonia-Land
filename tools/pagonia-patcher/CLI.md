@@ -72,6 +72,27 @@ dotnet run --project .\src\PagoniaLand.Patcher.Cli -- schema-validate --catalog 
 
 The `--repo-index` variant validates a Git-distribution repo's top-level `index.yaml` against `schemas/mod-patches/repo-index.schema.json`. Mod authors who publish through a Git repo (one mod or many, with or without collections) should wire this into their CI — see [`examples/mod-repo-example/`](../../examples/mod-repo-example/) for a working reference repo with a [`validate.yml`](../../examples/mod-repo-example/.github/workflows/validate.yml) GitHub Action.
 
+### Keeping `index.yaml` in sync with each `mod.yaml` (`index-check` / `index build`)
+
+A repo's `index.yaml` duplicates a curated subset of every mod's `mod.yaml` so the manager can browse a catalog (name, version, safety) *without* fetching each mod folder. `schema-validate` checks the index's *shape*, but not that those copies still match the manifests they mirror — so the copy can silently drift (a `safeToRemove` flipped in `mod.yaml`, a version bumped, a game-database version updated, and the index left stale, advertising the wrong thing to users).
+
+The **mirror contract** — index fields that, *when the entry carries them*, must equal their `mod.yaml` source: `displayName` (↔ manifest `name`), `version`, `gameDatabaseVersion`, and the four `safetyFlags` (↔ the flat `requiresNewGame` / `safeToRemove` / `multiplayerSafe` / `campaignSafe`). The index is a curated *subset*, so an entry may **omit** a field (the catalog just won't surface it — that's a curation choice, not drift); only a present-but-wrong copy is flagged, since that's what misleads a browsing user. The index's `description`, `tags`, and `screenshots` are likewise curated and never compared (the index carries a short catalog blurb; the manifest the full text).
+
+```powershell
+# Detect drift (read-only). Errors on a mirror mismatch, an index entry whose
+# mod.yaml is missing, a mod folder absent from the index, or an id mismatch.
+dotnet run --project .\src\PagoniaLand.Patcher.Cli -- index-check ..\..\official-mods
+
+# Re-sync the index's mirror fields from each mod.yaml, in place (formatting preserved).
+dotnet run --project .\src\PagoniaLand.Patcher.Cli -- index build ..\..\official-mods
+# CI gate: report what would change, exit non-zero on drift, write nothing.
+dotnet run --project .\src\PagoniaLand.Patcher.Cli -- index build ..\..\official-mods --check
+```
+
+`index build` only swaps drifted *values* on fields that already exist in both files (so the rewrite is surgical and leaves surrounding formatting untouched); structural gaps it can't resolve by a value swap — a missing entry, an orphaned entry, an absent field — are reported for you to fix by hand rather than reformatting the file. Wire `index-check` (or `index build --check`) into the same CI job as `schema-validate`.
+
+**Scope.** Missing-entry detection assumes the conventional `mods/<dir>/mod.yaml` layout — a mod kept under a different path isn't discovered as "missing from the index". Collection entries (the index's `collections:` list) are **not** cross-checked against their `*.collection.yaml`; keep those in sync by hand. If a re-sync would produce YAML that no longer parses (an unusually-shaped value that needs quoting), `index build` reports `indexMirrorWriteAborted` and writes nothing rather than corrupt the file.
+
 The `--catalog` variant validates a `catalog.yaml` (a curated list of mod-distribution repos plus optional federated references to other catalogs) against `schemas/mod-patches/catalog.schema.json`. The manager subscribes to catalogs to enable cross-repo discovery — see [`examples/mod-catalog-example/`](../../examples/mod-catalog-example/) for a working reference catalog with a nested federation entry.
 
 Build a dry-run plan:

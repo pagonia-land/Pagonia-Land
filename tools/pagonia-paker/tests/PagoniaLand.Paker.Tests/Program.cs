@@ -65,10 +65,12 @@ var tests = new (string Name, Func<bool> Run)[]
     ("patch leaves the pak unchanged when added XML has no matching module .gd.bin", PatchSkipsAutoRegisterWhenNoIndexExists),
     ("classify: pak with files.json + .gd.bin under <m>/ is module", ClassifyModulePak),
     ("classify: pak with <m>.gd.bin at root is still module (tools.pak shape)", ClassifyModuleWithRootGdBin),
-    ("classify: pak with usermaps is user-map and counts popmaps", ClassifyUserMapPak),
+    ("classify: popmap-only pak has no gd content and counts popmaps", ClassifyUserMapPak),
     ("classify: pak with manifest but no gd.bin and no popmap is overlay", ClassifyOverlayPak),
     ("classify: overlay pak surfaces root-level overrides", ClassifyOverlaySurfacesOverridesAtRoot),
     ("classify: pak with no manifest is unknown", ClassifyUnknownPakWithoutManifest),
+    ("classify: editor map is map-scoped, empty module gd.bin not global", ClassifyEditorMapIsMapScoped),
+    ("classify: global + map-scoped gd content reports both scopes", ClassifyGlobalAndMapScopedTogether),
     ("classify: pak with multiple modules picks first + warns", ClassifyMultipleModulesPicksFirstWarns),
     ("classify: manifest dependencies surfaced from JSON", ClassifyExtractsManifestDependencies),
     ("schema roundtrip: pak-list-report", SchemaRoundtripPakListReport),
@@ -1483,7 +1485,7 @@ bool ClassifyModulePak()
 {
     var manifest = MakeManifestJson("mymod", "core");
     var filesJson = Encoding.UTF8.GetBytes("{\"Files\":[{\"Key\":\"GameDatabase\",\"Paths\":[\"mymod/mymod.gd.bin\"]}]}");
-    var gdBin = BuildGdBinBytes(0x00, 0x00, "mymod/gdb/buildings.gd.xml");
+    var gdBin = BuildGdBinBytes(0x00, 0x00, "mymod/gdb/buildings.gd.xml"); // 1 entry → byte[3]=0 (the realistic single-entry value), real global content
     var pak = BuildPak(
         ("mymod/manifest.json", manifest, Compressed: true),
         ("mymod/files.json", filesJson, Compressed: true),
@@ -1493,10 +1495,9 @@ bool ClassifyModulePak()
 
     var result = new PakClassifier().Classify(new MemoryStream(pak));
     return result.Success
-        && result.Kind == PakKinds.Module
         && result.ModuleFolder == "mymod"
         && result.Name == "mymod"
-        && result.HasGdBin
+        && result.GdbScopes.SequenceEqual(new[] { "global" })
         && result.PopmapCount == 0
         && result.Dependencies.Count == 1
         && result.Dependencies[0] == "core"
@@ -1509,7 +1510,7 @@ bool ClassifyModuleWithRootGdBin()
     // files.json is still under <m>/. Classifier must accept either location.
     var manifest = MakeManifestJson("tools", "core");
     var filesJson = Encoding.UTF8.GetBytes("{\"Files\":[{\"Key\":\"GameDatabase\",\"Paths\":[\"tools.gd.bin\"]}]}");
-    var gdBin = BuildGdBinBytes(0x01, 0x00, "tools/gdb/probe.gd.xml");
+    var gdBin = BuildGdBinBytes(0x01, 0x00, "tools/gdb/probe.gd.xml"); // 1 entry → byte[3]=0 (the realistic single-entry value), real global content
     var pak = BuildPak(
         ("tools.gd.bin", gdBin, Compressed: false),
         ("tools/files.json", filesJson, Compressed: true),
@@ -1519,9 +1520,8 @@ bool ClassifyModuleWithRootGdBin()
 
     var result = new PakClassifier().Classify(new MemoryStream(pak));
     return result.Success
-        && result.Kind == PakKinds.Module
         && result.ModuleFolder == "tools"
-        && result.HasGdBin
+        && result.GdbScopes.SequenceEqual(new[] { "global" })
         // tools.gd.bin at root is part of the module skeleton, not an override.
         && !result.OverridesAtRoot.Contains("tools.gd.bin")
         && !result.OverridesAtRoot.Contains("files.json");
@@ -1539,10 +1539,9 @@ bool ClassifyUserMapPak()
 
     var result = new PakClassifier().Classify(new MemoryStream(pak));
     return result.Success
-        && result.Kind == PakKinds.UserMap
         && result.ModuleFolder == "my-map"
         && result.Name == "my-map"
-        && !result.HasGdBin
+        && result.GdbScopes.Count == 0
         && result.PopmapCount == 2;
 }
 
@@ -1556,9 +1555,8 @@ bool ClassifyOverlayPak()
 
     var result = new PakClassifier().Classify(new MemoryStream(pak));
     return result.Success
-        && result.Kind == PakKinds.Overlay
         && result.ModuleFolder == "ovr"
-        && !result.HasGdBin
+        && result.GdbScopes.Count == 0
         && result.PopmapCount == 0
         && result.OverridesAtRoot.Count == 0;
 }
@@ -1578,7 +1576,6 @@ bool ClassifyOverlaySurfacesOverridesAtRoot()
 
     var result = new PakClassifier().Classify(new MemoryStream(pak));
     return result.Success
-        && result.Kind == PakKinds.Overlay
         && result.ModuleFolder == "system"
         && result.OverridesAtRoot.SequenceEqual(new[] { "system.copy.txt", "system.json" });
 }
@@ -1593,14 +1590,58 @@ bool ClassifyUnknownPakWithoutManifest()
 
     var result = new PakClassifier().Classify(new MemoryStream(pak));
     return result.Success
-        && result.Kind == PakKinds.Unknown
         && result.ModuleFolder is null
         && result.Name is null
-        && !result.HasGdBin
+        && result.GdbScopes.Count == 0
         && result.PopmapCount == 0
         // loose.txt sits at the pak root — surfaced as a candidate override
         // so downstream tooling can investigate even without a manifest.
         && result.OverridesAtRoot.Contains("loose.txt");
+}
+
+bool ClassifyEditorMapIsMapScoped()
+{
+    // A published editor map: an EMPTY module-level gd.bin (the editor emits one
+    // even for a map-only mod) plus a map-scoped usermaps/<map>.gd.bin that has
+    // content, and the popmap. Scope must be ["map-scoped"] — the empty module
+    // gd.bin must NOT register as "global". This is the published Example Mod shape.
+    var manifest = MakeManifestJson("example mod", "core");
+    var filesJson = Encoding.UTF8.GetBytes("{\"Files\":[{\"Key\":\"GameDatabase\",\"Paths\":[\"example mod/example mod.gd.bin\"]}]}");
+    var emptyModuleGdBin = BuildGdBinBytes(0x00, 0x00);                              // count=0 → empty skeleton
+    var mapGdBin = BuildGdBinBytes(0x00, 0x00, "example mod/usermaps/ecm.gd.xml");   // 1 entry → byte[3]=0 (the realistic single-entry value), the map's database
+    var pak = BuildPak(
+        ("example mod/manifest.json", manifest, Compressed: true),
+        ("example mod/files.json", filesJson, Compressed: true),
+        ("example mod/example mod.gd.bin", emptyModuleGdBin, Compressed: false),
+        ("example mod/memory.bin", new byte[28], Compressed: false),
+        ("example mod/usermaps/ecm.gd.bin", mapGdBin, Compressed: false),
+        ("example mod/usermaps/ecm.popmap", new byte[] { 1, 2, 3 }, Compressed: true));
+
+    var result = new PakClassifier().Classify(new MemoryStream(pak));
+    return result.Success
+        && result.GdbScopes.SequenceEqual(new[] { "map-scoped" })
+        && result.PopmapCount == 1;
+}
+
+bool ClassifyGlobalAndMapScopedTogether()
+{
+    // A mod that changes the GameDatabase globally AND ships a map with its own
+    // map-scoped database: both scopes reported, global first.
+    var manifest = MakeManifestJson("bothmod", "core");
+    var filesJson = Encoding.UTF8.GetBytes("{\"Files\":[{\"Key\":\"GameDatabase\",\"Paths\":[\"bothmod/bothmod.gd.bin\"]}]}");
+    var moduleGdBin = BuildGdBinBytes(0x00, 0x00, "bothmod/gdb/rules.gd.xml"); // 1 entry → byte[3]=0 (realistic), global
+    var mapGdBin = BuildGdBinBytes(0x00, 0x00, "bothmod/usermaps/m.gd.xml");   // 1 entry → byte[3]=0 (realistic), map-scoped
+    var pak = BuildPak(
+        ("bothmod/manifest.json", manifest, Compressed: true),
+        ("bothmod/files.json", filesJson, Compressed: true),
+        ("bothmod/bothmod.gd.bin", moduleGdBin, Compressed: false),
+        ("bothmod/memory.bin", new byte[28], Compressed: false),
+        ("bothmod/usermaps/m.gd.bin", mapGdBin, Compressed: false),
+        ("bothmod/usermaps/m.popmap", new byte[] { 9 }, Compressed: true));
+
+    var result = new PakClassifier().Classify(new MemoryStream(pak));
+    return result.Success
+        && result.GdbScopes.SequenceEqual(new[] { "global", "map-scoped" });
 }
 
 bool ClassifyMultipleModulesPicksFirstWarns()
@@ -1735,11 +1776,10 @@ bool SchemaRoundtripPakClassifyReport()
     var report = new PakClassifyReport(
         Pak: "module.pak",
         Success: true,
-        Kind: "module",
         Name: "mymod",
         ModuleFolder: "mymod",
         Dependencies: new[] { "core" },
-        HasGdBin: true,
+        GdbScopes: new[] { "global" },
         PopmapCount: 0,
         OverridesAtRoot: Array.Empty<string>(),
         Diagnostics: new[]

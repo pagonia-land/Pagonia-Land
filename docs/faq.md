@@ -8,7 +8,7 @@ No.
 
 This is an unofficial community research and documentation project. Pioneers of Pagonia is a trademark of Envision Entertainment GmbH.
 
-A separate community wiki on wiki.gg ([Category:Modding](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding)) covers the map-editor slice of modding (custom maps, map packaging, texture file formats). This repository covers a different slice: GameDatabase modding — buildings, units, recipes, costs, objectives.
+A separate community wiki on wiki.gg ([Category:Modding](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding)) covers **map authoring** — designing a map's terrain and layout in the editor, plus asset/texture file formats and the editor's own project format. This repository covers **GameDatabase modding** — buildings, units, recipes, costs, objectives — including the GameDatabase changes the 1.4.0 Pagonia Editor authors, which it publishes as ordinary `.pak` mods our tools handle. We complement the editor rather than duplicate it.
 
 ## How Do I Get A Local Copy Of This Repository?
 

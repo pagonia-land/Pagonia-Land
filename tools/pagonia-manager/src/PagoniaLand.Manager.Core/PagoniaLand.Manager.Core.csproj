@@ -4,10 +4,10 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.2.0</Version>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
-    <FileVersion>0.2.0.0</FileVersion>
-    <InformationalVersion>0.2.0-dev</InformationalVersion>
+    <Version>0.3.0</Version>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <FileVersion>0.3.0.0</FileVersion>
+    <InformationalVersion>0.3.0-dev</InformationalVersion>
     <!--
       Keep InformationalVersion exactly as set: don't let the SDK auto-append
       "+<git commit>". Locally that kept the version clean (0.1.0-dev), and in
@@ -45,7 +45,7 @@
     Manager.Core's own deps stay obvious from this csproj.
   -->
   <ItemGroup>
-    <PackageReference Include="JsonSchema.Net" Version="9.2.1" />
+    <PackageReference Include="JsonSchema.Net" Version="9.2.2" />
   </ItemGroup>
 
   <ItemGroup>

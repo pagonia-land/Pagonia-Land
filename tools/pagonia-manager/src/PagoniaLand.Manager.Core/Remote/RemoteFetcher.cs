@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using PagoniaLand.Patcher;
 using YamlDotNet.RepresentationModel;
 using YamlDotNet.Serialization;
 
@@ -30,7 +31,9 @@ public sealed class RemoteFetcher
     [DynamicDependency(Shape, typeof(RepoIndex))]
     [DynamicDependency(Shape, typeof(RepoIndexRepo))]
     [DynamicDependency(Shape, typeof(RepoIndexMod))]
+    [DynamicDependency(Shape, typeof(RepoIndexSafetyFlags))]
     [DynamicDependency(Shape, typeof(RepoIndexCollection))]
+    [DynamicDependency(Shape, typeof(ModManifest))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(List<RepoIndexMod>))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(List<RepoIndexCollection>))]
     public RemoteFetcher(IRemoteContentFetcher fetcher)
@@ -85,9 +88,10 @@ public sealed class RemoteFetcher
         // interpreted as a folder path verbatim.
         string modFolder;
         string? resolvedModId;
+        RepoIndexMod? indexEntry;
         try
         {
-            (modFolder, resolvedModId) = await ResolveModFolderAsync(source, commitSha, diagnostics, cancellationToken).ConfigureAwait(false);
+            (modFolder, resolvedModId, indexEntry) = await ResolveModFolderAsync(source, commitSha, diagnostics, cancellationToken).ConfigureAwait(false);
         }
         catch (RemoteFetchAbortException ex)
         {
@@ -132,6 +136,17 @@ public sealed class RemoteFetcher
             diagnostics.Add(Error(ManagerDiagnosticCodes.RemoteFetchFailed,
                 $"Remote mod.yaml not found at '{modYamlPath}' on {source.Owner}/{source.Repo}@{Shorten(commitSha)}."));
             return RemoteFetchResult.Failure(diagnostics);
+        }
+
+        // Cross-check what the catalog advertised (the index entry the user browsed)
+        // against the mod.yaml we just fetched — the index is a mirror cache that can
+        // drift, so a mismatch means the browse list may have misled the user (wrong
+        // version, or a flipped safety flag). Warn, never block: the mod.yaml is the
+        // authority and still installs. Best-effort — a parse hiccup must not fail the
+        // fetch, so a malformed manifest is left to ManifestValidator downstream.
+        if (indexEntry is not null)
+        {
+            CheckAdvertisedMetadata(indexEntry, modYaml.Text, diagnostics);
         }
 
         // Enumerate the patch files mod.yaml references. We walk the YAML tree
@@ -216,7 +231,7 @@ public sealed class RemoteFetcher
         return RemoteFetchResult.Ok(tempDir, resolvedSource, commitSha, repoModFolder, diagnostics);
     }
 
-    private async Task<(string ModFolder, string? ModId)> ResolveModFolderAsync(
+    private async Task<(string ModFolder, string? ModId, RepoIndexMod? IndexEntry)> ResolveModFolderAsync(
         GitHubSource source,
         string commitSha,
         List<ManagerDiagnostic> diagnostics,
@@ -245,7 +260,7 @@ public sealed class RemoteFetcher
             // No index.yaml — interpret ModSpec as a literal repo-relative path
             // (relative to the base path). This supports the single-mod-repo
             // case where authors don't ship a catalog.
-            return (source.ModSpec!, ModId: null);
+            return (source.ModSpec!, ModId: null, IndexEntry: null);
         }
 
         RepoIndex index;
@@ -271,13 +286,13 @@ public sealed class RemoteFetcher
         var byId = index.Mods.FirstOrDefault(m => string.Equals(m.Id, source.ModSpec, StringComparison.Ordinal));
         if (byId is not null)
         {
-            return (byId.Path, byId.Id);
+            return (byId.Path, byId.Id, byId);
         }
 
         var byPath = index.Mods.FirstOrDefault(m => string.Equals(m.Path, source.ModSpec, StringComparison.Ordinal));
         if (byPath is not null)
         {
-            return (byPath.Path, byPath.Id);
+            return (byPath.Path, byPath.Id, byPath);
         }
 
         var available = index.Mods.Count == 0
@@ -381,6 +396,73 @@ public sealed class RemoteFetcher
 
     private static ManagerDiagnostic Info(string code, string message)
         => new(ManagerDiagnosticSeverity.Info, code, message, null);
+
+    private static ManagerDiagnostic Warning(string code, string message)
+        => new(ManagerDiagnosticSeverity.Warning, code, message, null);
+
+    // Compare the catalog's advertised metadata (the browsed index entry) against the
+    // authoritative mod.yaml. "Present-only": the index only *advertises* a field it
+    // actually carries, so an omitted field is a curation choice, not drift — only a
+    // carried-but-wrong value misled the user and earns a warning.
+    private static void CheckAdvertisedMetadata(RepoIndexMod entry, string modYamlText, List<ManagerDiagnostic> diagnostics)
+    {
+        ModManifest? manifest;
+        try
+        {
+            manifest = new DeserializerBuilder()
+                .IgnoreUnmatchedProperties()
+                .WithTypeConverter(new SafetyStateYamlConverter())
+                .Build()
+                .Deserialize<ModManifest>(modYamlText);
+        }
+        catch
+        {
+            // Best-effort: a malformed manifest is reported by ManifestValidator once
+            // the staged temp dir runs through the local install pipeline.
+            return;
+        }
+
+        if (manifest is null)
+        {
+            return;
+        }
+
+        Compare("version", entry.Version, manifest.Version, diagnostics);
+        Compare("gameDatabaseVersion", entry.GameDatabaseVersion, manifest.GameDatabaseVersion, diagnostics);
+        Compare("displayName", entry.DisplayName, manifest.Name, diagnostics);
+
+        if (entry.SafetyFlags is { } safety)
+        {
+            Compare("safetyFlags.requiresNewGame", safety.RequiresNewGame, SafetyText(manifest.RequiresNewGame), diagnostics);
+            Compare("safetyFlags.safeToRemove", safety.SafeToRemove, SafetyText(manifest.SafeToRemove), diagnostics);
+            Compare("safetyFlags.multiplayerSafe", safety.MultiplayerSafe, SafetyText(manifest.MultiplayerSafe), diagnostics);
+            Compare("safetyFlags.campaignSafe", safety.CampaignSafe, SafetyText(manifest.CampaignSafe), diagnostics);
+        }
+
+        static void Compare(string field, string? advertised, string? actual, List<ManagerDiagnostic> diags)
+        {
+            if (string.IsNullOrEmpty(advertised))
+            {
+                return;
+            }
+
+            var actualValue = string.IsNullOrEmpty(actual) ? null : actual;
+            if (!string.Equals(advertised, actualValue, StringComparison.Ordinal))
+            {
+                diags.Add(Warning(ManagerDiagnosticCodes.RepoIndexMetadataMismatch,
+                    $"The catalog advertised {field}='{advertised}' but the fetched mod.yaml says '{actualValue ?? "(unset)"}'. " +
+                    "Installing the actual mod.yaml — the catalog index may be stale."));
+            }
+        }
+    }
+
+    private static string? SafetyText(SafetyState? state) => state switch
+    {
+        SafetyState.Yes => "true",
+        SafetyState.No => "false",
+        SafetyState.Unknown => "unknown",
+        _ => null,
+    };
 
     /// <summary>Internal flow-control: an abort path inside the resolver bubbles
     /// up its own diagnostic batch without the orchestrator needing to thread

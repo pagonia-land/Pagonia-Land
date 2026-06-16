@@ -21,7 +21,7 @@ internal static class AdvancedActiveProfile
                     AdvancedHelpers.Header("Active Profile → enable");
                     var installed = new ModLister().List(layout);
                     if (installed.Count == 0) { AnsiConsole.MarkupLine("[yellow]No mods installed.[/]"); Pause(); break; }
-                    var modId = AdvancedHelpers.Pick("Enable:", installed.Select(m => m.Id).Distinct());
+                    if (!AdvancedHelpers.TryPickOrCancel("Enable: [dim](Esc to cancel)[/]", installed.Select(m => m.Id).Distinct(), out var modId)) break;
                     var r = svc.Enable(layout, modId, requestedVersion: null);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success && r.Profile is not null)
@@ -48,7 +48,7 @@ internal static class AdvancedActiveProfile
                     {
                         AnsiConsole.MarkupLine("[yellow]No enabled mods to disable.[/]"); Pause(); break;
                     }
-                    var modId = AdvancedHelpers.Pick("Disable:", choices);
+                    if (!AdvancedHelpers.TryPickOrCancel("Disable: [dim](Esc to cancel)[/]", choices, out var modId)) break;
                     var r = svc.Disable(layout, modId);
                     DiagnosticsRenderer.Render(r.Diagnostics);
                     if (r.Success && r.Profile is not null)
@@ -64,14 +64,12 @@ internal static class AdvancedActiveProfile
                     {
                         AnsiConsole.MarkupLine("[yellow]Need at least 2 enabled mods to reorder.[/]"); Pause(); break;
                     }
-                    var modId = AdvancedHelpers.Pick("Move which mod:", show.Profile.LoadOrder);
-                    if (!AdvancedHelpers.TryPick("Place it relative to:", show.Profile.LoadOrder.Where(id => id != modId), out var anchor))
-                    {
-                        AnsiConsole.MarkupLine("[yellow]No other mod to place this relative to.[/]"); Pause(); break;
-                    }
-                    var where = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>().Title("Before or after?")
-                            .AddChoices("before", "after"));
+                    // Every step is cancellable (Esc) so the user can back out of the
+                    // reorder at any prompt instead of being forced to finish a move
+                    // opened by mistake. Mirror of the Manage-Active-Profile wizard.
+                    if (!AdvancedHelpers.TryPickOrCancel("Move which mod: [dim](Esc to cancel)[/]", show.Profile.LoadOrder, out var modId)) break;
+                    if (!AdvancedHelpers.TryPickOrCancel("Place it relative to: [dim](Esc to cancel)[/]", show.Profile.LoadOrder.Where(id => id != modId), out var anchor)) break;
+                    if (!AdvancedHelpers.TryPickOrCancel("Before or after? [dim](Esc to cancel)[/]", new[] { "before", "after" }, out var where, search: false)) break;
 
                     var r = where == "before"
                         ? svc.MoveBefore(layout, modId, anchor)

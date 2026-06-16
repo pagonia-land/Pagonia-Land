@@ -56,8 +56,8 @@ patchFormatVersion: 0.1
 id: pagonia-land.example.cheaper-sawmill
 name: Cheaper Sawmill
 version: 0.1.0
-author: Example Modder
-gameDatabaseVersion: "1.3.2-11873+194094"
+author: Pagonia Land
+gameDatabaseVersion: "1.4.0-11944+194631"
 description: Lowers one Sawmill construction cost for local testing.
 requiredPackages:
   - core

@@ -2,7 +2,7 @@ patchFormatVersion: "0.1"
 id: pagonia-land.test.overlay-replace
 name: Overlay Replace Test
 version: "0.1.0"
-author: TheLavaBlock
+author: Pagonia Land
 gameDatabaseVersion: "1.3.1-11826+193733"
 description: >-
   Artificial Pattern B overlay that Replaces one inherited entity and
@@ -17,6 +17,6 @@ entries:
 pak:
   name: overlay-replace-test
   summary: Advisor fixture — single Replace
-  author: TheLavaBlock
+  author: Pagonia Land
   dependencies:
     - core

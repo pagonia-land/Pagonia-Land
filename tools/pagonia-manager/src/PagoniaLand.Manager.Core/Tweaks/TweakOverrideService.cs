@@ -284,7 +284,7 @@ public sealed class TweakOverrideService
         // moves, the profile YAML is rewritten on the spot so the stored shape
         // catches up — the migration diagnostic then fires only once.
         var (migrated, migrationDiagnostics, changed) =
-            MigrateAliases(modId, enabledMod.Tweaks, declarations);
+            TweakAliasMigrator.Migrate(modId, enabledMod.Tweaks, declarations);
         diagnostics.AddRange(migrationDiagnostics);
 
         if (changed)
@@ -296,78 +296,6 @@ public sealed class TweakOverrideService
 
         context = new Context(resolvedName, profile, enabledMod, declarations, usages);
         return true;
-    }
-
-    // Resolve stored override keys against the current declarations + their aliases.
-    // Returns the (possibly) rewritten map, the diagnostics to surface, and whether
-    // anything actually moved (only then is a profile rewrite warranted).
-    private static (Dictionary<string, string>? Migrated, List<ManagerDiagnostic> Diagnostics, bool Changed) MigrateAliases(
-        string modId,
-        IReadOnlyDictionary<string, string>? stored,
-        IReadOnlyList<TweakDeclaration> declarations)
-    {
-        var diagnostics = new List<ManagerDiagnostic>();
-        if (stored is null || stored.Count == 0)
-        {
-            return (stored is null ? null : new Dictionary<string, string>(StringComparer.Ordinal), diagnostics, false);
-        }
-
-        var declaredIds = new HashSet<string>(declarations.Select(d => d.Id), StringComparer.Ordinal);
-        var aliasToCurrent = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var decl in declarations)
-        {
-            foreach (var alias in decl.Aliases)
-            {
-                aliasToCurrent[alias] = decl.Id;
-            }
-        }
-
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        var changed = false;
-
-        foreach (var (key, value) in stored)
-        {
-            if (declaredIds.Contains(key))
-            {
-                result[key] = value; // a current id — keep as-is
-            }
-            else if (aliasToCurrent.TryGetValue(key, out var currentId))
-            {
-                if (stored.ContainsKey(currentId))
-                {
-                    // Both the old (alias) and the new id are stored — the new id wins;
-                    // drop the stale alias entry. (Hand-edited / raced profile.)
-                    diagnostics.Add(new ManagerDiagnostic(
-                        ManagerDiagnosticSeverity.Warning,
-                        ManagerDiagnosticCodes.TweakAliasConflict,
-                        $"Mod '{modId}' has both '{key}' (a legacy alias) and '{currentId}' stored; keeping '{currentId}' and dropping '{key}'."));
-                    changed = true;
-                }
-                else
-                {
-                    // Migrate: move the alias's value forward to the current id.
-                    result[currentId] = value;
-                    diagnostics.Add(new ManagerDiagnostic(
-                        ManagerDiagnosticSeverity.Info,
-                        ManagerDiagnosticCodes.TweakMigratedFromAlias,
-                        $"Migrated tweak override '{key}' -> '{currentId}' for mod '{modId}' (renamed by the author)."));
-                    changed = true;
-                }
-            }
-            else
-            {
-                // Neither a current id nor a known alias — an orphan (the tweak was
-                // removed, or the alias dropped). Keep it so nothing is silently lost;
-                // surface it so the user can clean it up.
-                result[key] = value;
-                diagnostics.Add(new ManagerDiagnostic(
-                    ManagerDiagnosticSeverity.Info,
-                    ManagerDiagnosticCodes.TweakOrphanedOverride,
-                    $"Mod '{modId}' has a stored override for '{key}', which it no longer declares (nor as an alias); leaving it untouched."));
-            }
-        }
-
-        return (result, diagnostics, changed);
     }
 
     private static ProfileFile ReplaceEnabledMod(ProfileFile profile, ProfileEnabledMod replacement)
@@ -402,10 +330,13 @@ public sealed class TweakOverrideService
         }
 
         // A stored value still equal to the collection's curator-supplied value is
-        // attributed to the collection; anything else is the user's own override.
+        // attributed to the collection; anything else is the user's own override. The stored value
+        // was normalised on write (boolean canonicalised, trimmed), so normalise the curator value
+        // the same way before comparing — otherwise a curator's " true " would never match the
+        // stored `true` and a freshly-seeded default would mis-report as a user override.
         if (collectionTweaks is not null
             && collectionTweaks.TryGetValue(decl.Id, out var curatorValue)
-            && string.Equals(stored, curatorValue, StringComparison.Ordinal))
+            && string.Equals(stored, NormalizeValue(decl, curatorValue), StringComparison.Ordinal))
         {
             return TweakValueOrigins.CollectionDefault;
         }

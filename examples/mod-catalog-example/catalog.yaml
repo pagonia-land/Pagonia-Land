@@ -20,7 +20,7 @@ repos:
     tags:
       - reference
       - example
-  - owner: TheLavaBlock
+  - owner: pagonia-land
     repo: example-hardcore-presets
     summary: (example) Hardcore difficulty presets, one collection per playstyle.
     tags:

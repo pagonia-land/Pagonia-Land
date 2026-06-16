@@ -149,25 +149,27 @@ internal static class ConfigureModWizard
     }
 
     // Prompt for a new value whose input shape matches the declared type. Returns
-    // null when the user cancels (enum/number empty input). TweakOverrideService.Set
-    // is the authoritative validator; the client-side checks here are only for nicer
-    // immediate feedback on numeric range.
+    // null when the user cancels the enum picker (Esc); the other shapes commit on
+    // Enter. TweakOverrideService.Set is the authoritative validator; the
+    // client-side checks here are only for nicer immediate feedback on numeric range.
     private static string? PromptForValue(TweakDeclaration declaration)
     {
         switch (declaration.Type)
         {
             case "boolean":
-                var on = AnsiConsole.Prompt(
-                    new ConfirmationPrompt($"Enable '{Markup.Escape(declaration.Id)}'?") { DefaultValue = string.Equals(declaration.Default, "true", StringComparison.OrdinalIgnoreCase) });
+                var on = AdvancedHelpers.Confirm(
+                    $"Enable '{Markup.Escape(declaration.Id)}'?",
+                    defaultValue: string.Equals(declaration.Default, "true", StringComparison.OrdinalIgnoreCase));
                 return on ? "true" : "false";
 
             case "enum":
-                var choice = AnsiConsole.Prompt(
-                    new SelectionPrompt<string>()
-                        .Title($"Value for '{Markup.Escape(declaration.Id)}':")
-                        .HighlightStyle(new Style(foreground: Color.Aqua))
-                        .AddChoices(declaration.Values.Select(v => v.Value)));
-                return choice;
+                return AdvancedHelpers.TryPickOrCancel(
+                    $"Value for '{Markup.Escape(declaration.Id)}': [dim](Esc to cancel)[/]",
+                    declaration.Values.Select(v => v.Value),
+                    out var choice,
+                    search: false)
+                    ? choice
+                    : null;
 
             case "integer":
                 return AnsiConsole.Prompt(

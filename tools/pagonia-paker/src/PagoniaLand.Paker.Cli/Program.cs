@@ -405,9 +405,9 @@ int RunClassify(string pakPath, string? jsonReportPath)
     {
         Console.Error.WriteLine($"Error: pak file not found: {pakPath}");
         WriteClassifyReport(jsonReportPath, pakPath, success: false,
-            kind: PakKinds.Unknown, name: null, moduleFolder: null,
-            dependencies: Array.Empty<string>(), hasGdBin: false, popmapCount: 0,
-            overridesAtRoot: Array.Empty<string>(), diagnostics);
+            name: null, moduleFolder: null,
+            dependencies: Array.Empty<string>(), gdbScopes: Array.Empty<string>(),
+            popmapCount: 0, overridesAtRoot: Array.Empty<string>(), diagnostics);
         return PakerExitCodes.Error;
     }
 
@@ -416,23 +416,22 @@ int RunClassify(string pakPath, string? jsonReportPath)
     diagnostics.AddRange(result.Diagnostics);
     PrintDiagnostics(result.Diagnostics);
 
-    // classify exits 0 for any known shape (including 'unknown'); only a hard
-    // pak-parse error trips the non-zero code, surfaced via Success=false.
+    // classify exits 0 whenever the pak parsed (even with no module found); only a
+    // hard pak-parse error trips the non-zero code, surfaced via Success=false.
     if (!result.Success)
     {
         WriteClassifyReport(jsonReportPath, pakPath, success: false,
-            kind: result.Kind, name: result.Name, moduleFolder: result.ModuleFolder,
-            dependencies: result.Dependencies, hasGdBin: result.HasGdBin, popmapCount: result.PopmapCount,
-            overridesAtRoot: result.OverridesAtRoot, diagnostics);
+            name: result.Name, moduleFolder: result.ModuleFolder,
+            dependencies: result.Dependencies, gdbScopes: result.GdbScopes,
+            popmapCount: result.PopmapCount, overridesAtRoot: result.OverridesAtRoot, diagnostics);
         return PakerExitCodes.Error;
     }
 
     Console.WriteLine($"Pak: {pakPath}");
-    Console.WriteLine($"Kind: {result.Kind}");
     Console.WriteLine($"Module: {result.ModuleFolder ?? "(none)"}");
     Console.WriteLine($"Name: {result.Name ?? "(unknown)"}");
     Console.WriteLine($"Dependencies: {(result.Dependencies.Count == 0 ? "(none)" : string.Join(", ", result.Dependencies))}");
-    Console.WriteLine($"HasGdBin: {result.HasGdBin}");
+    Console.WriteLine($"GdbScopes: {(result.GdbScopes.Count == 0 ? "(none)" : string.Join(", ", result.GdbScopes))}");
     Console.WriteLine($"Popmaps: {result.PopmapCount}");
     if (result.OverridesAtRoot.Count > 0)
     {
@@ -440,22 +439,22 @@ int RunClassify(string pakPath, string? jsonReportPath)
     }
 
     WriteClassifyReport(jsonReportPath, pakPath, success: true,
-        kind: result.Kind, name: result.Name, moduleFolder: result.ModuleFolder,
-        dependencies: result.Dependencies, hasGdBin: result.HasGdBin, popmapCount: result.PopmapCount,
-        overridesAtRoot: result.OverridesAtRoot, diagnostics);
+        name: result.Name, moduleFolder: result.ModuleFolder,
+        dependencies: result.Dependencies, gdbScopes: result.GdbScopes,
+        popmapCount: result.PopmapCount, overridesAtRoot: result.OverridesAtRoot, diagnostics);
     return PakerExitCodes.Success;
 }
 
 static void WriteClassifyReport(
     string? jsonReportPath, string pak, bool success,
-    string kind, string? name, string? moduleFolder,
-    IReadOnlyList<string> dependencies, bool hasGdBin, int popmapCount,
+    string? name, string? moduleFolder,
+    IReadOnlyList<string> dependencies, IReadOnlyList<string> gdbScopes, int popmapCount,
     IReadOnlyList<string> overridesAtRoot, IReadOnlyList<PakDiagnostic> diagnostics)
 {
     if (string.IsNullOrWhiteSpace(jsonReportPath)) return;
     var report = new PakClassifyReport(
-        pak, success, kind, name, moduleFolder, dependencies,
-        hasGdBin, popmapCount, overridesAtRoot,
+        pak, success, name, moduleFolder, dependencies,
+        gdbScopes, popmapCount, overridesAtRoot,
         PakReportDiagnostic.FromAll(diagnostics));
     WriteReportFile(jsonReportPath, PakClassifyReport.Serialize(report));
 }

@@ -2,8 +2,8 @@ collectionFormatVersion: 0.1
 id: pagonia-land.example.beginner-qol
 name: Beginner QoL Pack
 version: 0.1.0
-author: TheLavaBlock
-gameDatabaseVersion: "1.3.2-11873+194094"
+author: Pagonia Land
+gameDatabaseVersion: "1.4.0-11944+194631"
 description: Small safe quality-of-life preset bundling both example mods into one ready-to-play setup.
 conflictPolicy: strict
 requiresNewGame: false

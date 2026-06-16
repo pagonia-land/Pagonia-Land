@@ -27,7 +27,8 @@ internal static class AdvancedTweaks
     }
 
     // Tweaks are stored per-profile, so the picker is the active profile's
-    // enabled mods. Returns null (after a message) when there's nothing to pick.
+    // enabled mods. Returns null when there's nothing to pick (after a message)
+    // or when the user cancels (Esc) — both surface to the caller as "stop".
     private static string? PickMod(StoreLayout layout, string verb)
     {
         var show = new ActiveProfileService().Show(layout);
@@ -39,7 +40,7 @@ internal static class AdvancedTweaks
             return null;
         }
 
-        return AdvancedHelpers.Pick($"{verb} tweaks for which mod:", mods);
+        return AdvancedHelpers.TryPickOrCancel($"{verb} tweaks for which mod: [dim](Esc to cancel)[/]", mods, out var modId) ? modId : null;
     }
 
     private static void RunList(StoreLayout layout)
@@ -89,7 +90,7 @@ internal static class AdvancedTweaks
             return;
         }
 
-        var tweakId = AdvancedHelpers.Pick("Set which tweak:", read.Tweaks.Select(t => t.Declaration.Id));
+        if (!AdvancedHelpers.TryPickOrCancel("Set which tweak: [dim](Esc to cancel)[/]", read.Tweaks.Select(t => t.Declaration.Id), out var tweakId)) { return; }
         if (!AdvancedHelpers.TryPromptText($"New value for '[aqua]{Markup.Escape(tweakId)}[/]':", out var value)) { return; }
         var r = svc.Set(layout, profileName: null, modId, tweakId, value);
         DiagnosticsRenderer.Render(r.Diagnostics);
@@ -117,7 +118,7 @@ internal static class AdvancedTweaks
         const string All = "(all tweaks)";
         var choices = new List<string> { All };
         choices.AddRange(read.Tweaks.Select(t => t.Declaration.Id));
-        var pick = AdvancedHelpers.Pick("Reset which:", choices);
+        if (!AdvancedHelpers.TryPickOrCancel("Reset which: [dim](Esc to cancel)[/]", choices, out var pick)) { return; }
         var tweakId = pick == All ? null : pick;
 
         var r = svc.Reset(layout, profileName: null, modId, tweakId);

@@ -90,7 +90,7 @@ internal static class ManageActiveProfileWizard
         {
             AnsiConsole.MarkupLine("[yellow]No mods installed.[/]"); Pause(); return;
         }
-        var modId = AdvancedHelpers.Pick("Enable which mod?", installed.Select(m => m.Id).Distinct());
+        if (!AdvancedHelpers.TryPickOrCancel("Enable which mod? [dim](Esc to cancel)[/]", installed.Select(m => m.Id).Distinct(), out var modId)) return;
         var r = new ActiveProfileService().Enable(layout, modId, requestedVersion: null);
         DiagnosticsRenderer.Render(r.Diagnostics);
         if (r.Success && r.Profile is not null)
@@ -119,7 +119,7 @@ internal static class ManageActiveProfileWizard
         {
             AnsiConsole.MarkupLine("[yellow]No enabled mods to disable.[/]"); Pause(); return;
         }
-        var modId = AdvancedHelpers.Pick("Disable which mod?", choices);
+        if (!AdvancedHelpers.TryPickOrCancel("Disable which mod? [dim](Esc to cancel)[/]", choices, out var modId)) return;
         var r = svc.Disable(layout, modId);
         DiagnosticsRenderer.Render(r.Diagnostics);
         if (r.Success && r.Profile is not null)
@@ -136,15 +136,21 @@ internal static class ManageActiveProfileWizard
         {
             AnsiConsole.MarkupLine("[yellow]Need at least 2 enabled mods to reorder.[/]"); Pause(); return;
         }
-        var modId = AdvancedHelpers.Pick("Move which mod?", show.Profile.LoadOrder);
-        if (!AdvancedHelpers.TryPick("Place it relative to:", show.Profile.LoadOrder.Where(id => id != modId), out var anchor))
+        // Every step is cancellable (Esc) so the user can back out of the reorder
+        // at any prompt instead of being forced to complete a move they opened by
+        // mistake — same back-out affordance as the free-text prompts.
+        if (!AdvancedHelpers.TryPickOrCancel("Move which mod? [dim](Esc to cancel)[/]", show.Profile.LoadOrder, out var modId))
         {
-            AnsiConsole.MarkupLine("[yellow]No other mod to place this relative to.[/]"); Pause(); return;
+            return;
         }
-        var where = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Before or after?")
-                .AddChoices("before", "after"));
+        if (!AdvancedHelpers.TryPickOrCancel("Place it relative to: [dim](Esc to cancel)[/]", show.Profile.LoadOrder.Where(id => id != modId), out var anchor))
+        {
+            return;
+        }
+        if (!AdvancedHelpers.TryPickOrCancel("Before or after? [dim](Esc to cancel)[/]", new[] { "before", "after" }, out var where, search: false))
+        {
+            return;
+        }
 
         var r = where == "before"
             ? svc.MoveBefore(layout, modId, anchor)
@@ -233,7 +239,7 @@ internal static class ManageActiveProfileWizard
         }
         var state = new StoreStateReader().Read(layout);
         var active = state.ActiveProfile ?? StoreLayoutConstants.DefaultProfileName;
-        var pick = AdvancedHelpers.Pick("Switch active profile to:", list.Profiles.Select(p => p.Name));
+        if (!AdvancedHelpers.TryPickOrCancel("Switch active profile to: [dim](Esc to cancel)[/]", list.Profiles.Select(p => p.Name), out var pick)) return;
         if (string.Equals(pick, active, StringComparison.Ordinal))
         {
             AnsiConsole.MarkupLine($"[dim]'{Markup.Escape(pick)}' is already active.[/]");

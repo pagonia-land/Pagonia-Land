@@ -7,11 +7,10 @@
   "required": [
     "Pak",
     "Success",
-    "Kind",
     "Name",
     "ModuleFolder",
     "Dependencies",
-    "HasGdBin",
+    "GdbScopes",
     "PopmapCount",
     "OverridesAtRoot",
     "Diagnostics"
@@ -22,15 +21,6 @@
     },
     "Success": {
       "type": "boolean"
-    },
-    "Kind": {
-      "type": "string",
-      "enum": [
-        "module",
-        "user-map",
-        "overlay",
-        "unknown"
-      ]
     },
     "Name": {
       "type": [
@@ -50,8 +40,15 @@
         "type": "string"
       }
     },
-    "HasGdBin": {
-      "type": "boolean"
+    "GdbScopes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "global",
+          "map-scoped"
+        ]
+      }
     },
     "PopmapCount": {
       "type": "integer",

@@ -160,7 +160,7 @@ public sealed class ModInstaller
             var schemaValidator = new SchemaValidator();
             diagnostics.AddRange(schemaValidator.ValidateMod(validationRoot).Select(ManagerDiagnostic.From));
 
-            // Conflict-minimising authoring advisor (patcher Phase 5): advise on
+            // Conflict-minimising authoring advisor: advise on
             // the mod's own overlay *.gd.xml so a GameDatabase-overlay mod surfaces
             // its inter-mod conflict risk at install time. Advisory only — it emits
             // no Error, so it never blocks the install. Base-free here (the store

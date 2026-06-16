@@ -126,7 +126,7 @@ catalog:
   tags: [community, qol]
 
 repos:
-  - owner: TheLavaBlock
+  - owner: pagonia-land
     repo: pop-qol-bundle
     summary: Quality-of-life tweaks
     tags:

@@ -31,7 +31,7 @@ internal static class BrowseCatalogsWizard
         {
             AnsiConsole.MarkupLine("[dim]No catalog subscriptions yet. A catalog is a curated list of mod repos that publishers share.[/]");
             AnsiConsole.WriteLine();
-            if (!AnsiConsole.Prompt(new ConfirmationPrompt("Add a subscription now?") { DefaultValue = true }))
+            if (!AdvancedHelpers.Confirm("Add a subscription now?", defaultValue: true))
             {
                 AnsiConsole.MarkupLine("[dim]Aborted.[/]");
                 return;
@@ -137,7 +137,7 @@ internal static class BrowseCatalogsWizard
         if (index.Mods.Count > 0)
         {
             AnsiConsole.MarkupLine("[bold]Mods[/]");
-            AnsiConsole.Write(BuildItemTable(index.Mods.Select(m => (m.Id, m.DisplayName, m.Version, m.Description))));
+            AnsiConsole.Write(BuildModTable(index.Mods));
         }
         if (index.Collections.Count > 0)
         {
@@ -248,8 +248,7 @@ internal static class BrowseCatalogsWizard
             return;
         }
 
-        var activate = AnsiConsole.Prompt(
-            new ConfirmationPrompt("Activate the new profile now?") { DefaultValue = true });
+        var activate = AdvancedHelpers.Confirm("Activate the new profile now?", defaultValue: true);
 
         CollectionInstallResult? result = null;
         try
@@ -317,6 +316,47 @@ internal static class BrowseCatalogsWizard
                 Markup.Escape(Truncate(description, 64)));
         }
         return table;
+    }
+
+    // Mods get an extra Safety column — the whole reason the index mirrors each
+    // mod.yaml's safety flags is so a user can weigh them here, before installing.
+    private static Table BuildModTable(IEnumerable<RepoIndexMod> mods)
+    {
+        var table = new Table().Border(TableBorder.Rounded)
+            .AddColumn("Id")
+            .AddColumn("Name")
+            .AddColumn("Version")
+            .AddColumn("Safety")
+            .AddColumn("Description");
+        foreach (var m in mods)
+        {
+            table.AddRow(
+                $"[aqua]{Markup.Escape(m.Id)}[/]",
+                Markup.Escape(m.DisplayName),
+                Markup.Escape(m.Version),
+                Markup.Escape(FormatSafety(m.SafetyFlags)),
+                Markup.Escape(Truncate(m.Description, 56)));
+        }
+        return table;
+    }
+
+    // Compact, predictable rendering of the four flags. An absent block means the
+    // catalog didn't advertise safety ("—"); an absent or unknown field shows "?".
+    private static string FormatSafety(RepoIndexSafetyFlags? safety)
+    {
+        if (safety is null)
+        {
+            return "—";
+        }
+
+        static string V(string? value) => value switch
+        {
+            "true" => "yes",
+            "false" => "no",
+            _ => "?",
+        };
+
+        return $"new-game: {V(safety.RequiresNewGame)} · remove: {V(safety.SafeToRemove)} · mp: {V(safety.MultiplayerSafe)} · camp: {V(safety.CampaignSafe)}";
     }
 
     private static string RepoSpec(AggregatedRepo r)

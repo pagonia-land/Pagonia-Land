@@ -88,6 +88,10 @@ pagonia-manager deploys list-orphans [--store <p>]         # list deploy dirs wh
 pagonia-manager deploys clean --keep <N> [--game <p>] [--dry-run] [--store <p>]
                                                            # trim deploy backups to N most recent per fingerprint
 
+pagonia-manager doctor [--store <path>] [--game <path>]    # read-only health roll-up: store, active profile,
+                                                           # enabled-mods-installed, cross-mod overlay conflicts,
+                                                           # orphaned deploys, deploy-backup storage, expansion ownership
+
 pagonia-manager schema-validate --kind <k> --report <path>  # validate a JSON report against its schema
                                                            # kinds: install, uninstall, deploy, rollback,
                                                            #        collectionInstall, status, deployStatus,
@@ -443,7 +447,7 @@ Example output:
 
 ```text
 Aggregated repos (4 unique across 2 fetched catalog(s)):
-  TheLavaBlock/example-hardcore-presets
+  pagonia-land/example-hardcore-presets
     (example) Hardcore difficulty presets, one collection per playstyle.
   pagonia-land/example-mods [vouched by 2 catalogs]
     Bundled reference repo — two example mods + one preset collection.
@@ -788,7 +792,7 @@ Every command listed above accepts `--json <out>` and writes a stable, schema-va
 
 - `schemaVersion`: `"0.1"` on every report. Each schema versions independently; a future bump signals a shape change to that one report.
 - `reportKind`: discriminator, one of `install`, `uninstall`, `deploy`, `rollback`, `collectionInstall`, `status`, `deployStatus`, `tweakList`, `tweakSet`, `tweakReset`, `expansionsList`, `expansionsSet`.
-- `gameProductVersion` (on `deployStatus`): the live install's game version, read from the executable's Win32 **ProductVersion** — byte-for-byte the same string mods declare as `gameDatabaseVersion` (e.g. `1.3.2-11873+194094`). `null` when no readable exe (extracted layout / fixture); the human-readable output renders that as `(unknown)`. The same version drives the game-vs-mod compatibility check below.
+- `gameProductVersion` (on `deployStatus`): the live install's game version, read from the executable's Win32 **ProductVersion** — byte-for-byte the same string mods declare as `gameDatabaseVersion` (e.g. `1.4.0-11944+194631`). `null` when no readable exe (extracted layout / fixture); the human-readable output renders that as `(unknown)`. The same version drives the game-vs-mod compatibility check below.
 - `diagnostics`: always an array of `{ severity, code, message, path? }`.
 - The plan report (`plan --json`) uses its own `{ manager, patcher }` envelope shape — its embedded patcher payload uses the patcher's PascalCase property names.
 
@@ -890,6 +894,8 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.modGameVersionDrift` | info | A mod's declared `gameDatabaseVersion` shares the same `major.minor.patch` line as the install's actual version (read from the exe) but a different build/revision — e.g. mod `1.3.0-11727+193140` vs game `1.3.0-11768+193445`. Almost always still applies; never blocks. (Game-vs-mod axis.) |
 | `manager.modGameVersionMismatch` | warning | A mod's declared `gameDatabaseVersion` is on a different `major.minor.patch` line from the install's actual version — e.g. mod `1.2.5-…` vs game `1.3.0-…`. A real version gap; the mod may not apply cleanly. Advisory only — gated by the normal `--accept-warnings` path, never a hard block. Fires only when the install version is readable (live install with an exe); degrades silently otherwise. (Game-vs-mod axis.) |
 | `manager.modInstallMissing` | error | A mod is enabled in the profile but its install directory is missing from `<store>/mods/<id>/<version>/`. Usually the mod was uninstalled or moved out-of-band. Re-install or `disable` it. |
+| `manager.modManifestUnreadable` | error | An enabled mod is installed on disk but its `mod.yaml` could not be parsed. Surfaced (not silently dropped) by `doctor` and plan roll-ups so the failure is visible rather than counted as "present". |
+| `manager.crossModOverlayConflict` | warning | Two enabled mods destructively (`Replace`/`Unload`) target the same inherited GameDatabase entity; the engine resolves by load order (last-loaded wins), so the earlier mod's change is silently overridden. Surfaced on `plan` / `deploy` / `doctor`. Advisory, never blocks. |
 | `manager.gameRootMissing` | error | The `--game <path>` passed to `plan` / `deploy` / `rollback` is empty or does not exist. |
 | `manager.deployBlockedByErrors` | error | Plan errors or patcher conflicts prevented the deploy. Run `plan` to see the details, then fix or override. |
 | `manager.deployBlockedByWarnings` | error | Plan has warnings and `--accept-warnings` was not passed. Pass it to override. |
@@ -898,6 +904,7 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.rollbackBlockedByDrift` | error | Rollback refused: one or more live files changed out-of-band since the deploy being reverted (each named by a preceding `liveStateDrift` warning). Re-run with `--force` to restore over the foreign change(s); nothing was changed. |
 | `manager.deployEmpty` | info | Profile has no writes against the game — deploy is a noop, no manifest written. Exit `Success`. |
 | `manager.deployCompleted` | info | Deploy wrote N files; backup + manifest + history updated. |
+| `manager.deployMidWriteRolledBack` | error | A write to the live install threw mid-deploy; the install was restored from the just-written backups (and any overlay paks removed) to its pre-deploy state. The deploy made no net change. |
 | `manager.deployDryRun` | info | `--dry-run` mode: report what would change. Nothing written. |
 | `manager.rollbackNothingToRollback` | info | No prior deploy recorded for this game's fingerprint. Exit `Success`. |
 | `manager.rollbackCompleted` | info | Rollback restored N files from the latest deploy. |
@@ -909,6 +916,7 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.pakBuildFailed` | error | `PakBuilder` invocation failed (paker reported errors). The deploy aborts before any pak is written. |
 | `manager.pakScaffoldMissing` | error | Mod declared `pak.name` but `PatchApplier` produced no scaffold directory at `<staging>/<pak.name>/`. Usually means a `pak.name` typo or a patcher apply that aborted earlier. |
 | `manager.rollbackAddedFileMissing` | info | Rollback's expected `addedFiles` entry (e.g. a Pattern B pak in `<game>/mods/`) was already gone. Not an error — the user may have removed it out-of-band. |
+| `manager.rollbackAddedFileChanged` | warning | A Pattern B overlay pak was replaced after deploy (its live SHA-256 no longer matches the recorded `deployedSha256`); rollback leaves it in place rather than delete a file it no longer owns. Non-blocking, even under `--force`. |
 | `manager.gameLayoutUnrecognised` | error | The `--game <path>` argument exists on disk but doesn't look like a Pioneers of Pagonia folder (neither a live install with `pak/*.pak` nor an extracted layout with `core/gdb/*.gd.xml`). |
 | `manager.pakCacheRefreshed` | info | `PakCacheService.Ensure` extracted N paks into the cache (cold miss, or partial-hit's "add missing" branch). |
 | `manager.pakCacheReused` | info | Cache was warm for every requested pak — no extraction needed this call. |
@@ -921,6 +929,8 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.modifiedFileMissingOwningPak` | error | A patched file's relative path doesn't appear in any of the discovered paks' indexes. Usually means the cache is stale — re-run plan after refreshing the cache. |
 | `manager.pakRollbackRestored` | info | Rollback restored one pak from backup. Emitted once per rebuilt-pak entry in the manifest. |
 | `manager.rollbackHashMismatch` | error | A backup pak's SHA-256 differs from the value recorded at deploy time. Rollback refuses to overwrite the live pak — restoring potentially-corrupt bytes would defeat the entire point of rollback. |
+| `manager.rollbackLeftoverDirectory` | warning | Rollback restored successfully but its timestamp backup directory couldn't be deleted (e.g. a locked file). The leftover directory is named so it isn't mistaken for a live backup. |
+| `manager.duplicatePakEntryOwner` | warning | While building the deploy owner map, two source paks were found to contain the same entry path; the first-discovered pak is the one patched. Surfaced so the overlap is visible. |
 | `manager.deployUsedSparsePath` | info | Live-install deploy took the sparse fast-path: patched XML bytes piped from memory into `PakRebuilder`, no temp staging tree created. |
 | `manager.deployFellBackToFullApply` | info | Live-install deploy fell back to the disk-staging Apply path. Message names the reason (Pattern B pak block detected / entry-level operations present). |
 | `manager.gameUpdatedSinceLastDeploy` | warning | Deploy preflight detected a prior deploy for the same `gameRoot` path but a different fingerprint — likely a Pioneers of Pagonia update touched `system.json` between the two. When both the prior deploy manifest and the current install expose a ProductVersion, the message names them (*"updated from v1.4.2 to v1.5.0"*); otherwise it falls back to the fingerprint-hash wording. Older backups under that older fingerprint won't restore cleanly over the current install; run `pagonia-manager deploys list-orphans` to inspect. |
@@ -936,7 +946,9 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.remoteFetchFailed` | error | An HTTP request the remote-fetch flow needed failed (unknown ref, missing `mod.yaml`, missing patch file, traversal path, or a transport error). Message names the URL and the failure mode; nothing is written to the store. |
 | `manager.remoteIndexMalformed` | error | The remote repo's `index.yaml` parsed as invalid YAML or as a structurally-broken `RepoIndex`. Install aborts; the repo author needs to fix it. Validate locally with `pagonia-patcher schema-validate --repo-index <yaml>` before publishing. |
 | `manager.modNotInRepoIndex` | error | The `<mod-id-or-path>` segment of the source spec was not found in the remote repo's `index.yaml` (neither as a mod id nor as a path). Message lists every id the index actually offers so the user can fix the typo. |
+| `manager.repoIndexMetadataMismatch` | warning | The catalog/repo `index.yaml` advertised metadata (version / gameDatabaseVersion / safety) that disagrees with the `mod.yaml` actually fetched — the browse list may have misled the user. Non-fatal: the authoritative `mod.yaml` still installs. |
 | `manager.crossRepoSourceResolved` | info | A `collection install --from gh:...` followed a per-mod `source: gh:other/other-repo[#ref]` field across repository boundaries; the other repo's ref was resolved to a concrete commit SHA before fetching that mod's files. Surfaces once per cross-repo hop. |
+| `manager.collectionLockfileVersionMismatch` | error | Reserved — declared for a future collection-lockfile version-compat check; not currently emitted. |
 | `manager.profileCreatedFromCollection` | info | A profile was created (or replaced under `--overwrite`) from a collection's resolved mod list + load order. Names the profile + the collection + mod count. |
 | `manager.profileActivatedFromCollection` | info | After `collection install --activate`, the new profile was set as `state.yaml.activeProfile`; the next `plan` / `deploy` targets it. |
 | `manager.profileAlreadyExists` | error | A `collection install` would have overwritten an existing profile with the same name. Message points the user at `--overwrite` (to replace it) or `--as-profile <name>` (to pick a different name). |
@@ -956,6 +968,7 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.directUrlFetchFailed` | error | The direct-URL fetch failed (404, network error, extraction failure). Message names the URL + the failure mode. |
 | `manager.directUrlInsecureHttp` | warning | Install source uses plain `http://` instead of `https://`. The warning fires regardless of `state.yaml.allowInsecureSources`; the install only PROCEEDS when that flag is true. Without the opt-in, the install aborts with the same warning + a refusal message. |
 | `manager.directUrlTraversalRefused` | error | A ZIP entry's path resolved to a location outside the extraction root (zip-slip / `..` traversal). Refused before any file was written. |
+| `manager.directUrlArchiveTooLarge` | error | A downloaded archive declares too many entries or too much uncompressed data to extract safely — refused as a possible zip bomb. |
 | `manager.directUrlArchiveDrift` | info | Re-installing from a URL that previously installed different bytes. The previous SHA-prefix + current SHA-prefix are named in the message. Non-blocking — the install proceeds with the new bytes. |
 | `manager.modIoApiError` | error | mod.io API call failed: missing API key, network error, 404 on the game/mod ids, malformed JSON response. Message names the failure mode + the relevant URL or ids. |
 | `manager.modIoRateLimited` | warning | mod.io returned 429 (rate-limited). Message points the user at `PAGONIA_MODIO_API_KEY` for an isolated rate-limit bucket. |
@@ -963,6 +976,7 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.modIoCollectionsUnsupported` | info | `collection install --from modio:...` was attempted. mod.io's collection model is server-curated and not portable as `*.collection.yaml`; the message points users at `collection install --from gh:...` for portable collections. |
 | `manager.modIoUnknownGameAlias` | error | The `<game>` segment of `modio:<game>/<mod-id>` is neither a numeric id nor one of the recognised slugs (`pioneers-of-pagonia`, `pop`). Message names what IS accepted so the user can fix a typo. |
 | `manager.modIoVersionPinNotImplemented` | info | The install was pinned to `modio:<game>/<mod-id>#<version>` but mod.io's current modfile has a different version. Pinning a mod.io install to a specific `#<version>` isn't supported; the install proceeds with mod.io's current modfile bytes. |
+| `manager.modIoInsecureDownloadUrl` | error | mod.io returned a download URL whose scheme is not `https` — refused rather than fetch UGC bytes over an unencrypted/unknown transport. The URL is not echoed. |
 | `manager.tweakUnknownMod` | error | A tweak read/set/reset targeted a mod that is not enabled in the resolved profile (overrides live on a profile's enabled-mod entry). |
 | `manager.tweakUnknownId` | error | The mod is enabled but declares no tweak with the given id (`tweak set`/`reset`). Run `tweak list <mod-id>` to see the ids it exposes. |
 | `manager.tweakValueOutOfRange` | error | A `tweak set` value for a `number`/`integer` tweak fell outside the declared `min..max`. (The patcher uses the same code as a plan-time *warning*; the manager raises it at error severity because the user supplied the value and can fix it.) |
