@@ -10,6 +10,7 @@
 
 - **A structured map of the game's XML database** — entity model, GUID references, system guides.
 - **Three command-line tools** covering the full mod lifecycle: editing → installing → deploying.
+- **A desktop app** — the *Pagonia Land app* turns your own install into an interactive, icon-rich GameDatabase catalog you can browse, cross-navigate, and search.
 - **JSON Schemas** that any third-party tool can read against — the integration contract for GUIs, IDE plugins, CI scripts.
 - **A growing library of worked examples** — from "change one construction cost" walkthroughs to building a custom Sanctuary ability end-to-end.
 
@@ -26,19 +27,20 @@ The goal is to shorten the path from "I have an idea" to "it works in-game" — 
 
 Since the 1.4.0 update, the **Pagonia Editor** that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod; the [Pioneers of Pagonia community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it.
 
-Pagonia Land is the GameDatabase data and distribution side underneath: a structured map of the game's XML data, a declarative patch format with conflict detection, the install / deploy / rollback lifecycle, and end-to-end worked examples.
+Pagonia Land is built to **complement** that editor, not replace it: a structured reference for the GameDatabase you're editing, a declarative patch format with conflict detection for the text / CI / automation / batch-authoring path, the install / deploy / rollback lifecycle, and end-to-end worked examples — the supporting layer around EE's visual authoring (and the fallback for pre-1.4.0 versions and the non-entity assets the editor can't express).
 
 ## What's Inside
 
-Current snapshot: **`1.4.0-11944+194631`** (1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, 2026-06-16).
+Current snapshot: **`1.4.0-12032+195221`** (1.4.0 "Quality of Life & Pagonia Editor Update" (QoL 8), official release, 2026-06-24).
 
 > **Work in progress.** This repository is actively maintained alongside Pioneers of Pagonia itself — every game update gets a snapshot refresh, every new mechanic gets documented, every reported bug or doc gap gets fixed. Things will move and improve. If something looks off or out of date, the next refresh probably covers it.
 
 | Area | What you get |
 | --- | --- |
-| Database snapshot | 60 XML files · 4,715 entities · 31,763 GUID references · 0 errors / 2 stable warnings ([details](VALIDATION_BASELINE.md)) |
+| Database snapshot | 60 XML files · 4,717 entities · 31,755 GUID references · 0 errors / 2 stable warnings ([details](VALIDATION_BASELINE.md)) |
 | Documentation | 30+ guides across six chapters — orientation, database concepts, gameplay data, cross-file systems, modding practice, generated reference ([jump](#documentation-chapters)) — plus a [catalog browser](https://pagonia-land.github.io/Pagonia-Land/catalog/) to explore every entity, recipe, building, and unit in your browser |
-| Patcher | `pagonia-patcher` — declarative `mod.yaml`, ten XML operations, binary pak-entry ops, conflict detection, collections + lockfiles, AOT single-file binary ([CLI](tools/pagonia-patcher/CLI.md)) |
+| Pagonia Land App | A desktop GUI that turns your own install into a browsable GameDatabase catalog — five domains, real icons decoded from the paks, clickable cross-navigation in both directions, global search, and a warm-restart cache ([overview](app/README.md) · [changelog](app/CHANGELOG.md)). Windows + Linux |
+| Patcher | `pagonia-patcher` — declarative `mod.yaml`, the full XML operation set, binary pak-entry ops, conflict detection, collections + lockfiles, AOT single-file binary ([CLI](tools/pagonia-patcher/CLI.md)) |
 | Paker | `pagonia-paker` — list / unpack / pack / patch / compress / decompress / classify, `.gd.bin` index encode-decode, Pattern B overlay scaffold, parallel encoding, AOT single-file binary ([CLI](tools/pagonia-paker/CLI.md)) |
 | Manager | `pagonia-manager` — install / uninstall / enable / disable / move / profile / collection install / tweak / plan / deploy / rollback against a real game install; profile-scoped mod selection, per-profile [tweak configuration](docs/mod-tweaks.md), atomic deploy with full backup + byte-identical rollback, Pattern B overlay-pak deploy, schema-validated JSON reports on every command, AOT single-file binary ([CLI](tools/pagonia-manager/CLI.md)) |
 | Sandbox | [`sandbox/`](sandbox/README.md) — one-command apply for your own mods, git-ignored output folder, ready-to-copy templates, [end-to-end manager walkthrough](sandbox/examples/manager-walkthrough/) |
@@ -60,13 +62,15 @@ Download the latest Pagonia Land tools as Native AOT single-file binaries — **
 | macOS Intel | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-manager-osx-x64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-patcher-osx-x64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-paker-osx-x64.tar.gz) |
 | macOS Apple Silicon | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-manager-osx-arm64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-patcher-osx-arm64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-paker-osx-arm64.tar.gz) |
 
+**The Pagonia Land app** — the desktop catalog viewer, self-contained (no .NET runtime needed at the destination), **Windows + Linux** (macOS planned): [⬇ Windows zip](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-land-app-win-x64.zip) · [⬇ Linux tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-land-app-linux-x64.tar.gz)
+
 **Schemas only** (for mod-manager devs, IDE plugins, web validators): [⬇ pagonia-schemas.zip](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-schemas.zip)
 
 **Verify your download:** every release ships a [`SHA256SUMS.txt`](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/SHA256SUMS.txt). Check with `sha256sum -c SHA256SUMS.txt` on Linux/macOS or `Get-FileHash` on Windows.
 
-The download URLs above always point at the latest published release — no need to update them. The filename inside each archive carries the version (e.g. `pagonia-manager-0.1.0-win-x64/`).
+The download URLs above always point at the latest published release — no need to update them. The filename inside each archive carries the version (e.g. `pagonia-manager-<version>-win-x64/`).
 
-**Building from source?** Each tool's README has the `dotnet publish` recipe. See [`tools/pagonia-manager/README.md`](tools/pagonia-manager/README.md), [`tools/pagonia-patcher/README.md`](tools/pagonia-patcher/README.md), [`tools/pagonia-paker/README.md`](tools/pagonia-paker/README.md).
+**Building from source?** Each tool's README has the `dotnet publish` recipe. See [`tools/pagonia-manager/README.md`](tools/pagonia-manager/README.md), [`tools/pagonia-patcher/README.md`](tools/pagonia-patcher/README.md), [`tools/pagonia-paker/README.md`](tools/pagonia-paker/README.md), and [`app/README.md`](app/README.md) for the desktop app.
 
 ## Start Here
 
@@ -140,6 +144,8 @@ The chapters below are a table of contents, not required reading order.
 | [Safe Edits](docs/safe-edits.md) | Beginner-friendly edits, medium-risk changes, high-risk areas |
 | [Modding Risk Map](docs/modding-risk-map.md) | Practical risk map: objectives, tech tree, unit attachments, rare components |
 | [Mod Distribution Patterns](docs/mod-distribution.md) | The three mod shapes — patched canonical pak (A), side-by-side overlay pak (B), user-map pak (C) — and the Meadowsong cross-pak entity merging primitives |
+| [Editor Mods and Pagonia Land](docs/editor-interop.md) | How EE's Pagonia Editor (the in-game GDB authoring UI) relates to this project's tools — where they meet, and which to reach for |
+| [Multiplayer and Modded Saves](docs/multiplayer-modding.md) | How enabled mods bind to saves and behave in co-op (1.4.0): save-binding, set parity, the GDB hash mismatch, DLC dependencies, achievement gating |
 | [First Modding Experiments](docs/first-mods.md) | Guided first edits: costs, recipe amounts, build menu order, tracing |
 | [Worked Examples](docs/examples/README.md) | Step-by-step traces and small edits for resources, buildings, recipes, units, DLC, objectives, artifacts, tools data |
 | [Declarative Mod Patch Format](docs/mod-patch-format.md) | v0.1 format for describing mods as validated patch operations |
@@ -148,7 +154,7 @@ The chapters below are a table of contents, not required reading order.
 | [Mod Tags Vocabulary](docs/mod-tags.md) | Recommended `tags` values for `mod.yaml` / `collection.yaml` / `catalog.yaml` / `index.yaml` — content domain, intent, technical, maturity, language |
 | [Patcher And Mod Manager Architecture](docs/mod-manager-architecture.md) | Shared patcher core, archive layout, validation flow, the integration surface |
 | [Mod Collections](docs/mod-collections.md) | Curated mod lists, load order, lockfiles, profiles, collection safety |
-| [Manager Walkthrough](sandbox/examples/manager-walkthrough/) | 13-stage end-to-end driver: install two fixture mods, enable + reorder, plan, deploy, rollback, SHA-256 round-trip verification — runs against the framework build or any published `pagonia-manager.exe` |
+| [Manager Walkthrough](sandbox/examples/manager-walkthrough/) | 19-stage end-to-end driver: install two fixture mods, enable + reorder, plan, deploy, rollback, SHA-256 round-trip verification (extracted *and* live-install layouts) — runs against the framework build or any published `pagonia-manager.exe` |
 | [Troubleshooting](docs/troubleshooting.md) | XML parse errors, duplicate GUIDs, unresolved references, missing catalog data, crashes, recovery |
 
 ### 6. Generated Reference And Updates
@@ -165,7 +171,7 @@ The chapters below are a table of contents, not required reading order.
 | [Mod Patch Schemas](schemas/mod-patches/README.md) | v0.1 JSON Schemas for `mod.yaml` manifests, patch files, collections, lockfiles |
 | [Manager Report Schemas](schemas/manager/README.md) | v0.1 JSON Schemas for every `pagonia-manager --json` report (install, deploy, rollback, status, collection install, ...) |
 
-Project metadata — [CONTRIBUTING.md](CONTRIBUTING.md), [NOTICE.md](NOTICE.md), [CHANGELOG.md](CHANGELOG.md), [LICENSE](LICENSE), [LICENSE-DOCS.md](LICENSE-DOCS.md) — sits at the repository root.
+Project metadata — [CONTRIBUTING.md](CONTRIBUTING.md), [NOTICE.md](NOTICE.md), [CHANGELOG.md](CHANGELOG.md), [LICENSE](LICENSE), [LICENSE-DOCS.md](LICENSE-DOCS.md), [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) — sits at the repository root.
 
 ## Collaborate
 
@@ -199,6 +205,7 @@ A list of everyone who has contributed is on the [GitHub contributors graph](htt
 | --- | --- |
 | Original scripts, schemas, and tooling source | [MIT](LICENSE) |
 | Original documentation | [CC BY 4.0](LICENSE-DOCS.md) |
+| Third-party libraries bundled in the released binaries | Their own upstream licenses — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) |
 | Extracted game data (`game-gdb/`, `game-paks/`, `game-maps/`) | **Not covered** — proprietary, never commit. See [NOTICE.md](NOTICE.md) |
 | Derived artifacts under `generated/` and `snapshots/` | Treated as derivatives of the above — local-only, git-ignored |
 

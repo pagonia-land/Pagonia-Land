@@ -1,0 +1,125 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:PagoniaLand.App"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="PagoniaLand.App.App"
+             RequestedThemeVariant="Default">
+
+  <!-- Brand accent: the docs-site teal, so the app reads as one product. Overrides the Fluent
+       default blue across the accent button, "link" detail lines, and selection highlights. -->
+  <Application.Resources>
+    <Color x:Key="SystemAccentColor">#009688</Color>
+    <Color x:Key="SystemAccentColorLight1">#26A69A</Color>
+    <Color x:Key="SystemAccentColorLight2">#4DB6AC</Color>
+    <Color x:Key="SystemAccentColorLight3">#80CBC4</Color>
+    <Color x:Key="SystemAccentColorDark1">#00897B</Color>
+    <Color x:Key="SystemAccentColorDark2">#00796B</Color>
+    <Color x:Key="SystemAccentColorDark3">#00695C</Color>
+  </Application.Resources>
+
+  <Application.DataTemplates>
+    <!-- The detail pane: renders any selected catalog row (resource / building / recipe /
+         unit) as its icon + name + labelled sections, lists laid out one-per-line. -->
+    <DataTemplate DataType="local:CatalogRow">
+      <ScrollViewer>
+        <!-- The detail / info view: everything centred horizontally. -->
+        <StackPanel Margin="16" Spacing="10" HorizontalAlignment="Center">
+          <StackPanel Spacing="10" HorizontalAlignment="Center">
+            <!-- A large hero icon at a fixed height for every entry (square icons → square box);
+                 the surrounding Margin gives it breathing room. Recipes have no icon → no box. -->
+            <Image Source="{Binding Icon}" Height="200" Stretch="Uniform" HorizontalAlignment="Center"
+                   IsVisible="{Binding Icon, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+            <SelectableTextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold"
+                       TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" />
+          </StackPanel>
+          <ItemsControl ItemsSource="{Binding Detail}" HorizontalAlignment="Center">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="local:DetailSection">
+                <StackPanel Margin="0,10,0,0" HorizontalAlignment="Center">
+                  <SelectableTextBlock Text="{Binding Label}" FontWeight="SemiBold" Opacity="0.6"
+                             TextAlignment="Center" HorizontalAlignment="Center" />
+                  <!-- Grid.IsSharedSizeScope: the per-line icon column shares one width across this
+                       section's lines, so iconless lines still align their text under the others. -->
+                  <ItemsControl ItemsSource="{Binding Lines}" Margin="0,4,0,0" HorizontalAlignment="Center"
+                                Grid.IsSharedSizeScope="True">
+                    <!-- Space multi-entry sections (several costs / references) so the lines don't crowd. -->
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Spacing="5" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="local:DetailLine">
+                        <!-- (optional icon, text). Rows left-align so the icons form one column and the
+                             text another — an invisible 2-column table — while the ItemsControl keeps the
+                             whole block centred in the pane. -->
+                        <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="DetailIcon" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                          <!-- The target entity's icon, when the reference points at one (resource/building/unit). -->
+                          <Image Grid.Column="0" Source="{Binding Icon}" Width="32" Height="32" Margin="0,0,6,0"
+                                 VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                          <Panel Grid.Column="1" VerticalAlignment="Center">
+                            <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" TextAlignment="Center"
+                                       IsVisible="{Binding IsPlain}" />
+                            <Button Content="{Binding Text}" Classes="link" IsVisible="{Binding IsLink}"
+                                    HorizontalAlignment="Center" HorizontalContentAlignment="Center" Padding="0" />
+                          </Panel>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </DataTemplate>
+  </Application.DataTemplates>
+
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+    <!-- A borderless, accent-coloured "link" button used for navigable detail lines. -->
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="TextBlock.TextDecorations" Value="Underline" />
+    </Style>
+
+    <!-- Flat, chrome-less button (header brand + gear) — no Fluent box/hover fill. -->
+    <Style Selector="Button.plain">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.plain:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.plain:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- Continuous spin for the generation progress icon (the game's loading windmill). -->
+    <Style Selector="Image.spinner">
+      <Style.Animations>
+        <Animation Duration="0:0:1.1" IterationCount="INFINITE" Easing="LinearEasing">
+          <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </Application.Styles>
+
+</Application>

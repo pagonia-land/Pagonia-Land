@@ -13,6 +13,7 @@ internal static class MainMenu
     // ---- Mods cluster ----
     public const string InstallMod = "Install a mod";
     public const string BrowseCatalogs = "Browse community catalogs";
+    public const string UpdateMods = "Update mods + collections";
     public const string ManageActiveProfile = "Manage active profile";
 
     // ---- Game cluster ----
@@ -46,7 +47,7 @@ internal static class MainMenu
             .WrapAround()
             .HighlightStyle(new Style(foreground: Color.Aqua));
 
-        prompt.AddChoiceGroup("[bold]Mods[/]", new[] { InstallMod, BrowseCatalogs, ManageActiveProfile });
+        prompt.AddChoiceGroup("[bold]Mods[/]", new[] { InstallMod, BrowseCatalogs, UpdateMods, ManageActiveProfile });
         prompt.AddChoiceGroup("[bold]Game[/]", new[] { PlanDeploy, Rollback, DeployHistory });
         prompt.AddChoiceGroup("[bold]Status & Settings[/]", new[] { Status, Settings, CleanBackups });
         prompt.AddChoices(Advanced, Quit);

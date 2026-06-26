@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PagoniaLand.App/PagoniaLand.App.csproj" />
+    <Project Path="src/PagoniaLand.Catalog.Core/PagoniaLand.Catalog.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PagoniaLand.Catalog.Tests/PagoniaLand.Catalog.Tests.csproj" />
+  </Folder>
+  <Project Path="../tools/pagonia-paker/src/PagoniaLand.Paker.Core/PagoniaLand.Paker.Core.csproj" />
+</Solution>

@@ -53,12 +53,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
-      - name: Set up .NET 8 SDK
+      - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Run preflight
         shell: pwsh
@@ -73,12 +73,12 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
-      - name: Set up .NET 8 SDK
+      - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Publish patcher (Native AOT, win-x64)
         run: dotnet publish tools\pagonia-patcher\src\PagoniaLand.Patcher.Cli -c Release -r win-x64
@@ -92,7 +92,7 @@ jobs:
       - name: Smoke-test published patcher binary
         shell: pwsh
         run: |
-          $exe = 'tools\pagonia-patcher\src\PagoniaLand.Patcher.Cli\bin\Release\net8.0\win-x64\publish\pagonia-patcher.exe'
+          $exe = 'tools\pagonia-patcher\src\PagoniaLand.Patcher.Cli\bin\Release\net10.0\win-x64\publish\pagonia-patcher.exe'
           & $exe --version
           if ($LASTEXITCODE -ne 0) { throw "patcher --version failed" }
           & $exe schema-validate --mod sandbox\examples\sanctuary-add-custom-ability
@@ -101,7 +101,7 @@ jobs:
       - name: Smoke-test published paker binary
         shell: pwsh
         run: |
-          $exe = 'tools\pagonia-paker\src\PagoniaLand.Paker.Cli\bin\Release\net8.0\win-x64\publish\pagonia-paker.exe'
+          $exe = 'tools\pagonia-paker\src\PagoniaLand.Paker.Cli\bin\Release\net10.0\win-x64\publish\pagonia-paker.exe'
           & $exe --version
           if ($LASTEXITCODE -ne 0) { throw "paker --version failed" }
 
@@ -111,7 +111,7 @@ jobs:
       - name: Smoke-test published manager binary (full walkthrough)
         shell: pwsh
         run: |
-          $exe = 'tools\pagonia-manager\src\PagoniaLand.Manager.Cli\bin\Release\net8.0\win-x64\publish\pagonia-manager.exe'
+          $exe = 'tools\pagonia-manager\src\PagoniaLand.Manager.Cli\bin\Release\net10.0\win-x64\publish\pagonia-manager.exe'
           & $exe --version
           if ($LASTEXITCODE -ne 0) { throw "manager --version failed" }
           & .\sandbox\examples\manager-walkthrough\run.ps1 -ManagerExe $exe

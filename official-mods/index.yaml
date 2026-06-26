@@ -13,10 +13,11 @@ repo:
 mods:
   - id: pagonia-land.mods.cheaper-sawmill
     path: mods/cheaper-sawmill
+    contentHash: f721369d8fcf1988cbec6e83c7c86e5c559142ca4de3e57cdecc574bb88e7f9d
     displayName: Cheaper Sawmill
     description: Lowers the Sawmill's construction cost by one Softwood Trunk and one Stone Block.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - qol
       - buildings
@@ -29,10 +30,11 @@ mods:
 
   - id: pagonia-land.mods.cheaper-quarry
     path: mods/cheaper-quarry
+    contentHash: 5bbfb95b3c2eb616a112ef29fd84cda91ab532fb57b2ad50555c0eaa16b511c3
     displayName: Cheaper Quarry
     description: Lowers the Quarry's construction cost by one Softwood Trunk.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - qol
       - buildings
@@ -45,10 +47,11 @@ mods:
 
   - id: pagonia-land.mods.bigger-storage
     path: mods/bigger-storage
+    contentHash: 29ffa9ab5bbfbb0b6fef295c886da457f7b98ee33ec857145765c7525db4c73c
     displayName: Bigger Storage
     description: Raises the Storage building's two main ground piles from 32 to 40.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - qol
       - buildings
@@ -65,7 +68,7 @@ collections:
     displayName: Cheaper Buildings
     description: Cheaper Sawmill + Cheaper Quarry — trims early construction costs across your first production buildings.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - qol
       - preset
@@ -76,7 +79,7 @@ collections:
     displayName: Starter QoL Pack
     description: Cheaper Sawmill + Quarry + roomier Storage, wired into one ready-to-play beginner preset.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - qol
       - preset

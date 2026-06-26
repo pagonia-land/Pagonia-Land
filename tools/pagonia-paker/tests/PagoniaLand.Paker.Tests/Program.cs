@@ -21,6 +21,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("truncated footer reports a diagnostic", TruncatedFooterReportsDiagnostic),
     ("invalid index offset reports a diagnostic", InvalidIndexOffsetReportsDiagnostic),
     ("crc mismatch reports a diagnostic", CrcMismatchReportsDiagnostic),
+    ("corrupt filename length reports a diagnostic, not an unbounded allocation", CorruptFilenameLengthReportsDiagnostic),
+    ("compression-by-extension list matches scripts/sandbox-pack.ps1", CompressionExtensionListMatchesSandboxScript),
     ("uncompressed entry extracts byte-identical", UncompressedEntryExtracts),
     ("compressed entry extracts decompressed payload", CompressedEntryExtracts),
     ("compressed entry refuses to inflate past its declared size (decompression bomb)", CompressedEntryRejectsDecompressionBomb),
@@ -56,8 +58,19 @@ var tests = new (string Name, Func<bool> Run)[]
     ("gdbin reader rejects a truncated entry length", GdBinReaderRejectsTruncatedLength),
     ("gdbin reader rejects a truncated entry path", GdBinReaderRejectsTruncatedPath),
     ("gdbin reader rejects non-ASCII content that isn't UTF-16 boundary-aligned", GdBinReaderRejectsOddPathByteCount),
+    ("gdbin reader rejects an oversized char count without a giant allocation", GdBinReaderRejectsOversizedCharCount),
     ("gdbin ComputeHeaderByte3 matches the four shipped indexes", GdBinComputeHeaderByte3MatchesShipped),
     ("gdbin WithComputedHeader recomputes byte[3] from entry count", GdBinWithComputedHeaderRecomputes),
+    ("gdbin reader tolerates the 1.4.0 editor terminator on a single-entry index + round-trips", GdBinReaderToleratesEditorTerminator),
+    ("gdbin reader reads an editor empty index (header + terminator only) as 0 entries", GdBinReaderReadsEditorEmptyIndex),
+    ("gdbin WithComputedHeader counts the terminator as a record", GdBinWithComputedHeaderCountsTerminator),
+    ("loca reader decodes a .NET BinaryWriter value-only blob", LocaReaderDecodesBinaryWriterBlob),
+    ("loca reader treats a 0-byte file as an empty blob", LocaReaderEmptyStreamIsEmptyBlob),
+    ("loca reader decodes a multi-byte 7-bit length prefix (>=128 bytes)", LocaReaderDecodesMultiByteLengthPrefix),
+    ("loca reader rejects a truncated payload", LocaReaderRejectsTruncatedPayload),
+    ("loca reader rejects a truncated multi-byte length prefix", LocaReaderRejectsTruncatedLengthPrefix),
+    ("loca reader rejects an oversized length prefix without a giant allocation", LocaReaderRejectsOversizedLengthPrefix),
+    ("loca reader rejects invalid UTF-8 bytes", LocaReaderRejectsInvalidUtf8),
     ("patch auto-registers an added *.gd.xml in <m>/<m>.gd.bin", PatchAutoRegistersAddedGdXml),
     ("patch leaves <m>/<m>.gd.bin alone when no *.gd.xml is added", PatchLeavesGdBinAloneWhenNoXmlAdded),
     ("patch defers to a user-provided <m>/<m>.gd.bin replacement", PatchUserReplacementOfGdBinWins),
@@ -70,6 +83,9 @@ var tests = new (string Name, Func<bool> Run)[]
     ("classify: overlay pak surfaces root-level overrides", ClassifyOverlaySurfacesOverridesAtRoot),
     ("classify: pak with no manifest is unknown", ClassifyUnknownPakWithoutManifest),
     ("classify: editor map is map-scoped, empty module gd.bin not global", ClassifyEditorMapIsMapScoped),
+    ("classify: editor empty global index (header + terminator) is not global", ClassifyEditorEmptyGlobalIndexNotGlobal),
+    ("classify regression: editor GDB mod with DLC deps is global (EE 'package gdb with dependency' shape)", ClassifyEditorGdbModWithDependenciesIsGlobal),
+    ("classify regression: editor map mod is map-scoped only + popmap + deps (EE 'package map with dlc1 and gdb' shape)", ClassifyEditorMapModFullShapeIsMapScopedOnly),
     ("classify: global + map-scoped gd content reports both scopes", ClassifyGlobalAndMapScopedTogether),
     ("classify: pak with multiple modules picks first + warns", ClassifyMultipleModulesPicksFirstWarns),
     ("classify: manifest dependencies surfaced from JSON", ClassifyExtractsManifestDependencies),
@@ -79,6 +95,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("schema roundtrip: pak-patch-report", SchemaRoundtripPakPatchReport),
     ("schema roundtrip: pak-classify-report", SchemaRoundtripPakClassifyReport),
     ("schema roundtrip: gdbin-info-report", SchemaRoundtripGdBinInfoReport),
+    ("schema roundtrip: loca-info-report", SchemaRoundtripLocaInfoReport),
     ("pack: a cancelled token aborts Pack before writing the output pak", PackHonoursCancellationToken),
 };
 
@@ -214,6 +231,67 @@ bool InvalidIndexOffsetReportsDiagnostic()
 
     return !result.Success
         && result.Diagnostics.Any(d => d.Code == "pakIndexOffsetInvalid");
+}
+
+bool CorruptFilenameLengthReportsDiagnostic()
+{
+    // A corrupt per-entry filename length (0xFFFFFFFF) must not drive an unbounded byte[]
+    // allocation / OverflowException out of OpenIndex; it must surface the clean PakEntryTruncated
+    // every other corrupt-index path produces. The value passes the long-filename marker gate
+    // (marker 0x01) so it reaches the allocation site the guard protects.
+    using var pak = new MemoryStream();
+    pak.Write(Encoding.UTF8.GetBytes("data"));               // a data blob
+    var indexBegin = pak.Position;
+    Span<byte> u32 = stackalloc byte[4];
+    BinaryPrimitives.WriteUInt32LittleEndian(u32, 1); pak.Write(u32);          // version
+    BinaryPrimitives.WriteUInt32LittleEndian(u32, 1); pak.Write(u32);          // count = 1
+    pak.WriteByte(0);                                          // compressed flag
+    BinaryPrimitives.WriteUInt32BigEndian(u32, 0xFFFFFFFFu); pak.Write(u32);   // corrupt filename length
+    pak.WriteByte(0x01);                                       // long-filename marker, so we reach the alloc
+    pak.Write(new byte[20]);                                   // pad so count*minEntryBytes fits the index area
+    var footerStart = pak.Position;
+
+    var crc = new Crc32();
+    crc.Append(pak.GetBuffer().AsSpan(0, (int)footerStart));
+    Span<byte> crcBytes = stackalloc byte[4];
+    crc.GetCurrentHash(crcBytes);
+    pak.Write(crcBytes);                                       // footer CRC (LE) over data + index
+    Span<byte> i64 = stackalloc byte[8];
+    BinaryPrimitives.WriteInt64LittleEndian(i64, indexBegin); pak.Write(i64);  // footer index-begin
+
+    pak.Position = 0;
+    var result = reader.OpenIndex(pak);
+    return !result.Success && result.Diagnostics.Any(d => d.Code == "pakEntryTruncated");
+}
+
+bool CompressionExtensionListMatchesSandboxScript()
+{
+    // The compression-by-extension heuristic lives in PakPatcher.CompressibleExtensions (the single
+    // source of truth) but scripts/sandbox-pack.ps1 hardcodes the same set. Assert they stay
+    // identical, so editing one without the other fails CI instead of silently diverging pak layout.
+    var dir = AppContext.BaseDirectory;
+    string? scriptPath = null;
+    for (var probe = new DirectoryInfo(dir); probe is not null; probe = probe.Parent)
+    {
+        var candidate = Path.Combine(probe.FullName, "scripts", "sandbox-pack.ps1");
+        if (File.Exists(candidate)) { scriptPath = candidate; break; }
+    }
+    if (scriptPath is null) { return false; }
+
+    var script = File.ReadAllText(scriptPath);
+    var marker = script.IndexOf("$compressFor", StringComparison.Ordinal);
+    if (marker < 0) { return false; }
+    var open = script.IndexOf("@(", marker, StringComparison.Ordinal);
+    var close = open < 0 ? -1 : script.IndexOf(')', open);
+    if (open < 0 || close < 0) { return false; }
+
+    var scriptExts = script[(open + 2)..close]
+        .Split(',')
+        .Select(part => part.Trim().Trim('"', '\''))
+        .Where(part => part.Length > 0)
+        .ToHashSet(StringComparer.Ordinal);
+
+    return scriptExts.SetEquals(PakPatcher.CompressibleExtensions);
 }
 
 bool UncompressedEntryExtracts()
@@ -1144,6 +1222,21 @@ bool GdBinReaderRejectsOddPathByteCount()
         && result.Diagnostics.Any(d => d.Code == DiagnosticCodes.GdBinEntryTruncated);
 }
 
+bool GdBinReaderRejectsOversizedCharCount()
+{
+    // Header + a char count of 0x10000000 (268M code units = 512 MB) with NO path bytes after it.
+    // The count passes the int.MaxValue/2 overflow guard, so without the remaining-bytes check the
+    // reader would allocate ~512 MB from an 11-byte stream. It must reject early as truncated.
+    var bytes = new byte[]
+    {
+        0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x10, // charCount = 0x10000000, little-endian
+    };
+    var result = new GdBinReader().Read(new MemoryStream(bytes));
+    return !result.Success
+        && result.Diagnostics.Any(d => d.Code == DiagnosticCodes.GdBinEntryTruncated);
+}
+
 bool GdBinComputeHeaderByte3MatchesShipped()
 {
     // (entries.Count - 1) low byte, validated against the four shipped indexes.
@@ -1191,6 +1284,156 @@ static byte[] BuildGdBinBytes(byte headerByte1, byte headerByte3, params string[
         BinaryPrimitives.WriteUInt32LittleEndian(lengthBuf, (uint)(bytes.Length / 2));
         stream.Write(lengthBuf);
         stream.Write(bytes);
+    }
+    return stream.ToArray();
+}
+
+// The 1.4.0 Pagonia Editor closes every gd.bin with a zero-length terminator
+// record (00 00 00 00) — shipped paks omit it. This appends one to BuildGdBinBytes.
+static byte[] BuildEditorGdBinBytes(byte headerByte1, byte headerByte3, params string[] entries)
+{
+    var body = BuildGdBinBytes(headerByte1, headerByte3, entries);
+    var withTerminator = new byte[body.Length + 4];
+    Array.Copy(body, withTerminator, body.Length); // last 4 bytes stay zero = terminator
+    return withTerminator;
+}
+
+bool GdBinReaderToleratesEditorTerminator()
+{
+    // Editor single-entry index: header (byte[3]=0x01 = 1 entry + terminator - 1) + one
+    // path + the 00 00 00 00 terminator. Must read as one entry, flag the terminator,
+    // and re-serialise byte-identically.
+    var bytes = BuildEditorGdBinBytes(
+        headerByte1: 0x00, headerByte3: 0x01,
+        "package gdb no dependencies/gdb/my gamedata.gd.xml");
+
+    var read = new GdBinReader().Read(new MemoryStream(bytes));
+    if (!read.Success || read.Index is null) return false;
+    if (read.Index.Entries.Count != 1) return false;
+    if (read.Index.Entries[0] != "package gdb no dependencies/gdb/my gamedata.gd.xml") return false;
+    if (!read.Index.HasTrailingTerminator) return false;
+
+    var rewritten = new MemoryStream();
+    new GdBinWriter().Write(rewritten, read.Index);
+    return rewritten.ToArray().SequenceEqual(bytes);
+}
+
+bool GdBinReaderReadsEditorEmptyIndex()
+{
+    // The map-only mod's module-level index: header (byte[3]=0x00) + bare terminator.
+    var bytes = BuildEditorGdBinBytes(headerByte1: 0x00, headerByte3: 0x00);
+    if (bytes.Length != 11) return false; // 7-byte header + 4-byte terminator
+
+    var read = new GdBinReader().Read(new MemoryStream(bytes));
+    if (!read.Success || read.Index is null) return false;
+    if (read.Index.Entries.Count != 0) return false;
+    if (!read.Index.HasTrailingTerminator) return false;
+
+    var rewritten = new MemoryStream();
+    new GdBinWriter().Write(rewritten, read.Index);
+    return rewritten.ToArray().SequenceEqual(bytes);
+}
+
+bool GdBinWithComputedHeaderCountsTerminator()
+{
+    // With a terminator, byte[3] = (entries + 1) - 1 = entries. 1 entry -> 0x01.
+    var withTerminator = (GdBinIndex.CreateEmpty() with { HasTrailingTerminator = true })
+        .WithEntryAdded("mod/gdb/a.gd.xml")
+        .WithComputedHeader();
+    if (withTerminator.HeaderBytes[3] != 0x01) return false;
+
+    // Without it, the shipped rule holds: 1 entry -> byte[3] = 0x00.
+    var noTerminator = GdBinIndex.CreateEmpty()
+        .WithEntryAdded("mod/gdb/a.gd.xml")
+        .WithComputedHeader();
+    return noTerminator.HeaderBytes[3] == 0x00;
+}
+
+bool LocaReaderDecodesBinaryWriterBlob()
+{
+    // Build the blob with the canonical .NET writer the engine's exporter uses:
+    // BinaryWriter.Write(string) emits a 7-bit-length-prefixed UTF-8 string.
+    // Decoding it back must reproduce the exact strings, in order — this is the
+    // shape observed in the two 1.4.0-editor test paks.
+    var expected = new[] { "MY Festival Ground", "Wookieetreibers Festiveground", "ümläut & symbols ✓" };
+    var blob = BuildLocaBytes(expected);
+
+    var result = new LocaReader().Read(new MemoryStream(blob));
+    return result.Success
+        && result.Strings is not null
+        && result.Strings.SequenceEqual(expected);
+}
+
+bool LocaReaderEmptyStreamIsEmptyBlob()
+{
+    // No header / no count field: a 0-byte file is a valid, empty loca.
+    var result = new LocaReader().Read(new MemoryStream(Array.Empty<byte>()));
+    return result.Success
+        && result.Strings is { Count: 0 };
+}
+
+bool LocaReaderDecodesMultiByteLengthPrefix()
+{
+    // A 200-byte string forces a two-byte 7-bit length prefix (0xC8 0x01).
+    var big = new string('x', 200);
+    var blob = BuildLocaBytes(new[] { "short", big });
+    // "short" = 1 prefix byte (0x05) + 5 payload bytes, so the big string's
+    // two-byte prefix (0xC8 0x01 = 200) starts at offset 6.
+    if (blob[6] != 0xC8 || blob[7] != 0x01) return false;
+
+    var result = new LocaReader().Read(new MemoryStream(blob));
+    return result.Success
+        && result.Strings is not null
+        && result.Strings.Count == 2
+        && result.Strings[1] == big;
+}
+
+bool LocaReaderRejectsTruncatedPayload()
+{
+    // Length prefix says 5 bytes, only 2 follow.
+    var bytes = new byte[] { 0x05, (byte)'a', (byte)'b' };
+    var result = new LocaReader().Read(new MemoryStream(bytes));
+    return !result.Success
+        && result.Diagnostics.Any(d => d.Code == DiagnosticCodes.LocaEntryTruncated);
+}
+
+bool LocaReaderRejectsTruncatedLengthPrefix()
+{
+    // A lone continuation byte (high bit set) with nothing after it.
+    var bytes = new byte[] { 0x80 };
+    var result = new LocaReader().Read(new MemoryStream(bytes));
+    return !result.Success
+        && result.Diagnostics.Any(d => d.Code == DiagnosticCodes.LocaEntryTruncated);
+}
+
+bool LocaReaderRejectsOversizedLengthPrefix()
+{
+    // A corrupt 5-byte prefix FF FF FF FF 07 decodes to 0x7FFFFFFF (~2 GB). Without the
+    // remaining-bytes guard the reader would do `new byte[2147483647]` from a 5-byte stream and
+    // crash with OutOfMemory. It must reject it cleanly as truncated instead.
+    var bytes = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x07 };
+    var result = new LocaReader().Read(new MemoryStream(bytes));
+    return !result.Success
+        && result.Diagnostics.Any(d => d.Code == DiagnosticCodes.LocaEntryTruncated);
+}
+
+bool LocaReaderRejectsInvalidUtf8()
+{
+    // Length 1, then 0xFF which is not a valid standalone UTF-8 byte.
+    var bytes = new byte[] { 0x01, 0xFF };
+    var result = new LocaReader().Read(new MemoryStream(bytes));
+    return !result.Success
+        && result.Diagnostics.Any(d => d.Code == DiagnosticCodes.LocaStringDecodingFailed);
+}
+
+static byte[] BuildLocaBytes(IEnumerable<string> strings)
+{
+    var stream = new MemoryStream();
+    // Default BinaryWriter encoding is UTF-8; Write(string) prepends a
+    // 7-bit-encoded byte-length prefix — exactly the loca on-disk shape.
+    using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
+    {
+        foreach (var s in strings) writer.Write(s);
     }
     return stream.ToArray();
 }
@@ -1623,6 +1866,90 @@ bool ClassifyEditorMapIsMapScoped()
         && result.PopmapCount == 1;
 }
 
+bool ClassifyEditorEmptyGlobalIndexNotGlobal()
+{
+    // Regression: the real 1.4.0-editor map pak ships its module-level (global) index
+    // as header + a zero-length terminator (11 bytes). The old "any byte past the
+    // 7-byte header = content" rule mis-read those 4 terminator bytes as content and
+    // reported a false `global` scope. With the realistic editor shape the global index
+    // is empty, so the pak must classify as ["map-scoped"] only.
+    var manifest = MakeManifestJson("example mod", "core");
+    var filesJson = Encoding.UTF8.GetBytes("{\"Files\":[{\"Key\":\"GameDatabase\",\"Paths\":[\"example mod/example mod.gd.bin\"]}]}");
+    var emptyEditorGdBin = BuildEditorGdBinBytes(0x00, 0x00);                            // header + terminator, 0 real entries
+    var mapGdBin = BuildEditorGdBinBytes(0x00, 0x01, "example mod/usermaps/ecm.gd.xml"); // 1 entry + terminator, map-scoped
+    var pak = BuildPak(
+        ("example mod/manifest.json", manifest, Compressed: true),
+        ("example mod/files.json", filesJson, Compressed: true),
+        ("example mod/example mod.gd.bin", emptyEditorGdBin, Compressed: false),
+        ("example mod/memory.bin", new byte[28], Compressed: false),
+        ("example mod/usermaps/ecm.gd.bin", mapGdBin, Compressed: false),
+        ("example mod/usermaps/ecm.popmap", new byte[] { 1, 2, 3 }, Compressed: true));
+
+    var result = new PakClassifier().Classify(new MemoryStream(pak));
+    return result.Success
+        && result.GdbScopes.SequenceEqual(new[] { "map-scoped" })
+        && result.PopmapCount == 1;
+}
+
+bool ClassifyEditorGdbModWithDependenciesIsGlobal()
+{
+    // Synthetic stand-in for EE's editor pak "package gdb with dependency" (the real
+    // 91 KB binary is kept local per the content policy): a globally-active GDB mod
+    // depending on both DLCs, whose module-level index carries one entry plus the
+    // 1.4.0 editor's terminator, and which ships a localization blob. Classify must
+    // report a single `global` scope, no popmaps, and surface every declared dependency.
+    const string mod = "package gdb with dependency";
+    var manifest = MakeManifestJson(mod, "core", "decorations1", "dlc1");
+    var filesJson = Encoding.UTF8.GetBytes(
+        $"{{\"Files\":[{{\"Key\":\"GameDatabase\",\"Paths\":[\"{mod}/{mod}.gd.bin\"]}},{{\"Key\":\"Localization\",\"Paths\":[\"{mod}/localization\"]}}]}}");
+    var moduleGdBin = BuildEditorGdBinBytes(0x00, 0x01, $"{mod}/gdb/my_gdb.gd.xml"); // 1 entry + terminator
+    var pak = BuildPak(
+        ($"{mod}/manifest.json", manifest, Compressed: true),
+        ($"{mod}/files.json", filesJson, Compressed: true),
+        ($"{mod}/{mod}.gd.bin", moduleGdBin, Compressed: false),
+        ($"{mod}/gdb/my_gdb.gd.xml", Encoding.UTF8.GetBytes("<EntityGroup/>"), Compressed: true),
+        ($"{mod}/localization/loca_en_us.bin", new byte[] { 0x05, (byte)'H', (byte)'e', (byte)'l', (byte)'l', (byte)'o' }, Compressed: false),
+        ($"{mod}/memory.bin", new byte[28], Compressed: false));
+
+    var result = new PakClassifier().Classify(new MemoryStream(pak));
+    return result.Success
+        && result.GdbScopes.SequenceEqual(new[] { "global" })
+        && result.PopmapCount == 0
+        && result.Dependencies.Contains("core")
+        && result.Dependencies.Contains("decorations1")
+        && result.Dependencies.Contains("dlc1");
+}
+
+bool ClassifyEditorMapModFullShapeIsMapScopedOnly()
+{
+    // Synthetic stand-in for EE's editor pak "package map with dlc1 and gdb" (the real
+    // 3 MB binary stays local per the content policy): an EMPTY module-level index
+    // (header + terminator), a map-scoped usermaps gd.bin with content, a popmap, and
+    // DLC dependencies. Classify must report `map-scoped` ONLY (not a false `global`
+    // from the terminator), exactly one popmap, and the declared dependencies.
+    const string mod = "package map with dlc1 and gdb";
+    var manifest = MakeManifestJson(mod, "dlc1", "core", "decorations1");
+    var filesJson = Encoding.UTF8.GetBytes(
+        $"{{\"Files\":[{{\"Key\":\"GameDatabase\",\"Paths\":[\"{mod}/{mod}.gd.bin\"]}}]}}");
+    var emptyGlobal = BuildEditorGdBinBytes(0x00, 0x00);                                // header + terminator, 0 entries
+    var mapGdBin = BuildEditorGdBinBytes(0x00, 0x01, $"{mod}/usermaps/my database.gd.xml"); // 1 entry + terminator
+    var pak = BuildPak(
+        ($"{mod}/manifest.json", manifest, Compressed: true),
+        ($"{mod}/files.json", filesJson, Compressed: true),
+        ($"{mod}/{mod}.gd.bin", emptyGlobal, Compressed: false),
+        ($"{mod}/memory.bin", new byte[28], Compressed: false),
+        ($"{mod}/usermaps/my database.gd.bin", mapGdBin, Compressed: false),
+        ($"{mod}/usermaps/map with dlc1 and gdb modding.popmap", new byte[] { 1, 2, 3 }, Compressed: true));
+
+    var result = new PakClassifier().Classify(new MemoryStream(pak));
+    return result.Success
+        && result.GdbScopes.SequenceEqual(new[] { "map-scoped" })
+        && result.PopmapCount == 1
+        && result.Dependencies.Contains("dlc1")
+        && result.Dependencies.Contains("core")
+        && result.Dependencies.Contains("decorations1");
+}
+
 bool ClassifyGlobalAndMapScopedTogether()
 {
     // A mod that changes the GameDatabase globally AND ships a map with its own
@@ -1799,6 +2126,7 @@ bool SchemaRoundtripGdBinInfoReport()
         EntryCount: 2,
         HeaderBytesHex: new[] { "0x03", "0x00", "0x02", "0x01", "0x00", "0x00", "0x00" },
         Entries: new[] { "mymod/gdb/a.gd.xml", "mymod/gdb/b.gd.xml" },
+        HasTrailingTerminator: false,
         Diagnostics: new[]
         {
             new PakReportDiagnostic("Info", "gdbinRead", "Read 2 entries", "mymod/mymod.gd.bin"),
@@ -1806,6 +2134,22 @@ bool SchemaRoundtripGdBinInfoReport()
 
     var json = GdBinInfoReport.Serialize(report);
     return ValidateAgainstSchema(json, "gdbin-info-report.schema.json");
+}
+
+bool SchemaRoundtripLocaInfoReport()
+{
+    var report = new LocaInfoReport(
+        Loca: "mymod/localization/loca_en_us.bin",
+        Success: true,
+        StringCount: 2,
+        Strings: new[] { "My Animal Farm", "Map exclusive" },
+        Diagnostics: new[]
+        {
+            new PakReportDiagnostic("Info", "locaRead", "Read loca blob with 2 strings.", null),
+        });
+
+    var json = LocaInfoReport.Serialize(report);
+    return ValidateAgainstSchema(json, "loca-info-report.schema.json");
 }
 
 bool ValidateAgainstSchema(string json, string schemaFileName)

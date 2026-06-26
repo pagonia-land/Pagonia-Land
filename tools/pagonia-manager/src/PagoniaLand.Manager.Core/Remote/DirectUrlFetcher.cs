@@ -24,7 +24,10 @@ public sealed class DirectUrlFetcher
     public DirectUrlFetchResult Fetch(DirectUrlSource source, CancellationToken cancellationToken = default)
         => FetchAsync(source, cancellationToken).GetAwaiter().GetResult();
 
-    public async Task<DirectUrlFetchResult> FetchAsync(DirectUrlSource source, CancellationToken cancellationToken = default)
+    public DirectUrlFetchResult Fetch(DirectUrlSource source, string? expectedMd5, CancellationToken cancellationToken = default)
+        => FetchAsync(source, cancellationToken, expectedMd5).GetAwaiter().GetResult();
+
+    public async Task<DirectUrlFetchResult> FetchAsync(DirectUrlSource source, CancellationToken cancellationToken = default, string? expectedMd5 = null)
     {
         var diagnostics = new List<ManagerDiagnostic>();
         var tempRoot = Path.Combine(Path.GetTempPath(), $"pagonia-direct-url-{Guid.NewGuid():N}");
@@ -52,7 +55,7 @@ public sealed class DirectUrlFetcher
                 {
                     TryDelete(tempRoot);
                     diagnostics.Add(Error(ManagerDiagnosticCodes.DirectUrlFetchFailed,
-                        $"Fetching '{source.Url}' failed: {ex.Message}"));
+                        $"Fetching '{Display(source.Url)}' failed: {ex.Message}"));
                     return DirectUrlFetchResult.Failure(diagnostics);
                 }
 
@@ -60,7 +63,7 @@ public sealed class DirectUrlFetcher
                 {
                     TryDelete(tempRoot);
                     diagnostics.Add(Error(ManagerDiagnosticCodes.DirectUrlFetchFailed,
-                        $"No content at '{source.Url}' (HTTP 404)."));
+                        $"No content at '{Display(source.Url)}' (HTTP 404)."));
                     return DirectUrlFetchResult.Failure(diagnostics);
                 }
 
@@ -70,7 +73,24 @@ public sealed class DirectUrlFetcher
             }
 
             diagnostics.Add(Info(ManagerDiagnosticCodes.DirectUrlFetched,
-                $"Fetched {FormatSize(archiveLength)} from '{source.Url}' (sha256={sha256Hex[..16]}...)."));
+                $"Fetched {FormatSize(archiveLength)} from '{Display(source.Url)}' (sha256={sha256Hex[..16]}...)."));
+
+            // Download-integrity check: when the caller advertised an MD5 (mod.io returns one per
+            // modfile), re-hash the archive on disk and warn on a mismatch — the download may be
+            // corrupt or tampered. HTTPS already protects transport, so this is defence-in-depth; a
+            // mismatch warns (it still installs the authoritative bytes the user asked for). Silent on
+            // a match. The ZIP is still on disk here (it's deleted only after extraction below).
+            if (!string.IsNullOrWhiteSpace(expectedMd5))
+            {
+                using var md5 = MD5.Create();
+                using var zipForHash = File.OpenRead(tempZipPath);
+                var md5Hex = Convert.ToHexString(md5.ComputeHash(zipForHash)).ToLowerInvariant();
+                if (!string.Equals(md5Hex, expectedMd5.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    diagnostics.Add(Warning(ManagerDiagnosticCodes.ModIoChecksumMismatch,
+                        $"Downloaded archive MD5 {md5Hex} does not match the advertised {expectedMd5.Trim()} — the download may be corrupt or tampered."));
+                }
+            }
 
             // Extract with a per-entry path-traversal guard. The .NET ZipFile
             // helpers added a built-in check in newer runtimes, but doing it
@@ -89,7 +109,7 @@ public sealed class DirectUrlFetcher
             {
                 TryDelete(tempRoot);
                 diagnostics.Add(Error(ManagerDiagnosticCodes.DirectUrlFetchFailed,
-                    $"Extracting archive from '{source.Url}' failed: {ex.Message}"));
+                    $"Extracting archive from '{Display(source.Url)}' failed: {ex.Message}"));
                 return DirectUrlFetchResult.Failure(diagnostics);
             }
             finally
@@ -118,7 +138,7 @@ public sealed class DirectUrlFetcher
         {
             TryDelete(tempRoot);
             diagnostics.Add(Error(ManagerDiagnosticCodes.DirectUrlFetchFailed,
-                $"Direct-URL fetch from '{source.Url}' failed: {ex.Message}"));
+                $"Direct-URL fetch from '{Display(source.Url)}' failed: {ex.Message}"));
             return DirectUrlFetchResult.Failure(diagnostics);
         }
     }
@@ -253,11 +273,21 @@ public sealed class DirectUrlFetcher
         catch { /* best effort */ }
     }
 
+    // Strip the query string before a URL goes into a diagnostic that reaches the console / --json
+    // report: mod.io's pre-signed binary URLs carry a `?signature=…` credential. Mirrors
+    // HttpRemoteContentFetcher.Redact (R5-024). The full URL is still used for the actual fetch and
+    // for the on-disk sidecar identifier (a legitimate `url:` source needs its query intact there).
+    private static string Display(string url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.GetLeftPart(UriPartial.Path) : url;
+
     private static ManagerDiagnostic Error(string code, string message)
         => new(ManagerDiagnosticSeverity.Error, code, message, null);
 
     private static ManagerDiagnostic Info(string code, string message)
         => new(ManagerDiagnosticSeverity.Info, code, message, null);
+
+    private static ManagerDiagnostic Warning(string code, string message)
+        => new(ManagerDiagnosticSeverity.Warning, code, message, null);
 }
 
 /// <summary>

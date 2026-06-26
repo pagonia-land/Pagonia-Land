@@ -213,7 +213,7 @@ A third-party tool can integrate at three levels:
 Every mod declares the GameDatabase version it was authored against:
 
 ```yaml
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 ```
 
 Package requirements:
@@ -293,6 +293,6 @@ Next directions, in order of likelihood:
 
 - Broader mod.io coverage — Pioneers of Pagonia is Map-only on mod.io today, so non-Map types (gameplay / overlay / localization) wait on EE extending the mod.io taxonomy. Direct fetch of a non-GitHub per-mod URL source declared inside a collection is also still pending.
 - A localization-only mod path once the Envision Entertainment localization-modding capability ships.
-- A GUI binary that wraps `PagoniaLand.Manager.Core` — same library the CLI uses, separate project.
+- A **manager** GUI binary that wraps `PagoniaLand.Manager.Core` — same library the CLI uses, separate project. (Distinct from the already-shipping [Pagonia Land app](_imported/app/index.md), which is a *catalog* viewer built on its own `Catalog.Core`; this item is the still-planned deploy/manage GUI.)
 
 All three tools publish as single-file Native AOT binaries for win-x64 / linux-x64 / osx-x64 / osx-arm64 via the [release workflow](https://github.com/pagonia-land/Pagonia-Land/actions/workflows/release.yml).

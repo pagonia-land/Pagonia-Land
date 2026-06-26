@@ -330,11 +330,12 @@ public sealed class DeployService
                     };
                 }
 
-                var pakBytes = File.ReadAllBytes(stagedPakPath);
                 addedFiles.Add(new DeployAddedFileEntry
                 {
                     RelativePath = targetRelative,
-                    DeployedSha256 = ComputeSha256(pakBytes),
+                    // Stream the hash (like the live-install path at the Pattern B overlay) rather than
+                    // File.ReadAllBytes — an overlay pak can exceed the .NET 2 GB single-array ceiling.
+                    DeployedSha256 = ComputeFileSha256(stagedPakPath),
                     SourceMod = modPlan.Mod.Manifest.Id,
                     ByteSize = buildResult.ByteSize,
                 });
@@ -421,14 +422,17 @@ public sealed class DeployService
                     var targetPath = Path.Combine(gameRoot, modified.RelativePath);
                     if (File.Exists(backupPath))
                     {
+                        // Best-effort restore: a read-only/ACL-denied target throws
+                        // UnauthorizedAccessException (a sibling of IOException, not a subclass),
+                        // so catch both — otherwise it escapes mid-loop and leaves a half-restore.
                         try { AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(backupPath)); }
-                        catch (IOException) { /* best-effort restore */ }
+                        catch (Exception restoreEx) when (restoreEx is IOException or UnauthorizedAccessException) { /* best-effort restore */ }
                     }
                 }
                 foreach (var overlay in writtenOverlays)
                 {
                     try { if (File.Exists(overlay)) { File.Delete(overlay); } }
-                    catch (IOException) { /* best-effort cleanup */ }
+                    catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) { /* best-effort cleanup */ }
                 }
                 diagnostics.Add(new ManagerDiagnostic(
                     ManagerDiagnosticSeverity.Error,
@@ -484,7 +488,7 @@ public sealed class DeployService
                 diagnostics.Add(new ManagerDiagnostic(
                     ManagerDiagnosticSeverity.Error,
                     ManagerDiagnosticCodes.DeployHistoryUnreadable,
-                    historyError + " Files have been written to the game and the manifest was saved, but the history could not be updated. Restore or remove the corrupt history.yaml and rerun deploy/rollback."));
+                    historyError + " Files have been written to the game and the manifest was saved, but the history could not be updated — so 'rollback' can't find this deploy to undo it. The live install already carries the new bytes: to revert, restore from this deploy's backup directory by hand (or re-apply the saved manifest's originals) BEFORE rerunning, then fix or remove the corrupt history.yaml. Simply rerunning will hit the drift/already-deployed guard because the install already changed."));
                 return new DeployResult
                 {
                     ProfileName = planResult.ProfileName,
@@ -1210,12 +1214,19 @@ public sealed class DeployService
     }
 
     /// <summary>
-    /// Run the live-state drift check against the previous deploy under this
+    /// Run the live-state drift check against the <b>single latest</b> manifest under this
     /// fingerprint (if any) and fold the result into <paramref name="diagnostics"/>.
     /// Returns <c>true</c> when the caller must abort the deploy: drift was found
     /// and neither <paramref name="acceptDrift"/> nor <paramref name="dryRun"/> is
     /// set. Drift is always surfaced as <c>manager.liveStateDrift</c> warnings;
     /// the block adds a <c>manager.deployBlockedByDrift</c> error on top.
+    /// <para>
+    /// Best-effort, not exhaustive: it compares only against the most recent deploy's recorded
+    /// targets. A foreign edit to a file an <em>earlier</em> deploy touched but the latest one did
+    /// not re-touch is outside this manifest's target set and won't be seen here. Rebuilt paks /
+    /// modified files always overwrite wholesale on the next deploy, so this is a heads-up, not a
+    /// data-integrity guarantee.
+    /// </para>
     /// </summary>
     private bool PreflightLiveStateDrift(
         StoreLayout layout,

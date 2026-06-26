@@ -12,7 +12,7 @@
     "gameRoot": { "type": "string", "minLength": 1 },
     "gameFingerprint": { "type": "string" },
     "gameProductVersion": {
-      "description": "The live install's game version, read from the executable's Win32 ProductVersion — byte-for-byte the same string mods declare as gameDatabaseVersion (e.g. 1.4.0-11944+194631). null when no readable exe (extracted layout / fixture).",
+      "description": "The live install's game version, read from the executable's Win32 ProductVersion — byte-for-byte the same string mods declare as gameDatabaseVersion (e.g. 1.4.0-12032+195221). null when no readable exe (extracted layout / fixture).",
       "type": ["string", "null"]
     },
     "hasDeploys": { "type": "boolean" },

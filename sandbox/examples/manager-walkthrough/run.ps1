@@ -59,7 +59,7 @@ Copy-Item -Recurse (Join-Path $walkRoot 'game-gdb') $gameDir
 # build in both modes; we don't ship it as part of -ManagerExe coverage but we
 # do need it to construct the fixture deterministically.
 $pakerCliProject = Join-Path $repoRoot 'tools\pagonia-paker\src\PagoniaLand.Paker.Cli'
-$pakerCliDll = Join-Path $pakerCliProject 'bin\Debug\net8.0\pagonia-paker.dll'
+$pakerCliDll = Join-Path $pakerCliProject 'bin\Debug\net10.0\pagonia-paker.dll'
 Write-Host '==> (0) build paker CLI (fixture builder)' -ForegroundColor Cyan
 dotnet build $pakerCliProject -c Debug --nologo -v quiet | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -80,7 +80,7 @@ if ($useExe) {
     }
 } else {
     $cliProject = Join-Path $repoRoot 'tools\pagonia-manager\src\PagoniaLand.Manager.Cli'
-    $cliDll = Join-Path $cliProject 'bin\Debug\net8.0\pagonia-manager.dll'
+    $cliDll = Join-Path $cliProject 'bin\Debug\net10.0\pagonia-manager.dll'
     Write-Host '==> (0) build manager CLI' -ForegroundColor Cyan
     dotnet build $cliProject -c Debug --nologo -v quiet | Out-Null
     if ($LASTEXITCODE -ne 0) {

@@ -136,6 +136,12 @@ internal static class ManageActiveProfileWizard
         {
             AnsiConsole.MarkupLine("[yellow]Need at least 2 enabled mods to reorder.[/]"); Pause(); return;
         }
+
+        // Show which positions are dependency-pinned (governed by loadAfter/loadBefore) vs free, and
+        // — if constraints would reorder the manual order at deploy — the effective order, so the
+        // user's manual choice is never silently overridden without saying so.
+        ShowLoadOrderConstraints(layout, show.Profile);
+
         // Every step is cancellable (Esc) so the user can back out of the reorder
         // at any prompt instead of being forced to complete a move they opened by
         // mistake — same back-out affordance as the free-text prompts.
@@ -159,6 +165,44 @@ internal static class ManageActiveProfileWizard
         if (r.Success && r.Profile is not null)
             AnsiConsole.MarkupLine($"[green]Load order:[/] {Markup.Escape(string.Join(" -> ", r.Profile.LoadOrder))}");
         Pause();
+    }
+
+    // Annotate the load order with loadAfter/loadBefore constraints: which mods are pinned, and the
+    // effective deploy-time order when constraints reorder the manual one.
+    private static void ShowLoadOrderConstraints(StoreLayout layout, ProfileFile profile)
+    {
+        var reader = new PagoniaLand.Patcher.ManifestReader();
+        var inputs = new List<LoadOrderInput>();
+        foreach (var id in profile.LoadOrder)
+        {
+            var enabled = profile.EnabledMods.FirstOrDefault(m => string.Equals(m.Id, id, StringComparison.Ordinal));
+            var manifest = enabled is not null && Directory.Exists(layout.ModVersionDirectory(enabled.Id, enabled.Version))
+                ? reader.ReadMod(layout.ModVersionDirectory(enabled.Id, enabled.Version)).Value?.Manifest
+                : null;
+            inputs.Add(new LoadOrderInput(id, manifest?.LoadAfter ?? [], manifest?.LoadBefore ?? []));
+        }
+
+        var resolved = new LoadOrderResolver().Resolve(inputs);
+        if (resolved.Constrained.Count == 0)
+        {
+            return; // no constraints — the manual order is the whole story; nothing to annotate
+        }
+
+        var annotated = profile.LoadOrder.Select(id => resolved.Constrained.Contains(id)
+            ? $"[aqua]{Markup.Escape(id)}[/] [dim](pinned)[/]"
+            : Markup.Escape(id));
+        AnsiConsole.MarkupLine($"[bold]Manual order:[/] {string.Join("  ", annotated)}");
+
+        if (resolved.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.LoadOrderAdjusted))
+        {
+            AnsiConsole.MarkupLine($"[yellow]Effective at deploy[/] [dim](loadAfter/loadBefore applied):[/] {Markup.Escape(string.Join(" -> ", resolved.Order))}");
+        }
+        if (resolved.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.LoadOrderCycle))
+        {
+            AnsiConsole.MarkupLine("[red]A loadAfter/loadBefore cycle was detected — those mods stay in your manual order.[/]");
+        }
+        AnsiConsole.MarkupLine("[dim](pinned) mods are positioned by their loadAfter/loadBefore at deploy; your manual order breaks ties.[/]");
+        AnsiConsole.WriteLine();
     }
 
     private static bool ActiveProfileHasMods(StoreLayout layout)

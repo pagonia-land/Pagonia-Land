@@ -65,7 +65,15 @@ manager-walkthrough/
 ==> deploy --dry-run --json + schema-validate
 ==> deploy --json + schema-validate
 ==> verify deployed buildings.gd.xml (Sawmill 4->3, Quarry 6->5)
+==> deploy-status --json + schema-validate
 ==> rollback + schema-validate
 ==> verify SHA-256(game-gdb) matches pre-deploy
-walkthrough: all 14 stages passed.
+==> disable + uninstall cleanup
+==> live-install: build core.pak fixture
+==> live-install: store init + install + enable
+==> live-install: deploy (rebuilds core.pak) + schema-validate
+==> live-install: verify core.pak was rebuilt
+==> live-install: rollback + schema-validate
+==> live-install: verify SHA-256(core.pak) round trip
+walkthrough: all 19 stages passed.
 ```

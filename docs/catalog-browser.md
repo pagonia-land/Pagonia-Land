@@ -4,6 +4,9 @@ The local catalog browser is a static search UI for generated database catalog d
 
 It does not commit extracted game files or generated database content. The browser app is committed, but the searchable index is generated locally from your own extracted XML files.
 
+!!! tip "Prefer the desktop app for local exploration"
+    The **[Pagonia Land app](_imported/app/index.md)** does this end-to-end from your own install — it generates the catalog itself (real icons decoded from the paks, bidirectional cross-navigation, search) with no separate index to build. This static browser is the lighter, web-embeddable view; the desktop app is the richer local one.
+
 ## Generate The Search Index
 
 From the repository root:

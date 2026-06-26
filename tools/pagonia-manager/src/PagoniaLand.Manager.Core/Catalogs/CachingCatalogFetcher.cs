@@ -106,7 +106,9 @@ public sealed class CachingCatalogFetcher : CatalogFetcher
                     var pinnedSource = meta.CommitSha is { Length: > 0 } sha && source is GitHubCatalogSource gh
                         ? gh with { Ref = sha }
                         : source;
-                    return CatalogFetchResult.Ok(pinnedSource, catalog, text, meta.CommitSha, new[] { staleDiagnostic });
+                    // Gate the cached catalog's format version exactly like a fresh fetch — the
+                    // cache-hit path returns here without going through the base fetcher.
+                    return GateFormatVersion(CatalogFetchResult.Ok(pinnedSource, catalog, text, meta.CommitSha, new[] { staleDiagnostic }));
                 }
                 catch (Exception ex)
                 {

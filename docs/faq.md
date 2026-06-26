@@ -8,7 +8,7 @@ No.
 
 This is an unofficial community research and documentation project. Pioneers of Pagonia is a trademark of Envision Entertainment GmbH.
 
-The Pagonia Editor that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod; the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it. This repository is the GameDatabase data and distribution side underneath.
+The Pagonia Editor that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod; the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it. This repository **complements** that editor — a structured GameDatabase reference plus the text / CI / automation and install / deploy / rollback tooling around it.
 
 ## How Do I Get A Local Copy Of This Repository?
 
@@ -123,7 +123,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate_database.ps
 
 The current local database has known warnings:
 
-- 30 unresolved non-null GUID references (12 stable magic tokens + 18 left over from the 1.3.1 `NoMVP.*` cleanup)
+- 30 unresolved non-null GUID references (12 references from 2 stable magic-token GUIDs + 18 references from 4 GUIDs left over from the 1.3.1 `NoMVP.*` cleanup)
 - 43 production recipes without non-null input/output resources
 
 The exact counts and the reasoning behind each are documented in [Validation Baseline](../VALIDATION_BASELINE.md) — refer to it as the source of truth rather than memorising the numbers, since they shift with each game update. If the counts change after *your* edit, investigate before assuming the change is safe.

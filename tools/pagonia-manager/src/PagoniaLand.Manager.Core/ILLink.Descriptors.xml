@@ -12,6 +12,7 @@
     <type fullname="PagoniaLand.Manager.ProfileFile" preserve="all" />
     <type fullname="PagoniaLand.Manager.ProfileEnabledMod" preserve="all" />
     <type fullname="PagoniaLand.Manager.InstallSidecar" preserve="all" />
+    <type fullname="PagoniaLand.Manager.CollectionInstallSidecar" preserve="all" />
     <type fullname="PagoniaLand.Manager.DeployManifest" preserve="all" />
     <type fullname="PagoniaLand.Manager.DeployedMod" preserve="all" />
     <type fullname="PagoniaLand.Manager.DeployFileEntry" preserve="all" />

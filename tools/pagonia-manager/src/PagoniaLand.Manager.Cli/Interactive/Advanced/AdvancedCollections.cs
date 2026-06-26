@@ -21,6 +21,7 @@ internal static class AdvancedCollections
                     if (!AdvancedHelpers.TryPromptText("[bold]Collection source[/] [dim](.yaml file path or 'gh:owner/repo[[#ref]]/id')[/]:", out var from)) { break; }
                     string? modsRoot = null;
                     Dictionary<string, string>? remoteModSources = null;
+                    string? remoteCollectionSource = null;
                     string? remoteTempDir = null;
 
                     var isRemote = RemoteSourceParser.TryParse(from, out var parsed) && parsed is GitHubSource;
@@ -46,6 +47,7 @@ internal static class AdvancedCollections
                         from = fetch.CollectionFilePath;
                         modsRoot = fetch.ModsRoot;
                         remoteModSources = new Dictionary<string, string>(fetch.ModSources, StringComparer.Ordinal);
+                        remoteCollectionSource = fetch.ResolvedCollectionSource;
                     }
                     else
                     {
@@ -93,6 +95,7 @@ internal static class AdvancedCollections
                                 Activate = activate,
                                 Overwrite = overwrite,
                                 RemoteModSources = remoteModSources,
+                                RemoteCollectionSource = remoteCollectionSource,
                             });
                         });
                     }

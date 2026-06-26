@@ -103,6 +103,20 @@ public sealed class PlanProfileService
             loadedMods.Add(readResult.Value);
         }
 
+        // Honour loadAfter/loadBefore: topologically order the enabled set, with the manual profile
+        // order as the stable tiebreaker. Reorders the applied set; emits an info when it adjusts the
+        // order away from manual, a warning on a constraint cycle. Cross-mod conflict resolution
+        // (last-loaded wins) then sees the corrected order.
+        var loadOrder = new LoadOrderResolver().Resolve(loadedMods
+            .Select(m => new LoadOrderInput(m.Manifest.Id, m.Manifest.LoadAfter, m.Manifest.LoadBefore))
+            .ToList());
+        diagnostics.AddRange(loadOrder.Diagnostics);
+        if (loadedMods.Count > 0)
+        {
+            var byId = loadedMods.ToDictionary(m => m.Manifest.Id, StringComparer.Ordinal);
+            loadedMods = loadOrder.Order.Select(id => byId[id]).ToList();
+        }
+
         // Cross-mod gameDatabaseVersion check: every enabled mod must declare the same version,
         // otherwise the apply step would produce inconsistent results. We don't read the actual
         // game's version here (no portable way to determine it from the gameRoot alone) — the
@@ -149,6 +163,12 @@ public sealed class PlanProfileService
         // so it never blocks the plan. The per-mod authoring advisor can't see
         // this; only the ordered enabled set can.
         diagnostics.AddRange(new CrossModOverlayConflictDetector().Detect(loadedMods));
+
+        // Dependency / incompatibility check across the enabled set — advisory, never blocks.
+        // A required mod not enabled, or two enabled mods that declare each other incompatible.
+        var installedIds = new HashSet<string>(
+            new ModLister().List(layout).Select(m => m.Id), StringComparer.Ordinal);
+        diagnostics.AddRange(new ModDependencyDetector().Detect(loadedMods, installedIds));
 
         if (diagnostics.Any(d => d.Severity == ManagerDiagnosticSeverity.Error))
         {

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using PagoniaLand.Patcher;
 
 namespace PagoniaLand.Manager;
@@ -5,6 +6,18 @@ namespace PagoniaLand.Manager;
 public sealed class CollectionLister
 {
     private readonly ManifestReader _reader = new();
+
+    // AOT: pin the collection provenance sidecar model so YamlDotNet's reflection
+    // survives trimming on the read path (CollectionInstallService has the write
+    // counterpart pinned). Mirrors ModLister's InstallSidecar pin.
+    [DynamicDependency(
+        DynamicallyAccessedMemberTypes.PublicConstructors
+        | DynamicallyAccessedMemberTypes.PublicProperties
+        | DynamicallyAccessedMemberTypes.PublicFields,
+        typeof(CollectionInstallSidecar))]
+    public CollectionLister()
+    {
+    }
 
     public IReadOnlyList<InstalledCollection> List(StoreLayout layout)
     {
@@ -54,6 +67,9 @@ public sealed class CollectionLister
                     collectionLock = lockResult.Value;
                 }
 
+                var sidecar = TryReadSidecar(
+                    Path.Combine(versionDirectory, CollectionInstallService.SidecarFileName));
+
                 result.Add(new InstalledCollection
                 {
                     Id = collectionId,
@@ -66,10 +82,29 @@ public sealed class CollectionLister
                     ManifestPath = manifestPath,
                     LockfilePath = File.Exists(lockfilePath) ? lockfilePath : null,
                     GeneratedAt = collectionLock?.GeneratedAt,
+                    Source = sidecar?.Source,
                 });
             }
         }
 
         return result;
+    }
+
+    private static CollectionInstallSidecar? TryReadSidecar(string sidecarPath)
+    {
+        if (!File.Exists(sidecarPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var yaml = File.ReadAllText(sidecarPath);
+            return ManagerYaml.CreateDeserializer().Deserialize<CollectionInstallSidecar>(yaml);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

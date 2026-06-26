@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <!-- Ship as "Pagonia Land.exe" (project/namespace stay PagoniaLand.App). -->
+    <AssemblyName>Pagonia Land</AssemblyName>
+    <Product>Pagonia Land</Product>
+    <ApplicationIcon>../../../docs/assets/favicon.ico</ApplicationIcon>
+    <Version>0.4.0</Version>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
+    <FileVersion>0.4.0.0</FileVersion>
+    <InformationalVersion>0.4.0-dev</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The known Pagonia Land icon, linked from docs/assets so app + site share one. -->
+    <AvaloniaResource Include="../../../docs/assets/icon-128.png" Link="Assets/icon-128.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Avalonia 12.x. Core packages at 12.0.5; the DataGrid add-on's latest is 12.0.1, which
+         itself depends on core >= 12.0.5 — so this is the matched, supported combination.
+         Avalonia.Diagnostics (the dev-only F12 inspector) has no 12.x release yet, so it's dropped —
+         nothing called AttachDevTools() anyway. -->
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.1" />
+    <!-- Belt-and-suspenders: pin the runtime assemblies Catalog.Core needs (System.IO.Hashing
+         via Paker.Core's PakReader; BCnEncoder.Net via TextureDecoder for BC7 icons) directly
+         on the executable so they are always deployed — transitive package flow across the
+         project-reference hops has proven unreliable in this repo. -->
+    <PackageReference Include="System.IO.Hashing" Version="10.0.9" />
+    <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PagoniaLand.Catalog.Core\PagoniaLand.Catalog.Core.csproj" />
+  </ItemGroup>
+
+</Project>

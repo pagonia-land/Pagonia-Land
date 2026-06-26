@@ -8,7 +8,7 @@ namespace PagoniaLand.Patcher;
 /// inside an unpacked pak as a Pattern B overlay module:
 /// <list type="bullet">
 ///   <item><description><c>&lt;Name&gt;/manifest.json</c> — Name, Summary, Author, Image, Dependencies.</description></item>
-///   <item><description><c>&lt;Name&gt;/files.json</c> — pointer table that maps the <c>GameDatabase</c> key to the module's <c>.gd.bin</c>. Only written when the module actually ships <c>*.gd.xml</c> files; config-only or asset-only overlays skip it (matches the System / camera-zoom mod from mod.io).</description></item>
+///   <item><description><c>&lt;Name&gt;/files.json</c> — pointer table. Maps the <c>GameDatabase</c> key to the module's <c>.gd.bin</c> when the module ships <c>*.gd.xml</c>, and the <c>Localization</c> key to the module's <c>localization/</c> folder <b>only when that folder actually has compiled <c>loca_&lt;lang&gt;.bin</c> content</b>. Written when at least one such resource is present; a config-only or asset-only overlay with neither skips it (matches the System / camera-zoom mod from mod.io). NOTE: the 1.4.0 editor instead emits the <c>Localization</c> key <i>unconditionally</i> whenever it writes <c>files.json</c> — pointing at a non-existent <c>localization/</c> folder when the module ships no loca (confirmed against the CatDog / "Eye of The Spire" mod.io mods). We deliberately diverge to avoid writing a dangling pointer; both shapes load.</description></item>
 ///   <item><description><c>&lt;Name&gt;/&lt;Name&gt;.gd.bin</c> — index listing every <c>*.gd.xml</c> the module ships, in ordinal order. Only written when at least one <c>*.gd.xml</c> is present. Uses <see cref="PagoniaLand.Paker.GdBinWriter"/> from Paker.Core so the byte format stays canonical.</description></item>
 ///   <item><description><c>&lt;Name&gt;/memory.bin</c> — 28-byte opaque blob. Shipped paks contain non-zero values that look like per-category memory-allocation stats; a fresh scaffold writes 28 zero bytes, which the engine appears to tolerate for new modules. Manual in-game smoke remains the validation step until proven otherwise.</description></item>
 /// </list>
@@ -61,17 +61,36 @@ public sealed class PakScaffoldWriter
         var manifestPath = System.IO.Path.Combine(moduleDir, "manifest.json");
         File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifestJson, PakScaffoldJsonContext.Default.ManifestJson));
 
-        // 2. files.json + 3. <name>.gd.bin — only when *.gd.xml is present.
+        // 2. files.json — written when the module contributes any resource the
+        //    engine reaches through it: GameDatabase XML and/or a localization
+        //    folder. Each present resource adds one pointer entry; an asset-only
+        //    overlay (no XML, no localization) skips the file, like System.pak.
         var gdXmlPaths = CollectGdXmlPaths(outputGameRoot, moduleDir);
+        var hasLocalization = LocalizationFolderHasContent(moduleDir);
+
+        var fileEntries = new List<FilesJsonEntry>();
         if (gdXmlPaths.Count > 0)
         {
-            var gdBinRelativePath = $"{name}/{name}.gd.bin";
+            fileEntries.Add(new FilesJsonEntry(Key: "GameDatabase", Paths: [$"{name}/{name}.gd.bin"]));
+        }
+        if (hasLocalization)
+        {
+            // Matches the shipped paks (dlc1, …) and EE's editor mods: the
+            // Localization key points at the folder, not the individual
+            // loca_<lang>.bin files inside it.
+            fileEntries.Add(new FilesJsonEntry(Key: "Localization", Paths: [$"{name}/localization"]));
+        }
 
-            var filesJson = new FilesJson(
-                Files: [new FilesJsonEntry(Key: "GameDatabase", Paths: [gdBinRelativePath])]);
+        if (fileEntries.Count > 0)
+        {
+            var filesJson = new FilesJson(Files: fileEntries);
             var filesPath = System.IO.Path.Combine(moduleDir, "files.json");
             File.WriteAllText(filesPath, JsonSerializer.Serialize(filesJson, PakScaffoldJsonContext.Default.FilesJson));
+        }
 
+        // 3. <name>.gd.bin — only when *.gd.xml is present (the index lists them).
+        if (gdXmlPaths.Count > 0)
+        {
             var index = PagoniaLand.Paker.GdBinIndex.CreateEmpty();
             foreach (var path in gdXmlPaths)
             {
@@ -88,15 +107,33 @@ public sealed class PakScaffoldWriter
         // either ignore the blob or repopulate it on first load.
         File.WriteAllBytes(System.IO.Path.Combine(moduleDir, "memory.bin"), new byte[28]);
 
+        var resourceSummary = (gdXmlPaths.Count, hasLocalization) switch
+        {
+            ( > 0, true) => $"{gdXmlPaths.Count} *.gd.xml + localization registered",
+            ( > 0, false) => $"{gdXmlPaths.Count} *.gd.xml registered",
+            (_, true) => "localization registered; no *.gd.xml, .gd.bin skipped",
+            _ => "no *.gd.xml or localization; files.json + .gd.bin skipped",
+        };
         diagnostics.Add(new PatchDiagnostic(
             PatchDiagnosticSeverity.Info,
             DiagnosticCodes.ScaffoldWritten,
-            gdXmlPaths.Count > 0
-                ? $"Wrote Pattern B scaffold for '{name}' ({gdXmlPaths.Count} *.gd.xml registered)."
-                : $"Wrote Pattern B scaffold for '{name}' (no *.gd.xml; files.json + .gd.bin skipped).",
+            $"Wrote Pattern B scaffold for '{name}' ({resourceSummary}).",
             moduleDir));
 
         return diagnostics;
+    }
+
+    /// <summary>
+    /// Whether the module ships a non-empty <c>localization/</c> folder (at least
+    /// one compiled <c>loca_&lt;lang&gt;.bin</c> or other file). Shipped paks point
+    /// the <c>files.json</c> <c>Localization</c> key at this folder, so the scaffold
+    /// adds that pointer whenever the author placed localization content there.
+    /// </summary>
+    private static bool LocalizationFolderHasContent(string moduleDir)
+    {
+        var localizationDir = System.IO.Path.Combine(moduleDir, "localization");
+        return Directory.Exists(localizationDir)
+            && Directory.EnumerateFiles(localizationDir, "*", SearchOption.AllDirectories).Any();
     }
 
     /// <summary>

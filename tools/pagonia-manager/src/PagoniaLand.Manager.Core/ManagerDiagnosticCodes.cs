@@ -14,7 +14,64 @@ public static class ManagerDiagnosticCodes
     public const string ModVersionAmbiguous = "manager.modVersionAmbiguous";
     public const string ModVersionNotInstalled = "manager.modVersionNotInstalled";
 
+    // Mod dependency & incompatibility detection (advisory; never blocks). A required mod isn't
+    // enabled, or two enabled mods declare each other incompatible.
+    public const string ModDependencyMissing = "manager.modDependencyMissing";
+    public const string ModIncompatibleEnabled = "manager.modIncompatibleEnabled";
+
+    // Disabling / uninstalling a mod that other enabled mods declare as a dependency — advisory,
+    // surfaced before it silently breaks them.
+    public const string ModDependedUponByOthers = "manager.modDependedUponByOthers";
+
+    // Assisted dependency install (`install --with-deps`). Info per pulled dependency; warning when a
+    // declared dependency can't be resolved from the same repo or any subscribed catalog.
+    public const string ModDependencyInstalled = "manager.modDependencyInstalled";
+    public const string ModDependencyUnresolved = "manager.modDependencyUnresolved";
+
+    // Automatic load-order from loadAfter/loadBefore. Info when the constraints reorder the enabled
+    // set away from the manual profile order (never silent); warning when the constraints form a cycle.
+    public const string LoadOrderAdjusted = "manager.loadOrderAdjusted";
+    public const string LoadOrderCycle = "manager.loadOrderCycle";
+
+    // Read-only mod update detection (the `outdated` verb). Info per available update; warning
+    // per mod whose source repo couldn't be reached / no longer lists it.
+    public const string ModUpdateAvailable = "manager.modUpdateAvailable";
+    public const string ModUpdateCheckFailed = "manager.modUpdateCheckFailed";
+
+    // `outdated`: the source re-published the SAME version with different content — caught by the
+    // advertised contentHash differing from the installed payload's. Info; re-install to refresh.
+    public const string ModContentDriftAvailable = "manager.modContentDriftAvailable";
+
+    // Read-only collection update detection (the `outdated` verb, collections half). Info per
+    // available update; warning per collection whose source repo couldn't be reached / no
+    // longer lists it.
+    public const string CollectionUpdateAvailable = "manager.collectionUpdateAvailable";
+    public const string CollectionUpdateCheckFailed = "manager.collectionUpdateCheckFailed";
+
+    // The transparent `update` flow: move the active profile's pin to a newer version.
+    public const string ModUpdated = "manager.modUpdated";
+    public const string ModUpdateAlreadyCurrent = "manager.modUpdateAlreadyCurrent";
+    public const string ModUpdateNotEnabled = "manager.modUpdateNotEnabled";
+    public const string ModUpdateNoRemoteSource = "manager.modUpdateNoRemoteSource";
+
+    // The transparent `collection update` flow: install the newer collection version + reseed
+    // the linked profile (curator-default reseed, --overwrite semantics), keeping the old
+    // version on disk for rollback.
+    public const string CollectionUpdated = "manager.collectionUpdated";
+    public const string CollectionUpdateAlreadyCurrent = "manager.collectionUpdateAlreadyCurrent";
+    public const string CollectionUpdateNotInstalled = "manager.collectionUpdateNotInstalled";
+    public const string CollectionUpdateNoRemoteSource = "manager.collectionUpdateNoRemoteSource";
+    public const string CollectionUpdateAmbiguousProfile = "manager.collectionUpdateAmbiguousProfile";
+
+    // Per-tweak reconciliation during a collection update: whether a genuine user override was
+    // carried forward across the reseed or set back to the collection's (new curator) value.
+    public const string CollectionTweakKept = "manager.collectionTweakKept";
+    public const string CollectionTweakReset = "manager.collectionTweakReset";
+
     public const string ProfileMissing = "manager.profileMissing";
+    // Raised when a profile's profileVersion is newer than this build understands (the
+    // profile-level companion to storeSchemaVersionUnsupported).
+    public const string ProfileVersionUnsupported = "manager.profileVersionUnsupported";
     public const string ModAlreadyEnabled = "manager.modAlreadyEnabled";
     public const string ModNotEnabled = "manager.modNotEnabled";
     public const string ProfileDriftCleaned = "manager.profileDriftCleaned";
@@ -150,6 +207,11 @@ public static class ManagerDiagnosticCodes
     // misled the user. Warning, not fatal: the authoritative mod.yaml still installs.
     public const string RepoIndexMetadataMismatch = "manager.repoIndexMetadataMismatch";
 
+    // The fetched mod payload's SHA-256 doesn't match the contentHash the repo index advertised:
+    // a stale index (author didn't re-run `index build`), a corrupt/tampered download, or
+    // same-version content drift. Warning, not fatal — the fetched mod.yaml is still the authority.
+    public const string ModContentHashMismatch = "manager.modContentHashMismatch";
+
     // remote collections — collection install --from gh:<owner>/<repo>[#<ref>]/<id>.
     public const string CrossRepoSourceResolved = "manager.crossRepoSourceResolved";
     public const string CollectionLockfileVersionMismatch = "manager.collectionLockfileVersionMismatch";
@@ -167,6 +229,7 @@ public static class ManagerDiagnosticCodes
     // mod.io returned a download URL whose scheme is not https — refuse rather than
     // fetch UGC bytes over an unencrypted/unknown transport.
     public const string ModIoInsecureDownloadUrl = "manager.modIoInsecureDownloadUrl";
+    public const string ModIoChecksumMismatch = "manager.modIoChecksumMismatch";
 
     // direct-URL ZIP source — install --from https://example.com/<mod>.zip.
     public const string DirectUrlFetched = "manager.directUrlFetched";

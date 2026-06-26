@@ -83,18 +83,67 @@ internal static class InstallModWizard
             case InstallOutcome.Installed:
                 AnsiConsole.MarkupLine($"[bold green]Installed[/] [aqua]{Markup.Escape(result.ModId!)}[/]@[aqua]{Markup.Escape(result.Version!)}[/]");
                 AnsiConsole.MarkupLine($"  [dim]-> {Markup.Escape(result.InstallPath!)}[/]");
+                OfferDependencies(layout, result.InstallPath!, remoteProvenance);
                 OfferEnable(layout, result.ModId!);
                 break;
 
             case InstallOutcome.AlreadyInstalled:
                 AnsiConsole.MarkupLine($"[bold yellow]Already installed[/] [aqua]{Markup.Escape(result.ModId!)}[/]@[aqua]{Markup.Escape(result.Version!)}[/]");
                 AnsiConsole.MarkupLine($"  [dim](existing files preserved)[/]");
+                OfferDependencies(layout, result.InstallPath!, remoteProvenance);
                 OfferEnable(layout, result.ModId!);
                 break;
 
             default:
                 AnsiConsole.MarkupLine("[bold red]Install failed.[/] See diagnostics above.");
                 break;
+        }
+    }
+
+    // After an install, offer to pull the mod's missing dependencies (transitively) from the same
+    // repo / subscribed catalogs. Shared with BrowseCatalogsWizard. Opt-in; advisory on failure.
+    internal static void OfferDependencies(StoreLayout layout, string installPath, string? remoteProvenance)
+    {
+        var manifest = new PagoniaLand.Patcher.ManifestReader().ReadMod(installPath).Value?.Manifest;
+        if (manifest?.Dependencies is not { Count: > 0 } dependencies)
+        {
+            return;
+        }
+
+        var installed = new HashSet<string>(new ModLister().List(layout).Select(m => m.Id), StringComparer.Ordinal);
+        var missing = dependencies.Where(d => !installed.Contains(d)).ToList();
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        AnsiConsole.WriteLine();
+        var plural = missing.Count == 1;
+        if (!AdvancedHelpers.Confirm(
+                $"This mod needs {missing.Count} dependenc{(plural ? "y" : "ies")} you don't have ([aqua]{Markup.Escape(string.Join(", ", missing))}[/]). Install {(plural ? "it" : "them")} now?",
+                defaultValue: true))
+        {
+            AnsiConsole.MarkupLine("[dim]Skipped — they'll show as missing dependencies until installed.[/]");
+            return;
+        }
+
+        GitHubSource? sameRepo = null;
+        if (remoteProvenance is not null && RemoteSourceParser.TryParse(remoteProvenance, out var parsed) && parsed is GitHubSource gh)
+        {
+            sameRepo = gh;
+        }
+
+        var state = new StoreStateReader().Read(layout);
+        var subscriptions = new CatalogSubscriptionService().List(layout);
+        AssistedDependencyResult? depResult = null;
+        using var http = new HttpRemoteContentFetcher($"pagonia-manager/{ManagerInfo.Version} (+https://github.com/pagonia-land/Pagonia-Land)");
+        AdvancedHelpers.Spin("Resolving and installing dependencies...",
+            () => { depResult = new AssistedDependencyInstaller(http, state.AllowInsecureSources).InstallMissing(layout, dependencies, sameRepo, subscriptions, state.CatalogMaxDepth); });
+
+        DiagnosticsRenderer.Render(depResult!.Diagnostics);
+        if (depResult.InstalledDependencies.Count > 0)
+        {
+            AnsiConsole.MarkupLine($"[green]Pulled[/] {depResult.InstalledDependencies.Count} dependenc{(depResult.InstalledDependencies.Count == 1 ? "y" : "ies")}: [aqua]{Markup.Escape(string.Join(", ", depResult.InstalledDependencies))}[/]");
         }
     }
 

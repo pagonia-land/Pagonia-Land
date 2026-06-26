@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using YamlDotNet.Serialization;
 
 namespace PagoniaLand.Patcher;
@@ -8,6 +6,7 @@ public sealed class CollectionResolver
 {
     private readonly ManifestReader _reader = new();
     private readonly ISerializer _serializer = PatcherYaml.CreateSerializer();
+    private readonly FormatVersionPolicy _formatPolicy = new();
 
     public ReadResult<CollectionResolution> Resolve(string collectionPath, string modsRoot)
     {
@@ -57,7 +56,7 @@ public sealed class CollectionResolver
 
         var collectionLock = new CollectionLock
         {
-            CollectionLockVersion = CollectionLockVersions.Current,
+            CollectionLockVersion = FormatVersionPolicy.CurrentVersion(ManagedFormat.CollectionLock),
             CollectionId = collectionResult.Value.Id,
             CollectionVersion = collectionResult.Value.Version,
             GameDatabaseVersion = collectionResult.Value.GameDatabaseVersion,
@@ -202,16 +201,17 @@ public sealed class CollectionResolver
 
         var diagnostics = new List<PatchDiagnostic>(lockResult.Diagnostics);
 
-        // Lockfile schema compatibility check. Only the initial 0.1 format is
-        // understood; anything else aborts with a structured diagnostic so a
-        // future bump doesn't silently produce an under-validated install.
-        var version = lockResult.Value.CollectionLockVersion;
-        if (!string.Equals(version, CollectionLockVersions.V0_1, StringComparison.Ordinal))
+        // Lockfile format-version gate via the shared tiered reader: a newer minor
+        // reads (with a recommend-update note), a newer/retired major or a malformed
+        // value aborts with a structured, actionable diagnostic — so a future bump
+        // never silently produces an under-validated install.
+        var verdict = _formatPolicy.Evaluate(ManagedFormat.CollectionLock, lockResult.Value.CollectionLockVersion);
+        if (verdict.Diagnostic is not null)
         {
-            diagnostics.Add(new PatchDiagnostic(
-                PatchDiagnosticSeverity.Error,
-                DiagnosticCodes.LockfileVersionUnsupported,
-                $"Lockfile '{lockPath}' declares collectionLockVersion '{version}'; this build understands {CollectionLockVersions.V0_1}."));
+            diagnostics.Add(verdict.Diagnostic);
+        }
+        if (!verdict.Accepted)
+        {
             return ReadResult<LockResolution>.Failed(diagnostics.ToArray());
         }
 
@@ -353,28 +353,8 @@ public sealed class CollectionResolver
         return mods;
     }
 
-    private static string ComputeDirectorySha256(string directory)
-    {
-        using var sha256 = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var separator = new byte[] { 0 };
-        var buffer = new byte[81920];
-
-        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase))
-        {
-            var relativePath = Path.GetRelativePath(directory, file).Replace('\\', '/');
-            sha256.AppendData(Encoding.UTF8.GetBytes(relativePath));
-            sha256.AppendData(separator);
-
-            using var fileStream = File.OpenRead(file);
-            int read;
-            while ((read = fileStream.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                sha256.AppendData(buffer, 0, read);
-            }
-
-            sha256.AppendData(separator);
-        }
-
-        return Convert.ToHexString(sha256.GetHashAndReset()).ToLowerInvariant();
-    }
+    // The collection lockfile's archiveSha256 hashes the whole resolved mod folder; the shared
+    // helper owns the canonicalisation (also used by the index mirror's contentHash, over the
+    // narrower mod-payload set).
+    private static string ComputeDirectorySha256(string directory) => ContentHash.OfDirectory(directory);
 }

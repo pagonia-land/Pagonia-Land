@@ -3,7 +3,7 @@ id: pagonia-land.example.sanctuary-tweak-abilities
 name: Sanctuary (Cornucopia) — Tweak Abilities (Example)
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: >-
   Example mod that demonstrates the three list-modifying patch operations
   against the Sanctuary's ability list (the in-game "Cornucopia" building

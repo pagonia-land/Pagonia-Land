@@ -17,17 +17,17 @@ The additive-overlay base model has held since the earliest analyses. **Meadowso
 
 ## Current Evidence
 
-Current local scan (`1.4.0-11944+194631`, regenerated 2026-06-16):
+Current local scan (`1.4.0-12032+195221`, regenerated 2026-06-24):
 
 | Observation | Count |
 | --- | ---: |
-| Total entity definitions | 4,715 |
+| Total entity definitions | 4,717 |
 | Duplicate entity GUIDs | 0 |
-| `core` entities | 4,149 |
+| `core` entities | 4,151 |
 | `dlc1` entities | 521 |
 | `decorations1` entities | 19 |
 | `tools` entities | 26 |
-| GUID-like references (total) | 31,763 |
+| GUID-like references (total) | 31,755 |
 | `InheritanceMode="Template"` uses | 18 |
 | `InheritanceMode="Replace"` uses | 14 |
 | `InheritanceMode="Incremental"` uses | 19 |
@@ -252,4 +252,4 @@ Still open:
 - exact package load *order* determination (which module loads when — alphabetic / manifest-declared / filesystem), even though the *winner* rule on a collision is now known.
 - whether `tools` is loaded only for editor/debug contexts.
 
-Until proven otherwise, treat the database as an additive global registry with package overlays plus the Meadowsong inheritance primitives. The combination — additive base + `InheritanceMode` relations + encounter-level unloads — is the full picture as of `1.4.0-11944+194631` (the 1.3.2 "Free Beer" update was the last to move these counts: it added two more `InheritanceMode="Incremental"` HUD-layout entities to `dlc1`, nudging the Incremental count 17 → 19 and the `<InheritedIndex>` markers 4,366 → 4,447; 1.4.0's four new entities use no inheritance relation, so Template 18 / Replace 14 / Incremental 19 and the model itself held steady).
+Until proven otherwise, treat the database as an additive global registry with package overlays plus the Meadowsong inheritance primitives. The combination — additive base + `InheritanceMode` relations + encounter-level unloads — is the full picture as of `1.4.0-12032+195221` (the 1.3.2 "Free Beer" update was the last to move these counts: it added two more `InheritanceMode="Incremental"` HUD-layout entities to `dlc1`, nudging the Incremental count 17 → 19 and the `<InheritedIndex>` markers 4,366 → 4,447; every 1.4.0 build since — including this official release — added only non-inheriting entities, so Template 18 / Replace 14 / Incremental 19 and the model itself held steady).

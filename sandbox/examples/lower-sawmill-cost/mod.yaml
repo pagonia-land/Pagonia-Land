@@ -3,10 +3,10 @@ id: pagonia-land.example.lower-sawmill-cost
 name: Lower Sawmill Cost (Example)
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: >-
   Example mod that lowers one Sawmill construction cost via replaceValue.
-  Targets real GUIDs from the Meadowsong release line (1.4.0-11944+194631),
+  Targets real GUIDs from the Meadowsong release line (1.4.0-12032+195221),
   so it applies to an extracted game-gdb/ of that build unchanged. If the
   patcher reports targetEntityMissing or expectedValueMismatch on your install,
   the costs or GUIDs changed in your game version — look up current values

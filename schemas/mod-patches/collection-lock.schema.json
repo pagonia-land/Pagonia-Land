@@ -18,10 +18,8 @@
         "string",
         "number"
       ],
-      "enum": [
-        "0.1",
-        0.1
-      ]
+      "description": "Format version, MAJOR.MINOR. This build reads major 0; a newer minor is read with unknown optional fields ignored, a newer major is refused. Prefer the string form, e.g. \"0.1\".",
+      "pattern": "^0\\.[0-9]+$"
     },
     "collectionId": {
       "$ref": "#/$defs/id"

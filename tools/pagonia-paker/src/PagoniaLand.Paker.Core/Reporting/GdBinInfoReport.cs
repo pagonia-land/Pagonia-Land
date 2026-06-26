@@ -14,6 +14,7 @@ public sealed record GdBinInfoReport(
     int EntryCount,
     IReadOnlyList<string> HeaderBytesHex,
     IReadOnlyList<string> Entries,
+    bool HasTrailingTerminator,
     IReadOnlyList<PakReportDiagnostic> Diagnostics)
 {
     public static string Serialize(GdBinInfoReport report)

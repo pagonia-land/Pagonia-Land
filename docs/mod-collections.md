@@ -159,7 +159,7 @@ id: pagonia-land.collections.beginner-qol
 name: Beginner QoL Pack
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: Small safe quality-of-life patch set for new mod users.
 conflictPolicy: strict
 
@@ -243,7 +243,7 @@ Example:
 collectionLockVersion: "0.1"
 collectionId: pagonia-land.collections.beginner-qol
 collectionVersion: 0.1.0
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 
 mods:
   - id: pagonia-land.example.cheaper-sawmill

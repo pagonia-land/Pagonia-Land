@@ -50,7 +50,7 @@ tools/<tool>/
     └── PagoniaLand.<Tool>.Tests/
 ```
 
-Future GUIs sit on top of the same `Core` library — the CLI is just one consumer of that library, not the implementation.
+A GUI sits on top of the same `Core` pattern — the CLI is just one consumer, not the implementation. The shipped [Pagonia Land app](../app/README.md) (under `app/`, not here) is a desktop GameDatabase catalog viewer built this way on its own `Catalog.Core`.
 
 ## Verification
 

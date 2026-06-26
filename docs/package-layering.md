@@ -40,13 +40,13 @@ When packages are active, their XML entities appear to be combined into one usab
 
 ## Evidence From The Current Data
 
-Current scan (`1.4.0-11944+194631`, regenerated 2026-06-16):
+Current scan (`1.4.0-12032+195221`, regenerated 2026-06-24):
 
 | Observation | Count |
 | --- | ---: |
-| Total entities | 4,715 |
+| Total entities | 4,717 |
 | Duplicate entity GUIDs | 0 |
-| `core` entities | 4,149 |
+| `core` entities | 4,151 |
 | `dlc1` entities | 521 |
 | `decorations1` entities | 19 |
 | `tools` entities | 26 |

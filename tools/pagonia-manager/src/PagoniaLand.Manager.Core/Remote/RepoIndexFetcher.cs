@@ -117,6 +117,14 @@ public sealed class RepoIndexFetcher
             return RepoIndexFetchResult.Failure(diagnostics);
         }
 
+        // Format-version gate: a newer-minor index reads (with an info note); a newer/retired
+        // major or malformed indexFormatVersion is refused so the browse list can't be built
+        // from a structure this build can't trust.
+        if (!FormatVersionGate.TryAcceptRepoIndex(index.IndexFormatVersion, diagnostics))
+        {
+            return RepoIndexFetchResult.Failure(diagnostics);
+        }
+
         return RepoIndexFetchResult.Ok(index, commitSha, diagnostics);
     }
 

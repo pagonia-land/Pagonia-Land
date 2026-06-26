@@ -218,10 +218,12 @@ internal static class BrowseCatalogsWizard
         {
             case InstallOutcome.Installed:
                 AnsiConsole.MarkupLine($"[bold green]Installed[/] [aqua]{Markup.Escape(result.ModId!)}[/]@[aqua]{Markup.Escape(result.Version!)}[/]");
+                InstallModWizard.OfferDependencies(layout, result.InstallPath!, fetch.ResolvedSource);
                 InstallModWizard.OfferEnable(layout, result.ModId!);
                 break;
             case InstallOutcome.AlreadyInstalled:
                 AnsiConsole.MarkupLine($"[bold yellow]Already installed[/] [aqua]{Markup.Escape(result.ModId!)}[/]@[aqua]{Markup.Escape(result.Version!)}[/]");
+                InstallModWizard.OfferDependencies(layout, result.InstallPath!, fetch.ResolvedSource);
                 InstallModWizard.OfferEnable(layout, result.ModId!);
                 break;
             default:
@@ -257,6 +259,7 @@ internal static class BrowseCatalogsWizard
             {
                 Activate = activate,
                 RemoteModSources = new Dictionary<string, string>(fetch.ModSources, StringComparer.Ordinal),
+                RemoteCollectionSource = fetch.ResolvedCollectionSource,
             };
             AdvancedHelpers.Spin("Resolving and installing collection...",
                 () => { result = new CollectionInstallService().InstallWithOptions(layout, fetch.CollectionFilePath, fetch.ModsRoot, options); });

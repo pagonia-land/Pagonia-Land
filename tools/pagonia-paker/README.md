@@ -2,7 +2,7 @@
 
 This folder hosts the **Pagonia Land Paker**.
 
-The paker is a small C#/.NET command line tool that lists, unpacks, packs, and patches Pioneers of Pagonia `.pak` archives. It is the planned successor to [plpaker](https://github.com/pagonia-land/plpaker) and will be archived alongside it once feature parity is reached.
+The paker is a small C#/.NET command line tool that lists, unpacks, packs, and patches Pioneers of Pagonia `.pak` archives. It supersedes [plpaker](https://github.com/pagonia-land/plpaker) (full feature parity reached); plpaker is being archived.
 
 ## Intended Role
 
@@ -31,11 +31,11 @@ No .NET runtime needed at the destination. Building from source is also document
 
 ## How Changes Are Validated
 
-If you modify anything under this folder, run [`scripts/preflight.ps1`](../../scripts/preflight.ps1) from the repository root before committing. It builds both tool solutions, runs every test (currently 58 paker tests, 64 patcher tests), and runs `schema-validate` against every sandbox example. [`.github/workflows/tools.yml`](../../.github/workflows/tools.yml) runs the same steps on every push and PR.
+If you modify anything under this folder, run [`scripts/preflight.ps1`](../../scripts/preflight.ps1) from the repository root before committing. It builds both tool solutions, runs every test (currently 78 paker tests, 174 patcher tests), and runs `schema-validate` against every sandbox example. [`.github/workflows/tools.yml`](../../.github/workflows/tools.yml) runs the same steps on every push and PR.
 
 ## Current Status
 
-The CLI exposes `--version`, `list`, `unpack`, `pack`, `patch`, `compress`, `decompress`, `classify`, and `gdbin info` with the five plpaker filter flags (`-c`/`-d`/`-s`/`-e`/`-f`), `--json <report>` for the report-emitting commands, and `-j|--jobs=<n>` for parallel encoding. The offline tests pass, `scripts/paker-parity-check.ps1` cross-checks output against `plpaker`, `scripts/paker-benchmark.ps1` measures the parallel speedup (≈3.4× on `pack dlc1.pak`), and `scripts/sandbox-pack.ps1` bundles `sandbox/out/` into a `.pak`. Native AOT publish ships a single-file Windows binary that smoke-tests cleanly across every command. The publishing recipe and verify-a-release-build walk-through are in [`CLI.md`](CLI.md). Feature coverage: full plpaker parity, sandbox-pack loop, `.gd.bin` byte-identical round-trip, auto-register added XMLs on `patch`, Pattern B overlay-pak scaffold, and pak-shape classifier.
+The CLI exposes `--version`, `list`, `unpack`, `pack`, `patch`, `compress`, `decompress`, `classify`, `gdbin info`, and `loca info` with the five plpaker filter flags (`-c`/`-d`/`-s`/`-e`/`-f`), `--json <report>` for the report-emitting commands, and `-j|--jobs=<n>` for parallel encoding. The offline tests pass, `scripts/paker-parity-check.ps1` cross-checks output against `plpaker`, `scripts/paker-benchmark.ps1` measures the parallel speedup (≈3.4× on `pack dlc1.pak`), and `scripts/sandbox-pack.ps1` bundles `sandbox/out/` into a `.pak`. Native AOT publish ships a single-file Windows binary that smoke-tests cleanly across every command. The publishing recipe and verify-a-release-build walk-through are in [`CLI.md`](CLI.md). Feature coverage: full plpaker parity, sandbox-pack loop, `.gd.bin` byte-identical round-trip, auto-register added XMLs on `patch`, Pattern B overlay-pak scaffold, and pak-shape classifier.
 
 Build:
 
@@ -55,7 +55,7 @@ dotnet run --project .\src\PagoniaLand.Paker.Cli -- compress   <input> <output>
 dotnet run --project .\src\PagoniaLand.Paker.Cli -- decompress <input> <output>
 ```
 
-This is a quickstart; for the full surface — `gdbin info`, `classify`, the
+This is a quickstart; for the full surface — `gdbin info`, `loca info`, `classify`, the
 `patch` flags `--delete` / `--no-gdbin-register`, and the filter flags — see
 [`CLI.md`](CLI.md).
 

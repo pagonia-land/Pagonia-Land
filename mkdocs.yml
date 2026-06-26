@@ -97,6 +97,8 @@ watch:
   - tools/pagonia-paker/README.md
   - tools/pagonia-paker/CLI.md
   - tools/catalog-browser/CHANGELOG.md
+  - app/README.md
+  - app/CHANGELOG.md
   - schemas/README.md
   - schemas/manager/README.md
   - schemas/mod-patches/README.md
@@ -207,9 +209,11 @@ nav:
       - Safe Edits: safe-edits.md
       - Modding Risk Map: modding-risk-map.md
       - Mod Distribution Patterns: mod-distribution.md
+      - Editor Mods and Pagonia Land: editor-interop.md
       - Declarative Patch Format: mod-patch-format.md
       - Mod Tweaks: mod-tweaks.md
       - Patch Conflict Model: mod-conflicts.md
+      - Multiplayer and Modded Saves: multiplayer-modding.md
       - Mod Collections: mod-collections.md
       - Mod Catalogs: mod-catalogs.md
       - Mod Tags Vocabulary: mod-tags.md
@@ -249,6 +253,9 @@ nav:
         - Mod-Repo Layouts: _imported/examples/index.md
         - Multi-Mod Repo Example: _imported/examples/mod-repo-example.md
         - Mod Catalog Example: _imported/examples/mod-catalog-example.md
+  - App:
+    - Overview: _imported/app/index.md
+    - Changelog: _imported/app/changelog.md
   - Tools:
     - Overview: _imported/tools/index.md
     - Pagonia Manager:

@@ -85,6 +85,16 @@ if (args.Length >= 1 && args[0] == "doctor")
     return RunDoctor(args[1..]);
 }
 
+if (args.Length >= 1 && args[0] == "outdated")
+{
+    return RunOutdated(args[1..]);
+}
+
+if (args.Length >= 1 && args[0] == "update")
+{
+    return RunUpdate(args[1..]);
+}
+
 if (args.Length >= 1 && args[0] == "plan")
 {
     return RunPlan(args[1..]);
@@ -148,6 +158,7 @@ if (args.Length >= 2 && args[0] == "collection")
         "list" => RunCollectionList(args[2..]),
         "show" => RunCollectionShow(args[2..]),
         "uninstall" => RunCollectionUninstall(args[2..]),
+        "update" => RunCollectionUpdate(args[2..]),
         _ => PrintUsageAndFail(),
     };
 }
@@ -272,22 +283,24 @@ static int RunInstall(string[] tail)
     string? sourcePath = null;
     string? storePath = null;
     string? jsonPath = null;
+    var withDeps = false;
     var i = 0;
     while (i < tail.Length)
     {
         if (tail[i] == "--from" && i + 1 < tail.Length) { sourcePath = tail[i + 1]; i += 2; }
         else if (tail[i] == "--store" && i + 1 < tail.Length) { storePath = tail[i + 1]; i += 2; }
         else if (tail[i] == "--json" && i + 1 < tail.Length) { jsonPath = tail[i + 1]; i += 2; }
+        else if (tail[i] == "--with-deps") { withDeps = true; i += 1; }
         else
         {
-            Console.Error.WriteLine("Usage: pagonia-manager install --from <folder|zip|gh:owner/repo[#ref]/mod-id|https://.../mod.zip|modio:<game>/<mod-id>[#<version>]> [--store <path>] [--json <out>]");
+            Console.Error.WriteLine("Usage: pagonia-manager install --from <folder|zip|gh:owner/repo[#ref]/mod-id|https://.../mod.zip|modio:<game>/<mod-id>[#<version>]> [--with-deps] [--store <path>] [--json <out>]");
             return ManagerExitCodes.Usage;
         }
     }
 
     if (string.IsNullOrWhiteSpace(sourcePath))
     {
-        Console.Error.WriteLine("Usage: pagonia-manager install --from <folder|zip|gh:owner/repo[#ref]/mod-id|https://.../mod.zip|modio:<game>/<mod-id>[#<version>]> [--store <path>] [--json <out>]");
+        Console.Error.WriteLine("Usage: pagonia-manager install --from <folder|zip|gh:owner/repo[#ref]/mod-id|https://.../mod.zip|modio:<game>/<mod-id>[#<version>]> [--with-deps] [--store <path>] [--json <out>]");
         return ManagerExitCodes.Usage;
     }
 
@@ -355,6 +368,15 @@ static int RunInstall(string[] tail)
         Console.WriteLine($"JSON report: {jsonPath}");
     }
 
+    // --with-deps: after a successful install, pull the mod's missing dependencies (transitively)
+    // from the same repo, then subscribed catalogs. Advisory — failures warn, the install stands.
+    if (withDeps
+        && (result.Outcome == InstallOutcome.Installed || result.Outcome == InstallOutcome.AlreadyInstalled)
+        && result.InstallPath is not null)
+    {
+        PullDependencies(layout, result.InstallPath, remoteSource);
+    }
+
     switch (result.Outcome)
     {
         case InstallOutcome.Installed:
@@ -365,6 +387,36 @@ static int RunInstall(string[] tail)
             return ManagerExitCodes.Success;
         default:
             return ManagerExitCodes.Error;
+    }
+}
+
+// Pull a just-installed mod's missing dependencies (transitively) — same repo first, then subscribed
+// catalogs. Advisory: any failure is a warning, never fails the original install.
+static void PullDependencies(StoreLayout layout, string installPath, string? remoteSource)
+{
+    var manifest = new PagoniaLand.Patcher.ManifestReader().ReadMod(installPath).Value?.Manifest;
+    if (manifest?.Dependencies is not { Count: > 0 } dependencies)
+    {
+        return;
+    }
+
+    GitHubSource? sameRepo = null;
+    if (remoteSource is not null && RemoteSourceParser.TryParse(remoteSource, out var parsed) && parsed is GitHubSource gh)
+    {
+        sameRepo = gh;
+    }
+
+    var state = new StoreStateReader().Read(layout);
+    var subscriptions = new CatalogSubscriptionService().List(layout);
+
+    using var http = new HttpRemoteContentFetcher($"pagonia-manager/{ManagerInfo.Version} (+https://github.com/pagonia-land/Pagonia-Land)");
+    var depResult = new AssistedDependencyInstaller(http, state.AllowInsecureSources)
+        .InstallMissing(layout, dependencies, sameRepo, subscriptions, state.CatalogMaxDepth);
+
+    PrintDiagnostics(depResult.Diagnostics);
+    if (depResult.InstalledDependencies.Count > 0)
+    {
+        Console.WriteLine($"Pulled {depResult.InstalledDependencies.Count} dependenc{(depResult.InstalledDependencies.Count == 1 ? "y" : "ies")}: {string.Join(", ", depResult.InstalledDependencies)}");
     }
 }
 
@@ -1296,18 +1348,205 @@ static int RunProfileShow(string[] tail)
     return ManagerExitCodes.Success;
 }
 
+static int RunOutdated(string[] tail)
+{
+    string? storePath = null;
+    string? jsonPath = null;
+    var i = 0;
+    while (i < tail.Length)
+    {
+        if (tail[i] == "--store" && i + 1 < tail.Length) { storePath = tail[i + 1]; i += 2; }
+        else if (tail[i] == "--json" && i + 1 < tail.Length) { jsonPath = tail[i + 1]; i += 2; }
+        else
+        {
+            Console.Error.WriteLine("Usage: pagonia-manager outdated [--store <path>] [--json <out>]");
+            return ManagerExitCodes.Usage;
+        }
+    }
+
+    var resolution = StoreRootResolver.Resolve(storePath);
+    var layout = new StoreLayout(resolution.Root);
+    if (!new StoreStateReader().Exists(layout))
+    {
+        Console.Error.WriteLine(
+            $"[{ManagerDiagnosticCodes.StoreNotInitialised}] Store at '{layout.Root}' is not initialised. Run 'pagonia-manager store init' first.");
+        return ManagerExitCodes.Error;
+    }
+
+    using var http = new HttpRemoteContentFetcher($"pagonia-manager/{ManagerInfo.Version} (+https://github.com/pagonia-land/Pagonia-Land)");
+    var result = new UpdateDetectionService(http).Check(layout);
+
+    if (!string.IsNullOrWhiteSpace(jsonPath))
+    {
+        ManagerReports.WriteJson(jsonPath, ManagerReports.ToJson(result));
+    }
+
+    Console.WriteLine($"pagonia-manager outdated — store {layout.Root}");
+    Console.WriteLine();
+
+    if (result.Updates.Count == 0)
+    {
+        Console.WriteLine($"All {result.CheckedCount} checkable mod(s) are up to date.");
+    }
+    else
+    {
+        Console.WriteLine($"{result.Updates.Count} mod update(s) available:");
+        foreach (var update in result.Updates)
+        {
+            var gdb = string.IsNullOrWhiteSpace(update.GameDatabaseVersion) ? string.Empty : $" (gameDatabaseVersion {update.GameDatabaseVersion})";
+            Console.WriteLine($"  {update.Id}: {update.InstalledVersion} -> {update.AvailableVersion}{gdb}");
+        }
+    }
+
+    if (result.SkippedLocalCount > 0)
+    {
+        Console.WriteLine($"  ({result.SkippedLocalCount} local/non-remote mod(s) skipped — nothing to check against.)");
+    }
+
+    // Same-version content drift — the source re-published an identical version with changed content.
+    if (result.ContentDrifts.Count > 0)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"{result.ContentDrifts.Count} mod(s) changed content at the same version (re-install to refresh):");
+        foreach (var drift in result.ContentDrifts)
+        {
+            Console.WriteLine($"  {drift.Id}: {drift.Version} (content changed)");
+        }
+    }
+
+    // Collections half — same shape, only shown when the store has any (checked or skipped),
+    // so a mod-only store reads exactly as before.
+    if (result.CheckedCollectionCount > 0 || result.SkippedLocalCollectionCount > 0)
+    {
+        Console.WriteLine();
+        if (result.CollectionUpdates.Count == 0)
+        {
+            Console.WriteLine($"All {result.CheckedCollectionCount} checkable collection(s) are up to date.");
+        }
+        else
+        {
+            Console.WriteLine($"{result.CollectionUpdates.Count} collection update(s) available:");
+            foreach (var update in result.CollectionUpdates)
+            {
+                var gdb = string.IsNullOrWhiteSpace(update.GameDatabaseVersion) ? string.Empty : $" (gameDatabaseVersion {update.GameDatabaseVersion})";
+                Console.WriteLine($"  {update.Id}: {update.InstalledVersion} -> {update.AvailableVersion}{gdb}");
+            }
+        }
+
+        if (result.SkippedLocalCollectionCount > 0)
+        {
+            Console.WriteLine($"  ({result.SkippedLocalCollectionCount} local/non-remote collection(s) skipped — nothing to check against.)");
+        }
+    }
+
+    // Updates are info-level; only the per-item check failures (warnings) need surfacing here.
+    PrintDiagnostics(result.Diagnostics.Where(d => d.Severity != ManagerDiagnosticSeverity.Info).ToList());
+    return ManagerExitCodes.Success;
+}
+
+static int RunUpdate(string[] tail)
+{
+    string? modId = null;
+    string? storePath = null;
+    string? profileName = null;
+    var i = 0;
+    while (i < tail.Length)
+    {
+        if (tail[i] == "--store" && i + 1 < tail.Length) { storePath = tail[i + 1]; i += 2; }
+        else if (tail[i] == "--profile" && i + 1 < tail.Length) { profileName = tail[i + 1]; i += 2; }
+        else if (!tail[i].StartsWith("--", StringComparison.Ordinal) && modId is null) { modId = tail[i]; i += 1; }
+        else
+        {
+            Console.Error.WriteLine("Usage: pagonia-manager update <mod-id> [--profile <name>] [--store <path>]");
+            return ManagerExitCodes.Usage;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(modId))
+    {
+        Console.Error.WriteLine("Usage: pagonia-manager update <mod-id> [--profile <name>] [--store <path>]");
+        return ManagerExitCodes.Usage;
+    }
+
+    var resolution = StoreRootResolver.Resolve(storePath);
+    var layout = new StoreLayout(resolution.Root);
+    if (!new StoreStateReader().Exists(layout))
+    {
+        Console.Error.WriteLine(
+            $"[{ManagerDiagnosticCodes.StoreNotInitialised}] Store at '{layout.Root}' is not initialised. Run 'pagonia-manager store init' first.");
+        return ManagerExitCodes.Error;
+    }
+
+    var state = new StoreStateReader().Read(layout);
+    var profile = string.IsNullOrWhiteSpace(profileName)
+        ? (string.IsNullOrWhiteSpace(state.ActiveProfile) ? StoreLayoutConstants.DefaultProfileName : state.ActiveProfile!)
+        : profileName;
+
+    using var http = new HttpRemoteContentFetcher($"pagonia-manager/{ManagerInfo.Version} (+https://github.com/pagonia-land/Pagonia-Land)");
+    var result = new ModUpdateService(http, state.AllowInsecureSources).Update(layout, modId, profile);
+    PrintDiagnostics(result.Diagnostics);
+
+    return result.Outcome == ModUpdateOutcome.Failed ? ManagerExitCodes.Error : ManagerExitCodes.Success;
+}
+
+static int RunCollectionUpdate(string[] tail)
+{
+    string? collectionId = null;
+    string? storePath = null;
+    var reseedTweaks = false;
+    var i = 0;
+    while (i < tail.Length)
+    {
+        if (tail[i] == "--store" && i + 1 < tail.Length) { storePath = tail[i + 1]; i += 2; }
+        else if (tail[i] == "--reseed-tweaks") { reseedTweaks = true; i += 1; }
+        else if (!tail[i].StartsWith("--", StringComparison.Ordinal) && collectionId is null) { collectionId = tail[i]; i += 1; }
+        else
+        {
+            Console.Error.WriteLine("Usage: pagonia-manager collection update <collection-id> [--reseed-tweaks] [--store <path>]");
+            return ManagerExitCodes.Usage;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(collectionId))
+    {
+        Console.Error.WriteLine("Usage: pagonia-manager collection update <collection-id> [--reseed-tweaks] [--store <path>]");
+        return ManagerExitCodes.Usage;
+    }
+
+    var resolution = StoreRootResolver.Resolve(storePath);
+    var layout = new StoreLayout(resolution.Root);
+    if (!new StoreStateReader().Exists(layout))
+    {
+        Console.Error.WriteLine(
+            $"[{ManagerDiagnosticCodes.StoreNotInitialised}] Store at '{layout.Root}' is not initialised. Run 'pagonia-manager store init' first.");
+        return ManagerExitCodes.Error;
+    }
+
+    // Scripted mode can't prompt per conflict: default is the non-destructive Merge (carry
+    // genuine overrides forward); --reseed-tweaks opts into the full curator reseed.
+    var policy = reseedTweaks ? CollectionTweakPolicy.Reseed : CollectionTweakPolicy.Merge;
+
+    using var http = new HttpRemoteContentFetcher($"pagonia-manager/{ManagerInfo.Version} (+https://github.com/pagonia-land/Pagonia-Land)");
+    var result = new CollectionUpdateService(http).Update(layout, collectionId, policy);
+    PrintDiagnostics(result.Diagnostics);
+
+    return result.Outcome == CollectionUpdateOutcome.Failed ? ManagerExitCodes.Error : ManagerExitCodes.Success;
+}
+
 static int RunDoctor(string[] tail)
 {
     string? storePath = null;
     string? gamePath = null;
+    var checkUpdates = false;
     var i = 0;
     while (i < tail.Length)
     {
         if (tail[i] == "--store" && i + 1 < tail.Length) { storePath = tail[i + 1]; i += 2; }
         else if (tail[i] == "--game" && i + 1 < tail.Length) { gamePath = tail[i + 1]; i += 2; }
+        else if (tail[i] == "--check-updates") { checkUpdates = true; i += 1; }
         else
         {
-            Console.Error.WriteLine("Usage: pagonia-manager doctor [--store <path>] [--game <game-root>]");
+            Console.Error.WriteLine("Usage: pagonia-manager doctor [--store <path>] [--game <game-root>] [--check-updates]");
             return ManagerExitCodes.Usage;
         }
     }
@@ -1315,7 +1554,13 @@ static int RunDoctor(string[] tail)
     var resolution = StoreRootResolver.Resolve(storePath);
     var layout = new StoreLayout(resolution.Root);
     var resolvedGame = GameRootResolver.Resolve(layout, gamePath);
-    var report = new DoctorService().Run(layout, resolvedGame.HasPath ? resolvedGame.Path : null);
+
+    // doctor is offline by default; --check-updates opts into the one network check
+    // (read-only update detection). The fetcher lives only for the duration of Run.
+    using var updateFetcher = checkUpdates
+        ? new HttpRemoteContentFetcher($"pagonia-manager/{ManagerInfo.Version} (+https://github.com/pagonia-land/Pagonia-Land)")
+        : null;
+    var report = new DoctorService().Run(layout, resolvedGame.HasPath ? resolvedGame.Path : null, updateFetcher);
 
     Console.WriteLine($"pagonia-manager doctor — store {layout.Root}");
     if (resolvedGame.HasPath)
@@ -1844,6 +2089,7 @@ static int RunCollectionInstall(string[] tail)
     // ModSources map gets threaded through CollectionInstallOptions so the
     // lockfile records each mod's pinned commit SHA.
     Dictionary<string, string>? remoteModSources = null;
+    string? remoteCollectionSource = null;
     string? remoteTempDir = null;
     string installCollectionPath = from;
     string? installModsRoot = modsRoot;
@@ -1865,6 +2111,7 @@ static int RunCollectionInstall(string[] tail)
             installCollectionPath = fetch.CollectionFilePath;
             installModsRoot = fetch.ModsRoot;
             remoteModSources = new Dictionary<string, string>(fetch.ModSources, StringComparer.Ordinal);
+            remoteCollectionSource = fetch.ResolvedCollectionSource;
         }
         else if (parsed is ModIoSource)
         {
@@ -1915,6 +2162,7 @@ static int RunCollectionInstall(string[] tail)
             Activate = activate,
             Overwrite = overwrite,
             RemoteModSources = remoteModSources,
+            RemoteCollectionSource = remoteCollectionSource,
         };
         result = new CollectionInstallService().InstallWithOptions(layout, installCollectionPath, installModsRoot, options);
     }
@@ -2475,7 +2723,7 @@ static void PrintUsage()
     Console.WriteLine("                                             kinds: install, uninstall, deploy, rollback,");
     Console.WriteLine("                                                    collectionInstall, status, deployStatus,");
     Console.WriteLine("                                                    tweakList, tweakSet, tweakReset,");
-    Console.WriteLine("                                                    expansionsList, expansionsSet");
+    Console.WriteLine("                                                    expansionsList, expansionsSet, updates");
     Console.WriteLine();
     Console.WriteLine("  --json <out> is supported on: install, uninstall, deploy, rollback,");
     Console.WriteLine("    collection install, status, deploy-status, deploy-list, plan,");

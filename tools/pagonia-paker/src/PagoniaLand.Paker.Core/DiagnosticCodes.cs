@@ -41,6 +41,10 @@ public static class DiagnosticCodes
     public const string GdBinEntryTruncated = "gdbinEntryTruncated";
     public const string GdBinPathDecodingFailed = "gdbinPathDecodingFailed";
 
+    // loca blob errors
+    public const string LocaEntryTruncated = "locaEntryTruncated";
+    public const string LocaStringDecodingFailed = "locaStringDecodingFailed";
+
     // Classify
     public const string ClassifyMultipleModules = "classifyMultipleModules";
     public const string ClassifyManifestUnreadable = "classifyManifestUnreadable";
@@ -53,6 +57,7 @@ public static class DiagnosticCodes
     public const string PakEntryAdded = "pakEntryAdded";
     public const string PakEntryDeleted = "pakEntryDeleted";
     public const string GdBinRead = "gdbinRead";
+    public const string LocaRead = "locaRead";
     public const string PakPatchGdBinUpdated = "pakPatchGdbinUpdated";
     public const string PakClassified = "pakClassified";
 }

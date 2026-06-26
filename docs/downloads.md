@@ -6,11 +6,24 @@ hide:
 
 # ⬇ Download
 
-Pagonia Land tools ship as **Native AOT single-file binaries** — no .NET runtime needed at the destination. Each archive contains one folder with the executable inside.
+Pagonia Land ships the **Pagonia Land app** (a desktop catalog viewer) and the **CLI tools** (manager / patcher / paker). No .NET runtime needed at the destination — each archive contains one folder with the executable inside.
 
 [![Latest release](https://img.shields.io/github/v/release/pagonia-land/Pagonia-Land?include_prereleases&label=latest%20release)](https://github.com/pagonia-land/Pagonia-Land/releases/latest)
 
-## Pick Your Platform
+## Pagonia Land App
+
+The native desktop GUI that generates an interactive GameDatabase catalog from your own Pioneers of Pagonia install — real icons, bidirectional cross-navigation, and search. Self-contained single-file.
+
+| Platform | Download |
+|---|---|
+| Windows x64 | [⬇ zip](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-land-app-win-x64.zip) |
+| Linux x64 | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-land-app-linux-x64.tar.gz) |
+
+macOS builds are planned. See the [app overview](_imported/app/index.md) for what it does and how to build from source.
+
+## Command-Line Tools
+
+The `manager` / `patcher` / `paker` CLIs ship as **Native AOT single-file binaries**.
 
 | Platform | Manager | Patcher | Paker |
 |---|---|---|---|
@@ -19,7 +32,7 @@ Pagonia Land tools ship as **Native AOT single-file binaries** — no .NET runti
 | macOS Intel | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-manager-osx-x64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-patcher-osx-x64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-paker-osx-x64.tar.gz) |
 | macOS Apple Silicon | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-manager-osx-arm64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-patcher-osx-arm64.tar.gz) | [⬇ tar.gz](https://github.com/pagonia-land/Pagonia-Land/releases/latest/download/pagonia-paker-osx-arm64.tar.gz) |
 
-The download URLs above always point at the latest published release. The filename inside each archive carries the version (e.g. `pagonia-manager-0.3.0-win-x64/`).
+The download URLs above always point at the latest published release. The filename inside each archive carries the version (e.g. `pagonia-manager-0.4.0-win-x64/`).
 
 !!! tip "Most modders only need the manager"
     `pagonia-manager` wraps the patcher and paker cores. Unless you're writing mods by hand or scripting `.pak` operations, the manager is the only download you need.
@@ -73,13 +86,14 @@ No first-launch friction; the tar.gz extracts to a self-contained folder and run
 
 ## Building From Source
 
-If you'd rather build locally — for a custom platform target, a development branch, or to inspect the build — each tool's overview has the `dotnet publish` recipe:
+If you'd rather build locally — for a custom platform target (incl. macOS), a development branch, or to inspect the build — see the overviews:
 
+- [Pagonia Land App](_imported/app/index.md)
 - [Pagonia Manager](_imported/tools/pagonia-manager/index.md)
 - [Pagonia Patcher](_imported/tools/pagonia-patcher/index.md)
 - [Pagonia Paker](_imported/tools/pagonia-paker/index.md)
 
-You need .NET 8 SDK installed locally for source builds.
+You need .NET 10 SDK installed locally for source builds.
 
 ## What's Next
 

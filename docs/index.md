@@ -26,7 +26,7 @@ hide:
 </div>
 
 !!! note "Looking for map editing instead?"
-    The **Pagonia Editor** that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod ([community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it). Pagonia Land is the GameDatabase data and distribution side underneath: a structured map of it, declarative patches with conflict detection, and the install / deploy / rollback lifecycle.
+    The **Pagonia Editor** that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod ([community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it). Pagonia Land **complements** it, not replaces it: a structured map of the GameDatabase, declarative patches with conflict detection for the text / CI path, and the install / deploy / rollback lifecycle.
 
 ## What You Get
 
@@ -34,6 +34,7 @@ Pagonia Land brings together the things a modder actually reaches for:
 
 - **A structured map of the game's XML database** — entity model, GUID references, system guides.
 - **Three command-line tools** covering the full mod lifecycle: editing → installing → deploying.
+- **A desktop app** — the *Pagonia Land app* turns your own install into an interactive, icon-rich GameDatabase catalog you can browse, cross-navigate, and search.
 - **JSON Schemas** that any third-party tool can read against — the integration contract for GUIs, IDE plugins, CI scripts.
 - **A growing library of worked examples** — from "change one construction cost" walkthroughs to building a custom Sanctuary ability end-to-end.
 
@@ -68,6 +69,10 @@ Three command-line tools cover the full mod lifecycle. Most modders only use the
 
 Downloads as Native AOT single-file binaries (no .NET runtime needed) on the [latest release](https://github.com/pagonia-land/Pagonia-Land/releases/latest) page.
 
+## Pagonia Land App
+
+A separate, self-contained desktop download (Windows + Linux; macOS planned): point it at your own install and it builds an interactive, icon-rich GameDatabase catalog — five domains, real icons decoded from the paks, clickable cross-navigation, and search. See the [app overview](_imported/app/index.md) or grab it from [Downloads](downloads.md).
+
 ## What's Inside
 
 Browse the full content via the site navigation. The major tabs:
@@ -76,6 +81,7 @@ Browse the full content via the site navigation. The major tabs:
 - **Database** — Entity model, GUIDs, common fields, package layering; gameplay data (Resources, Buildings, Production Recipes, Units, Objectives); cross-file systems (Artifacts, Combat Boosts, Map/POI Objectives, Shrines)
 - **Modding** — Mod Conflicts, Distribution, Patch Format, Tweaks, Collections, Catalogs, Safe Edits
 - **Tools** — The `pagonia-manager`, `pagonia-patcher`, and `pagonia-paker` CLIs
+- **App** — The Pagonia Land desktop catalog viewer (overview + changelog)
 - **Schemas** — The JSON-Schema contracts for the mod-distribution formats
 - **Reference** — Database Overview, Glossary, Catalog Browser, snapshots, Game Database Changelog
 

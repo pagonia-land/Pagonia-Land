@@ -30,6 +30,9 @@ internal static class StatusDashboard
         }
 
         AnsiConsole.WriteLine();
+        RenderUpdatesPanel(session);
+
+        AnsiConsole.WriteLine();
         RenderInstalledModsTable(layout);
 
         AnsiConsole.WriteLine();
@@ -126,6 +129,42 @@ internal static class StatusDashboard
 
         AnsiConsole.Write(new Panel(new Markup(body))
             .Header($"[bold yellow]Orphaned deploys ({orphans.Count})[/]")
+            .BorderColor(Color.Yellow));
+    }
+
+    // "N update(s) available" line, read from the session's cached update-check
+    // (populated by the Update wizard). The dashboard deliberately does NOT run a
+    // network check itself — it stays the instant, offline first-stop snapshot — so
+    // this surfaces the count only once a check has been run this session, and
+    // otherwise points the user at the verb that runs one.
+    private static void RenderUpdatesPanel(SessionState session)
+    {
+        var mods = session.OutdatedModCount;
+        var collections = session.OutdatedCollectionCount;
+
+        if (mods is null && collections is null)
+        {
+            AnsiConsole.Write(new Panel("[dim]Not checked this session. Open [/][aqua]Update mods + collections[/][dim] to check for newer versions.[/]")
+                .Header("[bold]Updates[/]")
+                .BorderColor(Color.Grey));
+            return;
+        }
+
+        var total = (mods ?? 0) + (collections ?? 0);
+        if (total == 0)
+        {
+            AnsiConsole.Write(new Panel("[green]Everything is up to date[/] [dim](as of this session's check).[/]")
+                .Header("[bold]Updates[/]")
+                .BorderColor(Color.Green));
+            return;
+        }
+
+        var body =
+            $"[yellow]{total} update(s) available[/] [dim](as of this session's check):[/] "
+            + $"[aqua]{mods ?? 0}[/] mod + [aqua]{collections ?? 0}[/] collection.\n"
+            + "  [dim]Open [/][aqua]Update mods + collections[/][dim] to review the delta and apply.[/]";
+        AnsiConsole.Write(new Panel(new Markup(body))
+            .Header("[bold yellow]Updates[/]")
             .BorderColor(Color.Yellow));
     }
 

@@ -110,10 +110,10 @@ The latest local generation reports:
 
 | Metric | Count |
 | --- | ---: |
-| Localization rows | 6,172 |
-| Unique localization keys | 4,880 |
-| Declared `LocaParkplatz` tags | 261 |
-| Unique declared tags | 261 |
+| Localization rows | 6,182 |
+| Unique localization keys | 4,890 |
+| Declared `LocaParkplatz` tags | 271 |
+| Unique declared tags | 271 |
 | Referenced localization-like keys | 5,911 |
 | Unique referenced keys | 4,685 |
 | References not in the local tag index | 5,829 |

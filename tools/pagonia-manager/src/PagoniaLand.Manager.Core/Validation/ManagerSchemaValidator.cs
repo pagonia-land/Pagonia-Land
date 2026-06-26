@@ -19,11 +19,12 @@ public static class ManagerReportKinds
     public const string TweakReset = "tweakReset";
     public const string ExpansionsList = "expansionsList";
     public const string ExpansionsSet = "expansionsSet";
+    public const string Updates = "updates";
 
     public static readonly IReadOnlyList<string> All =
     [
         Install, Uninstall, Deploy, Rollback, CollectionInstall, Status, DeployStatus,
-        TweakList, TweakSet, TweakReset, ExpansionsList, ExpansionsSet,
+        TweakList, TweakSet, TweakReset, ExpansionsList, ExpansionsSet, Updates,
     ];
 }
 
@@ -45,6 +46,7 @@ public sealed class ManagerSchemaValidator
         [ManagerReportKinds.TweakReset] = "tweak-reset.schema.json",
         [ManagerReportKinds.ExpansionsList] = "expansions-list-report.schema.json",
         [ManagerReportKinds.ExpansionsSet] = "expansions-set-report.schema.json",
+        [ManagerReportKinds.Updates] = "updates-report.schema.json",
     };
 
     public IReadOnlyList<ManagerDiagnostic> ValidateReport(string kind, string reportPath)

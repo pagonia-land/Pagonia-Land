@@ -37,7 +37,13 @@ public sealed class DoctorService
     private const long DeployStorageNagBytes = 15L * 1024 * 1024 * 1024;
 
     /// <param name="gameRoot">Resolved game root, or null — game-dependent checks are skipped when absent.</param>
-    public DoctorReport Run(StoreLayout layout, string? gameRoot)
+    /// <param name="updateFetcher">
+    /// Optional remote fetcher enabling the read-only "updates available" check. <c>doctor</c> is
+    /// otherwise fully offline, so this network check is <b>opt-in</b>: pass a fetcher (the CLI does so
+    /// only for <c>--check-updates</c>) to run it, leave it null to <see cref="DoctorStatus.Skipped"/>
+    /// it. A network failure degrades to Skipped, never an error — so it stays CI-safe.
+    /// </param>
+    public DoctorReport Run(StoreLayout layout, string? gameRoot, IRemoteContentFetcher? updateFetcher = null)
     {
         var checks = new List<DoctorCheck>();
 
@@ -84,6 +90,16 @@ public sealed class DoctorService
             conflicts.Count > 0 ? $"{conflicts.Count} entity(ies) destructively contested" : "none",
             conflicts));
 
+        // 4b. Dependencies & incompatibilities across the enabled set (store-only).
+        var installedIds = new HashSet<string>(
+            new ModLister().List(layout).Select(m => m.Id), StringComparer.Ordinal);
+        var relations = new ModDependencyDetector().Detect(loadedMods, installedIds);
+        checks.Add(new DoctorCheck(
+            "Dependencies & incompatibilities",
+            relations.Count > 0 ? DoctorStatus.Warning : DoctorStatus.Ok,
+            relations.Count > 0 ? $"{relations.Count} dependency/incompatibility issue(s)" : "none",
+            relations));
+
         // 5. Orphaned deploys (deploy records whose game root vanished or changed).
         var orphans = new OrphanedDeployFinder().FindAll(layout);
         checks.Add(new DoctorCheck(
@@ -117,6 +133,55 @@ public sealed class DoctorService
                 hasError ? DoctorStatus.Error : DoctorStatus.Ok,
                 hasError ? "could not resolve" : $"{expansions.Expansions.Count(e => e.Effective)} effective package(s)",
                 expansions.Diagnostics));
+        }
+
+        // 8. Updates available (opt-in network check). doctor is offline by default, so this is
+        //    Skipped unless the caller passed a fetcher (the CLI's --check-updates). Per-item
+        //    unreachable repos are surfaced by UpdateDetectionService as warnings, not exceptions;
+        //    a wholesale network failure degrades to Skipped rather than failing the roll-up.
+        if (updateFetcher is null)
+        {
+            checks.Add(new DoctorCheck("Updates available", DoctorStatus.Skipped, "offline — pass --check-updates to check", []));
+        }
+        else
+        {
+            try
+            {
+                var updates = new UpdateDetectionService(updateFetcher).Check(layout);
+                // Fold same-version content drift into the roll-up too, so doctor agrees with what
+                // `outdated` reports (R5-007 — drift was surfaced by exactly one of the three update
+                // surfaces). checkFailures are the warnings UpdateDetectionService already emitted, so
+                // count them off the diagnostics list rather than re-counting drift there.
+                var driftCount = updates.ContentDrifts.Count;
+                var total = updates.Updates.Count + updates.CollectionUpdates.Count + driftCount;
+                var checkFailures = updates.Diagnostics.Count(d => d.Severity == ManagerDiagnosticSeverity.Warning);
+
+                DoctorStatus status;
+                string summary;
+                if (total > 0)
+                {
+                    status = DoctorStatus.Warning;
+                    summary = $"{updates.Updates.Count} mod + {updates.CollectionUpdates.Count} collection update(s)"
+                        + (driftCount > 0 ? $" + {driftCount} content drift(s)" : "")
+                        + " — run 'outdated' to review";
+                }
+                else if (checkFailures > 0)
+                {
+                    status = DoctorStatus.Warning;
+                    summary = $"couldn't check {checkFailures} item(s) (source unreachable)";
+                }
+                else
+                {
+                    status = DoctorStatus.Ok;
+                    summary = $"{updates.CheckedCount + updates.CheckedCollectionCount} checked item(s) up to date";
+                }
+
+                checks.Add(new DoctorCheck("Updates available", status, summary, updates.Diagnostics));
+            }
+            catch (Exception ex)
+            {
+                checks.Add(new DoctorCheck("Updates available", DoctorStatus.Skipped, $"check skipped (network error: {ex.Message})", []));
+            }
         }
 
         return new DoctorReport(checks);

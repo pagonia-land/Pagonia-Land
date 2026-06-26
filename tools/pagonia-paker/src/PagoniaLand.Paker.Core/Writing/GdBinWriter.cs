@@ -49,5 +49,14 @@ public sealed class GdBinWriter
             var pathBytes = Encoding.Unicode.GetBytes(path);
             output.Write(pathBytes);
         }
+
+        // The 1.4.0 editor closes every index with a zero-length terminator record;
+        // re-emit it so an editor-read index round-trips byte-identically. Shipped /
+        // scaffolded indexes leave this false and end cleanly at the last entry.
+        if (index.HasTrailingTerminator)
+        {
+            lengthBuffer.Clear();
+            output.Write(lengthBuffer);
+        }
     }
 }

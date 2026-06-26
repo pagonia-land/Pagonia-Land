@@ -29,6 +29,9 @@ Original scripts and tooling are licensed under the MIT License. See [LICENSE](L
 
 Original documentation is licensed under CC BY 4.0. See [LICENSE-DOCS.md](LICENSE-DOCS.md).
 
+The downloadable binaries (the CLI tools and the Pagonia Land app) bundle third-party open-source
+components under their own licenses. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
 ## Project Credits
 
 [Pioneers of Pagonia](https://pioneersofpagonia.com/) is a trademark of [Envision Entertainment GmbH](https://www.envision-entertainment.de/).

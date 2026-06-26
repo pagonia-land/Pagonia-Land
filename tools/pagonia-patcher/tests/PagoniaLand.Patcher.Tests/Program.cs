@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using PagoniaLand.Patcher;
 
 var root = FindRepositoryRoot();
@@ -41,7 +42,10 @@ var tests = new (string Name, Func<bool> Run)[]
     ("collection lockfile can be written", CollectionLockfileCanBeWritten),
     ("lockfile: writer emits v0.1 with empty source/resolvedAt for local resolves", LockfileWriterEmitsCurrentForLocalResolve),
     ("lockfile: reader accepts a minimal v0.1 lockfile", LockfileReaderAcceptsV01),
-    ("lockfile: reader rejects unknown future version with structured diagnostic", LockfileReaderRejectsUnknownVersion),
+    ("format-version policy tiers each version (current / older / newer minor / newer major / malformed)", FormatVersionPolicyTiersCorrectly),
+    ("format-version: every schema's version pattern matches the policy's known major (drift guard)", SchemaVersionPatternMatchesPolicyMajor),
+    ("lockfile: reader accepts a newer minor with a recommend-update note (formatMinorAhead)", LockfileReaderAcceptsNewerMinor),
+    ("lockfile: reader refuses a newer major with formatMajorUnsupported", LockfileReaderRefusesNewerMajor),
     ("lockfile: schema-validate passes v0.1 with per-mod source + resolvedAt", LockfileSchemaValidateAcceptsRemoteFields),
     ("direct mod set can be exported as collection", DirectModSetCanBeExportedAsCollection),
     ("collection can be planned", CollectionCanBePlanned),
@@ -59,6 +63,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("entry operations: two mods deleting same path do not conflict", EntryOperationsTwoDeletesAreIdempotent),
     ("pak scaffold: mod with pak + added gd.xml writes manifest/files/.gd.bin/memory", PakScaffoldWritesAllFourFiles),
     ("pak scaffold: mod with pak but no gd.xml skips files.json and .gd.bin", PakScaffoldSkipsFilesAndGdBinWhenNoXml),
+    ("pak scaffold: gd.xml + localization writes both files.json keys", PakScaffoldWritesLocalizationKeyAlongsideGameDatabase),
+    ("pak scaffold: localization but no gd.xml writes files.json with only Localization, no .gd.bin", PakScaffoldLocalizationOnlyWritesFilesJsonWithoutGdBin),
     ("pak scaffold: pak.name with slash reports scaffoldNameInvalid", PakScaffoldRejectsNameWithSlash),
     ("pak scaffold: empty pak.dependencies defaults to [core]", PakScaffoldDefaultsDependenciesToCore),
     ("collection manifest carries safety and metadata fields", CollectionManifestCarriesSafetyAndMetadataFields),
@@ -91,7 +97,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("schema-validate passes for the example-mods repo index", SchemaValidateAcceptsRepoIndexExample),
     ("schema-validate rejects repo index with bad mod id pattern", SchemaValidateRejectsRepoIndexBadModId),
     ("schema-validate rejects repo index with unknown property on mod entry", SchemaValidateRejectsRepoIndexUnknownProperty),
-    ("schema-validate rejects repo index with unknown indexFormatVersion", SchemaValidateRejectsRepoIndexUnknownVersion),
+    ("schema-validate accepts repo index with a newer minor (formatMinorAhead, no reject)", SchemaValidateAcceptsRepoIndexNewerMinor),
+    ("schema-validate refuses repo index with a newer major (formatMajorUnsupported)", SchemaValidateRefusesRepoIndexNewerMajor),
     ("relativePath: repo index rejects traversal in mod path (..)", SchemaValidateRejectsRepoIndexTraversal),
     ("relativePath: repo index rejects leading slash in mod path", SchemaValidateRejectsRepoIndexLeadingSlash),
     ("relativePath: repo index rejects drive letter in mod path", SchemaValidateRejectsRepoIndexDriveLetter),
@@ -101,7 +108,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("schema-validate passes for the example catalog (top-level + nested federation reference)", SchemaValidateAcceptsCatalogExample),
     ("schema-validate passes for the example sub-catalog (leaf, federation target)", SchemaValidateAcceptsCatalogSubExample),
     ("schema-validate rejects catalog with unknown property on repo entry", SchemaValidateRejectsCatalogUnknownProperty),
-    ("schema-validate rejects catalog with unknown catalogFormatVersion", SchemaValidateRejectsCatalogUnknownVersion),
+    ("schema-validate accepts catalog with a newer minor (formatMinorAhead, no reject)", SchemaValidateAcceptsCatalogNewerMinor),
+    ("schema-validate refuses catalog with a newer major (formatMajorUnsupported)", SchemaValidateRefusesCatalogNewerMajor),
     ("schema-validate rejects catalog repo entry with invalid owner chars", SchemaValidateRejectsCatalogBadOwner),
     ("index-check passes when index mirrors every mod.yaml", IndexCheckPassesWhenInSync),
     ("index-check flags a safetyFlags drift", IndexCheckFlagsSafetyDrift),
@@ -113,6 +121,12 @@ var tests = new (string Name, Func<bool> Run)[]
     ("index build --check reports drift without writing", IndexBuildCheckDoesNotWrite),
     ("index build surgically syncs a drift and preserves formatting", IndexBuildSyncsAndPreservesFormatting),
     ("index build quotes an unsafe scalar instead of corrupting index.yaml", IndexBuildQuotesUnsafeScalarInsteadOfCorrupting),
+    ("index build migrates an older same-major indexFormatVersion up to current (formatMigratedInPlace)", IndexBuildMigratesOlderFormatVersion),
+    ("index build --check reports a pending version migration as info, writes nothing", IndexBuildCheckReportsPendingMigration),
+    ("index build inserts + verifies a computed contentHash for an entry without one", IndexBuildInsertsAndVerifiesContentHash),
+    ("index-check flags contentHash drift (content changed under the same version)", IndexCheckDetectsContentDrift),
+    ("index build re-syncs a stale contentHash to the computed value", IndexBuildResyncsStaleContentHash),
+    ("contentHash: OfModPayload ignores extra repo files (whole-folder hash would differ)", ContentHashPayloadIgnoresExtraFiles),
     ("schema roundtrip: patch-plan-report", SchemaRoundtripPatchPlanReport),
     ("schema roundtrip: patch-apply-report", SchemaRoundtripPatchApplyReport),
     ("schema roundtrip: patch-plan-report carries arithmetic ops (multiplyValue)", SchemaRoundtripPatchPlanReportArithmetic),
@@ -121,8 +135,11 @@ var tests = new (string Name, Func<bool> Run)[]
     ("tweaks: tweakable fixture passes validation", TweakableFixturePassesValidation),
     ("tweaks: default outside min..max fails validation", TweakDefaultOutOfRangeFailsValidation),
     ("tweaks: a fractional integer default fails validation", IntegerTweakFractionalDefaultFailsValidation),
+    ("tweaks: a fractional integer min/max/step warns tweakBoundNotInteger", IntegerTweakFractionalBoundWarns),
     ("apply: output overlapping the source game root is refused before any wipe", ApplyRefusesOutputOverlappingSource),
     ("plan: a malformed target path (empty segment / no predicate element) fails with targetPathMalformed", MalformedPathFailsWithSpecificDiagnostic),
+    ("plan: an entityName-only target (no entityGuid) fails with a clear requires-entityGuid diagnostic", EntityNameOnlyTargetRequiresGuid),
+    ("arithmetic: fractional clamp bounds round conservatively (min up, max down)", ArithmeticClampBoundsRoundConservatively),
     ("tweaks: duplicate id via alias collision fails validation", TweakDuplicateIdFailsValidation),
     ("tweaks: schema-validate passes the tweakable fixture", SchemaValidateAcceptsTweakableFixture),
     ("tweaks: schema-validate rejects a malformed tweak block", SchemaValidateRejectsMalformedTweaks),
@@ -367,6 +384,95 @@ tweaks:
         if (!result.Success || result.Value is null) { return false; }
         var diagnostics = validator.ValidateMod(result.Value);
         return diagnostics.Any(d => d.Code == DiagnosticCodes.TweakDefaultNotInteger);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool IntegerTweakFractionalBoundWarns()
+{
+    // For an integer tweak, a fractional min/max/step must warn tweakBoundNotInteger — otherwise the
+    // manager's stepper advances by a fractional amount and stores non-integer values in an integer field.
+    var tempRoot = Path.Combine(Path.GetTempPath(), $"pagonia-tweak-intbound-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(tempRoot);
+    File.WriteAllText(Path.Combine(tempRoot, "mod.yaml"), """
+patchFormatVersion: "0.1"
+id: pagonia-land.test.tweak-intbound
+name: Tweak Integer Bound Test
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11768+193445"
+description: An integer tweak with a fractional step.
+requiredPackages:
+  - core
+entries:
+  add:
+    - path: core/textures/placeholder.bc.texture
+      source: entries/placeholder.bc.texture
+tweaks:
+  - id: cost
+    type: integer
+    label: Cost
+    default: 3
+    min: 1
+    max: 8
+    step: 0.5
+""");
+    try
+    {
+        var result = reader.ReadMod(tempRoot);
+        if (!result.Success || result.Value is null) { return false; }
+        var diagnostics = validator.ValidateMod(result.Value);
+        return diagnostics.Any(d => d.Code == DiagnosticCodes.TweakBoundNotInteger);
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+    }
+}
+
+bool ArithmeticClampBoundsRoundConservatively()
+{
+    // A fractional clamp bound must round in the *conservative* direction regardless of the value's
+    // rounding policy: a max bound rounds DOWN, a min bound rounds UP, so the clamped result never
+    // crosses the author's stated bound. (The old code rounded both with the value's policy, so
+    // ceil + clampMax 9.1 became 10 and let a result of 10 pass the author's 9.1 ceiling.)
+    var cappedHigh = ArithmeticPatchOps.Compute(PatchOperationTypes.MultiplyValue, 4, 2.5, "ceil", null, 9.1, out var didCapHigh); // 10 -> floor(9.1)=9
+    var liftedLow = ArithmeticPatchOps.Compute(PatchOperationTypes.MultiplyValue, 4, 0.5, "floor", 2.4, null, out var didLiftLow); // 2 -> ceil(2.4)=3
+    return cappedHigh == "9" && didCapHigh && liftedLow == "3" && didLiftLow;
+}
+
+bool EntityNameOnlyTargetRequiresGuid()
+{
+    // A target carrying only entityName (no entityGuid) cannot locate an existing entity. It must
+    // fail with a clear "requires target.entityGuid" diagnostic, not the misleading "GUID '' was not
+    // found" (TargetEntityMissing) it produced before.
+    var gameRoot = Path.Combine(patcherRoot, "fixtures", "game-gdb-mini");
+    var tempRoot = WriteTempArithmeticMod("nameonly", """
+operations:
+  - id: name-only
+    operation: replaceValue
+    risk: low
+    reason: entityName-only target test
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityName: Sawmill
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    value: "3"
+""");
+    try
+    {
+        var read = reader.ReadMod(tempRoot);
+        if (!read.Success || read.Value is null) { return false; }
+        var plan = planner.Plan(gameRoot, [read.Value]);
+        var diagnostics = plan.ModPlans.SelectMany(p => p.Diagnostics).ToList();
+        return !plan.Success
+            && diagnostics.Any(d => d.Code == DiagnosticCodes.MissingPatchOperationField)
+            && diagnostics.All(d => d.Code != DiagnosticCodes.TargetEntityMissing);
     }
     finally
     {
@@ -2069,12 +2175,80 @@ bool LockfileReaderAcceptsV01()
     }
 }
 
-bool LockfileReaderRejectsUnknownVersion()
+bool FormatVersionPolicyTiersCorrectly()
+{
+    var policy = new FormatVersionPolicy();
+    var known = FormatVersionPolicy.KnownVersion(ManagedFormat.Mod); // 0.1 today
+
+    var current = policy.Evaluate(ManagedFormat.Mod, "0.1");
+    var older = policy.Evaluate(ManagedFormat.Mod, "0.0");
+    var minorAhead = policy.Evaluate(ManagedFormat.Mod, "0.2");
+    var majorAhead = policy.Evaluate(ManagedFormat.Mod, "1.0");
+    var malformed = policy.Evaluate(ManagedFormat.Mod, "x");
+    var empty = policy.Evaluate(ManagedFormat.Mod, null);
+
+    return known is { Major: 0, Minor: 1 }
+        // exact match: accepted, no diagnostic
+        && current is { Tier: FormatVersionTier.Current, Accepted: true, Diagnostic: null }
+        // older same-major minor: still current-tier, accepted
+        && older is { Tier: FormatVersionTier.Current, Accepted: true }
+        // newer minor: accepted + info recommend-update, tolerate unknown fields
+        && minorAhead is { Tier: FormatVersionTier.MinorAhead, Accepted: true, TolerateUnknownFields: true }
+        && minorAhead.Diagnostic is { Severity: PatchDiagnosticSeverity.Info, Code: DiagnosticCodes.FormatMinorAhead }
+        // newer major: refused + error naming the download
+        && majorAhead is { Tier: FormatVersionTier.MajorUnsupported, Accepted: false }
+        && majorAhead.Diagnostic is { Severity: PatchDiagnosticSeverity.Error, Code: DiagnosticCodes.FormatMajorUnsupported }
+        && majorAhead.Diagnostic.Message.Contains(FormatVersionPolicy.DownloadUrl, StringComparison.Ordinal)
+        // malformed + missing: refused + error
+        && malformed is { Tier: FormatVersionTier.Malformed, Accepted: false }
+        && malformed.Diagnostic is { Code: DiagnosticCodes.FormatVersionMalformed }
+        && empty is { Tier: FormatVersionTier.Malformed, Accepted: false }
+        // parser: two-component MAJOR.MINOR only
+        && FormatVersionPolicy.TryParse("0.10", out var v) && v is { Major: 0, Minor: 10 }
+        && !FormatVersionPolicy.TryParse("0.1.0", out _)
+        && !FormatVersionPolicy.TryParse("0", out _)
+        && !FormatVersionPolicy.TryParse("", out _);
+}
+
+bool SchemaVersionPatternMatchesPolicyMajor()
+{
+    // Drift guard. The *FormatVersion field in each schema hardcodes the current
+    // major as a pattern ("^0\.[0-9]+$" today); FormatVersionPolicy.Known hardcodes
+    // the same major in code. These two MUST move together on a future major bump —
+    // otherwise the code gate and the standalone schema contract silently disagree
+    // (the gate would refuse a major the schema still admits, or vice versa). This
+    // asserts every schema's pattern is exactly "^<knownMajor>\.[0-9]+$", so forgetting
+    // to bump either side fails the suite immediately.
+    var schemaDir = Path.Combine(root, "schemas", "mod-patches");
+    var cases = new (ManagedFormat Format, string File, string Field)[]
+    {
+        (ManagedFormat.Mod, "mod.schema.json", "patchFormatVersion"),
+        (ManagedFormat.Collection, "collection.schema.json", "collectionFormatVersion"),
+        (ManagedFormat.CollectionLock, "collection-lock.schema.json", "collectionLockVersion"),
+        (ManagedFormat.RepoIndex, "repo-index.schema.json", "indexFormatVersion"),
+        (ManagedFormat.Catalog, "catalog.schema.json", "catalogFormatVersion"),
+    };
+
+    foreach (var (format, file, field) in cases)
+    {
+        var doc = JsonNode.Parse(File.ReadAllText(Path.Combine(schemaDir, file)));
+        var pattern = doc?["properties"]?[field]?["pattern"]?.GetValue<string>();
+        var expected = $"^{FormatVersionPolicy.KnownVersion(format).Major}\\.[0-9]+$";
+        if (!string.Equals(pattern, expected, StringComparison.Ordinal))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool LockfileReaderAcceptsNewerMinor()
 {
     var modsRoot = Path.Combine(patcherRoot, "fixtures", "mods");
-    // A future v0.4 lockfile must be refused with a structured diagnostic so
-    // users on older managers get a clear "upgrade your tooling" signal
-    // instead of a silent under-validated install.
+    // A future same-major minor (0.4 vs the known 0.1) reads: the tiered reader
+    // tolerates it with an info-level recommend-update note instead of the old
+    // hard reject — newer optional fields are simply ignored.
     var lockYaml = """
         collectionLockVersion: "0.4"
         collectionId: pagonia-land.fixture.collections.future
@@ -2086,7 +2260,42 @@ bool LockfileReaderRejectsUnknownVersion()
             version: 0.1.0
             enabled: true
         """;
-    var outputRoot = Path.Combine(Path.GetTempPath(), $"pagonia-patcher-lock-future-{Guid.NewGuid():N}");
+    var outputRoot = Path.Combine(Path.GetTempPath(), $"pagonia-patcher-lock-minor-{Guid.NewGuid():N}");
+    var lockPath = Path.Combine(outputRoot, "collection-lock.yaml");
+    try
+    {
+        Directory.CreateDirectory(outputRoot);
+        File.WriteAllText(lockPath, lockYaml);
+        var resolved = collectionResolver.ResolveFromLock(lockPath, modsRoot);
+        return resolved.Success
+            && resolved.Diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+            && resolved.Diagnostics.Any(d => d.Code == DiagnosticCodes.FormatMinorAhead
+                && d.Severity == PatchDiagnosticSeverity.Info
+                && d.Message.Contains("0.4", StringComparison.Ordinal));
+    }
+    finally
+    {
+        if (Directory.Exists(outputRoot)) { Directory.Delete(outputRoot, recursive: true); }
+    }
+}
+
+bool LockfileReaderRefusesNewerMajor()
+{
+    var modsRoot = Path.Combine(patcherRoot, "fixtures", "mods");
+    // A future *major* (1.0) is a breaking shape this build can't read; it must be
+    // refused with a structured, actionable "upgrade your tooling" diagnostic.
+    var lockYaml = """
+        collectionLockVersion: "1.0"
+        collectionId: pagonia-land.fixture.collections.future
+        collectionVersion: 0.1.0
+        gameDatabaseVersion: "1.3.0-11694+192849"
+        generatedAt: "2026-12-01T00:00:00Z"
+        mods:
+          - id: pagonia-land.fixture.cheaper-sawmill
+            version: 0.1.0
+            enabled: true
+        """;
+    var outputRoot = Path.Combine(Path.GetTempPath(), $"pagonia-patcher-lock-major-{Guid.NewGuid():N}");
     var lockPath = Path.Combine(outputRoot, "collection-lock.yaml");
     try
     {
@@ -2094,9 +2303,9 @@ bool LockfileReaderRejectsUnknownVersion()
         File.WriteAllText(lockPath, lockYaml);
         var resolved = collectionResolver.ResolveFromLock(lockPath, modsRoot);
         return !resolved.Success
-            && resolved.Diagnostics.Any(d => d.Code == DiagnosticCodes.LockfileVersionUnsupported
+            && resolved.Diagnostics.Any(d => d.Code == DiagnosticCodes.FormatMajorUnsupported
                 && d.Severity == PatchDiagnosticSeverity.Error
-                && d.Message.Contains("0.4", StringComparison.Ordinal));
+                && d.Message.Contains("1.0", StringComparison.Ordinal));
     }
     finally
     {
@@ -2173,6 +2382,8 @@ bool DirectModSetCanBeExportedAsCollection()
         return readResult.Success
             && readResult.Value?.Id == "pagonia-land.fixture.collections.exported"
             && readResult.Value.Mods.Count == 2
+            // The exporter stamps the current format version via the policy (write-new), not a literal.
+            && readResult.Value.CollectionFormatVersion == FormatVersionPolicy.CurrentVersion(ManagedFormat.Collection)
             && readResult.Value.LoadOrder.SequenceEqual([
                 "pagonia-land.fixture.cheaper-sawmill",
                 "pagonia-land.fixture.conflicting-sawmill",
@@ -3644,32 +3855,55 @@ bool SchemaValidateRejectsRepoIndexUnknownProperty()
     return RunRepoIndexValidation(yaml, expectError: true);
 }
 
-bool SchemaValidateRejectsRepoIndexUnknownVersion()
+bool SchemaValidateAcceptsRepoIndexNewerMinor()
 {
-    // Only "0.1" is currently accepted. A future bump (e.g. "0.2") deliberately
-    // breaks old validators so authors get a clear "upgrade your tooling" signal.
+    // A newer same-major minor ("0.99" vs the known 0.1) now reads instead of
+    // being rejected: the format-version gate (run before strict schema validation)
+    // tolerates unknown optional fields and emits an info-level recommend-update note.
     var yaml = """
         indexFormatVersion: "0.99"
         repo:
           name: Future Repo
         """;
-    return RunRepoIndexValidation(yaml, expectError: true);
+    var diagnostics = ValidateRepoIndexYaml(yaml);
+    return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+        && diagnostics.Any(d => d.Code == DiagnosticCodes.FormatMinorAhead
+            && d.Severity == PatchDiagnosticSeverity.Info);
 }
 
-bool RunRepoIndexValidation(string yaml, bool expectError)
+bool SchemaValidateRefusesRepoIndexNewerMajor()
+{
+    // A future *major* ("1.0") is refused outright (no schema run) with the
+    // actionable formatMajorUnsupported error naming where to get a newer tool.
+    var yaml = """
+        indexFormatVersion: "1.0"
+        repo:
+          name: Future Repo
+        """;
+    var diagnostics = ValidateRepoIndexYaml(yaml);
+    return diagnostics.Any(d => d.Code == DiagnosticCodes.FormatMajorUnsupported
+        && d.Severity == PatchDiagnosticSeverity.Error);
+}
+
+IReadOnlyList<PatchDiagnostic> ValidateRepoIndexYaml(string yaml)
 {
     var tempPath = Path.Combine(Path.GetTempPath(), $"pagonia-repo-index-{Guid.NewGuid():N}.yaml");
     try
     {
         File.WriteAllText(tempPath, yaml);
-        var diagnostics = schemaValidator.ValidateRepoIndex(tempPath);
-        var hasError = diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error);
-        return hasError == expectError;
+        return schemaValidator.ValidateRepoIndex(tempPath);
     }
     finally
     {
         if (File.Exists(tempPath)) { File.Delete(tempPath); }
     }
+}
+
+bool RunRepoIndexValidation(string yaml, bool expectError)
+{
+    var diagnostics = ValidateRepoIndexYaml(yaml);
+    var hasError = diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error);
+    return hasError == expectError;
 }
 
 bool RunCollectionValidation(string yaml, bool expectError)
@@ -3790,16 +4024,32 @@ bool SchemaValidateRejectsCatalogUnknownProperty()
     return RunCatalogValidation(yaml, expectError: true);
 }
 
-bool SchemaValidateRejectsCatalogUnknownVersion()
+bool SchemaValidateAcceptsCatalogNewerMinor()
 {
-    // Only "0.1" is currently accepted. A future bump (e.g. "0.2") deliberately
-    // breaks old validators so authors get a clear "upgrade your tooling" signal.
+    // Newer same-major minor ("0.99" vs 0.1): reads with an info-level
+    // recommend-update note, no reject.
     var yaml = """
         catalogFormatVersion: "0.99"
         catalog:
           name: Future Catalog
         """;
-    return RunCatalogValidation(yaml, expectError: true);
+    var diagnostics = ValidateCatalogYaml(yaml);
+    return diagnostics.All(d => d.Severity != PatchDiagnosticSeverity.Error)
+        && diagnostics.Any(d => d.Code == DiagnosticCodes.FormatMinorAhead
+            && d.Severity == PatchDiagnosticSeverity.Info);
+}
+
+bool SchemaValidateRefusesCatalogNewerMajor()
+{
+    // Newer *major* ("1.0"): refused with formatMajorUnsupported.
+    var yaml = """
+        catalogFormatVersion: "1.0"
+        catalog:
+          name: Future Catalog
+        """;
+    var diagnostics = ValidateCatalogYaml(yaml);
+    return diagnostics.Any(d => d.Code == DiagnosticCodes.FormatMajorUnsupported
+        && d.Severity == PatchDiagnosticSeverity.Error);
 }
 
 bool SchemaValidateRejectsCatalogBadOwner()
@@ -3819,13 +4069,18 @@ bool SchemaValidateRejectsCatalogBadOwner()
 
 bool RunCatalogValidation(string yaml, bool expectError)
 {
+    var diagnostics = ValidateCatalogYaml(yaml);
+    var hasError = diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error);
+    return hasError == expectError;
+}
+
+IReadOnlyList<PatchDiagnostic> ValidateCatalogYaml(string yaml)
+{
     var tempPath = Path.Combine(Path.GetTempPath(), $"pagonia-catalog-{Guid.NewGuid():N}.yaml");
     try
     {
         File.WriteAllText(tempPath, yaml);
-        var diagnostics = schemaValidator.ValidateCatalog(tempPath);
-        var hasError = diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error);
-        return hasError == expectError;
+        return schemaValidator.ValidateCatalog(tempPath);
     }
     finally
     {
@@ -4343,6 +4598,116 @@ pak:
     }
 }
 
+bool PakScaffoldWritesLocalizationKeyAlongsideGameDatabase()
+{
+    // A mod that ships both a new *.gd.xml and a compiled localization/loca_en_us.bin
+    // (added via entries.add). files.json must carry BOTH pointer keys, with the
+    // Localization key pointing at the folder — matching EE's editor mods.
+    var tempDir = Path.Combine(Path.GetTempPath(), $"pagonia-pak-scaffold-loca-{Guid.NewGuid():N}");
+    var modRoot = Path.Combine(tempDir, "mod");
+    Directory.CreateDirectory(Path.Combine(modRoot, "entries"));
+    File.WriteAllText(Path.Combine(modRoot, "entries", "new_buildings.gd.xml"), "<EntityGroup />");
+    File.WriteAllBytes(Path.Combine(modRoot, "entries", "loca_en_us.bin"), new byte[] { 0x05, (byte)'H', (byte)'e', (byte)'l', (byte)'l', (byte)'o' });
+
+    WritePakScaffoldMod(modRoot, "pagonia.fixture.scaffold.loca",
+        pakBlock: """
+pak:
+  name: loca-overlay
+  summary: Adds a building with text
+  author: Tester
+  image: loca-overlay/images/preview.image
+""",
+        entriesBlock: """
+entries:
+  add:
+    - path: loca-overlay/gdb/new_buildings.gd.xml
+      source: entries/new_buildings.gd.xml
+    - path: loca-overlay/localization/loca_en_us.bin
+      source: entries/loca_en_us.bin
+""");
+
+    var sourceGameRoot = Path.Combine(tempDir, "source-game");
+    Directory.CreateDirectory(sourceGameRoot);
+    var outputRoot = Path.Combine(tempDir, "out");
+
+    try
+    {
+        var modResult = reader.ReadMod(modRoot);
+        if (!modResult.Success || modResult.Value is null) return false;
+        var plan = planner.Plan(sourceGameRoot, [modResult.Value]);
+        if (!plan.Success) return false;
+        var diagnostics = applier.Apply(sourceGameRoot, outputRoot, plan);
+        if (diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error)) return false;
+
+        var filesPath = Path.Combine(outputRoot, "loca-overlay", "files.json");
+        if (!File.Exists(filesPath)) return false;
+        var filesJson = File.ReadAllText(filesPath);
+        return filesJson.Contains("\"Key\": \"GameDatabase\"", StringComparison.Ordinal)
+            && filesJson.Contains("\"loca-overlay/loca-overlay.gd.bin\"", StringComparison.Ordinal)
+            && filesJson.Contains("\"Key\": \"Localization\"", StringComparison.Ordinal)
+            && filesJson.Contains("\"loca-overlay/localization\"", StringComparison.Ordinal)
+            // the .gd.bin is still written for the GameDatabase resource
+            && File.Exists(Path.Combine(outputRoot, "loca-overlay", "loca-overlay.gd.bin"));
+    }
+    finally
+    {
+        if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+    }
+}
+
+bool PakScaffoldLocalizationOnlyWritesFilesJsonWithoutGdBin()
+{
+    // Localization-only overlay: a loca_<lang>.bin but no *.gd.xml. files.json is
+    // written (it has a Localization pointer) but carries no GameDatabase key, and
+    // no .gd.bin is emitted.
+    var tempDir = Path.Combine(Path.GetTempPath(), $"pagonia-pak-scaffold-locaonly-{Guid.NewGuid():N}");
+    var modRoot = Path.Combine(tempDir, "mod");
+    Directory.CreateDirectory(Path.Combine(modRoot, "entries"));
+    File.WriteAllBytes(Path.Combine(modRoot, "entries", "loca_en_us.bin"), new byte[] { 0x03, (byte)'H', (byte)'i', (byte)'!' });
+
+    WritePakScaffoldMod(modRoot, "pagonia.fixture.scaffold.locaonly",
+        pakBlock: """
+pak:
+  name: text-only
+  summary: Just text
+  author: Tester
+  image: text-only/images/preview.image
+""",
+        entriesBlock: """
+entries:
+  add:
+    - path: text-only/localization/loca_en_us.bin
+      source: entries/loca_en_us.bin
+""");
+
+    var sourceGameRoot = Path.Combine(tempDir, "source-game");
+    Directory.CreateDirectory(sourceGameRoot);
+    var outputRoot = Path.Combine(tempDir, "out");
+
+    try
+    {
+        var modResult = reader.ReadMod(modRoot);
+        if (!modResult.Success || modResult.Value is null) return false;
+        var plan = planner.Plan(sourceGameRoot, [modResult.Value]);
+        if (!plan.Success) return false;
+        var diagnostics = applier.Apply(sourceGameRoot, outputRoot, plan);
+        if (diagnostics.Any(d => d.Severity == PatchDiagnosticSeverity.Error)) return false;
+
+        var moduleDir = Path.Combine(outputRoot, "text-only");
+        var filesPath = Path.Combine(moduleDir, "files.json");
+        if (!File.Exists(filesPath)) return false;
+        var filesJson = File.ReadAllText(filesPath);
+        return filesJson.Contains("\"Key\": \"Localization\"", StringComparison.Ordinal)
+            && filesJson.Contains("\"text-only/localization\"", StringComparison.Ordinal)
+            && !filesJson.Contains("\"Key\": \"GameDatabase\"", StringComparison.Ordinal)
+            && !File.Exists(Path.Combine(moduleDir, "text-only.gd.bin"));
+    }
+    finally
+    {
+        if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+    }
+}
+
 bool PakScaffoldRejectsNameWithSlash()
 {
     var tempDir = Path.Combine(Path.GetTempPath(), $"pagonia-pak-scaffold-badname-{Guid.NewGuid():N}");
@@ -4437,8 +4802,11 @@ string MirrorModYaml(string id = "tl.mods.alpha", string name = "Alpha", string 
       - patches/buildings.yaml
     """;
 
-string MirrorIndexYaml(string id = "tl.mods.alpha", string path = "mods/alpha", string displayName = "Alpha", string version = "0.1.0", string gdb = "1.3.2-test", string safeToRemove = "true") => $"""
-    indexFormatVersion: "0.1"
+string MirrorIndexYaml(string id = "tl.mods.alpha", string path = "mods/alpha", string displayName = "Alpha", string version = "0.1.0", string gdb = "1.3.2-test", string safeToRemove = "true", string indexFormatVersion = "0.1", string? contentHash = null)
+{
+    var contentHashLine = contentHash is null ? string.Empty : $"\n    contentHash: {contentHash}";
+    return $"""
+    indexFormatVersion: "{indexFormatVersion}"
     repo:
       name: Test Repo
     mods:
@@ -4447,7 +4815,7 @@ string MirrorIndexYaml(string id = "tl.mods.alpha", string path = "mods/alpha", 
         displayName: {displayName}
         description: Short catalog blurb.
         version: {version}
-        gameDatabaseVersion: "{gdb}"
+        gameDatabaseVersion: "{gdb}"{contentHashLine}
         tags:
           - qol
         safetyFlags:
@@ -4456,6 +4824,7 @@ string MirrorIndexYaml(string id = "tl.mods.alpha", string path = "mods/alpha", 
           multiplayerSafe: unknown
           campaignSafe: unknown
     """;
+}
 
 string CreateMirrorRepo(string indexYaml, params (string RelDir, string ModYaml)[] mods)
 {
@@ -4604,13 +4973,95 @@ bool IndexBuildSyncsAndPreservesFormatting()
         var rewritten = File.ReadAllText(Path.Combine(root, "index.yaml"));
 
         var valueSynced = rewritten.Contains("safeToRemove: false") && !rewritten.Contains("safeToRemove: true");
-        var formattingPreserved = rewritten.Split('\n').Length == driftedIndex.Split('\n').Length;
+        // The drifted safety flag is spliced in place; the one mod entry had no contentHash, so build
+        // also inserts exactly one computed contentHash line — formatting otherwise untouched.
+        var contentHashAdded = rewritten.Contains("contentHash: ");
+        var formattingPreserved = rewritten.Split('\n').Length == driftedIndex.Split('\n').Length + 1;
         var nowInSync = mirror.Check(root).All(d => d.Severity != PatchDiagnosticSeverity.Error);
         var reportedUpdate = buildDiagnostics.Any(d => d.Code == DiagnosticCodes.IndexMirrorUpdated);
 
-        return valueSynced && formattingPreserved && nowInSync && reportedUpdate;
+        return valueSynced && contentHashAdded && formattingPreserved && nowInSync && reportedUpdate;
     }
     finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexBuildInsertsAndVerifiesContentHash()
+{
+    // A fresh index with no contentHash: build inserts a computed one matching the shared helper,
+    // and a subsequent check verifies clean.
+    var root = CreateMirrorRepo(MirrorIndexYaml(), ("mods/alpha", MirrorModYaml()));
+    try
+    {
+        var mirror = new RepoIndexMirror();
+        var build = mirror.Build(root, checkOnly: false);
+        var rewritten = File.ReadAllText(Path.Combine(root, "index.yaml"));
+
+        var marker = "contentHash: ";
+        var at = rewritten.IndexOf(marker, StringComparison.Ordinal);
+        var hash = at >= 0 ? new string(rewritten[(at + marker.Length)..].TakeWhile(Uri.IsHexDigit).ToArray()) : string.Empty;
+        var expected = ContentHash.OfModPayload(Path.Combine(root, "mods", "alpha"));
+
+        return hash.Length == 64
+            && string.Equals(hash, expected, StringComparison.Ordinal)
+            && mirror.Check(root).All(d => d.Severity != PatchDiagnosticSeverity.Error)
+            && build.Any(d => d.Code == DiagnosticCodes.IndexMirrorUpdated && d.Message.Contains("contentHash"));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexCheckDetectsContentDrift()
+{
+    // The index advertises a contentHash that no longer matches the mod's payload (content changed,
+    // possibly under an unchanged version) — index-check must flag it as drift.
+    var root = CreateMirrorRepo(MirrorIndexYaml(contentHash: new string('0', 64)), ("mods/alpha", MirrorModYaml()));
+    try
+    {
+        return new RepoIndexMirror().Check(root).Any(d => d.Code == DiagnosticCodes.IndexMirrorMismatch
+            && d.Severity == PatchDiagnosticSeverity.Error
+            && d.Message.Contains("contentHash"));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexBuildResyncsStaleContentHash()
+{
+    var stale = new string('0', 64);
+    var root = CreateMirrorRepo(MirrorIndexYaml(contentHash: stale), ("mods/alpha", MirrorModYaml()));
+    try
+    {
+        var mirror = new RepoIndexMirror();
+        mirror.Build(root, checkOnly: false);
+        var rewritten = File.ReadAllText(Path.Combine(root, "index.yaml"));
+        return !rewritten.Contains(stale)
+            && mirror.Check(root).All(d => d.Severity != PatchDiagnosticSeverity.Error);
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool ContentHashPayloadIgnoresExtraFiles()
+{
+    // OfModPayload hashes only mod.yaml + referenced patches — so an extra repo file (README) the
+    // gh: fetch never transfers can't change the hash. This is what lets author (index build) and
+    // consumer (fetched-tree verify) agree byte-for-byte; a whole-folder hash would NOT.
+    var a = Path.Combine(Path.GetTempPath(), $"pagonia-ch-a-{Guid.NewGuid():N}");
+    var b = Path.Combine(Path.GetTempPath(), $"pagonia-ch-b-{Guid.NewGuid():N}");
+    try
+    {
+        foreach (var dir in new[] { a, b })
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "patches"));
+            File.WriteAllText(Path.Combine(dir, "mod.yaml"), MirrorModYaml());
+            File.WriteAllText(Path.Combine(dir, "patches", "buildings.yaml"), "operations: []\n");
+        }
+        File.WriteAllText(Path.Combine(a, "README.md"), "not part of the shipped payload\n");
+
+        var ha = ContentHash.OfModPayload(a);
+        var hb = ContentHash.OfModPayload(b);
+        var folderHashDiffers = ContentHash.OfDirectory(a) != ContentHash.OfDirectory(b);
+
+        return ha is { Length: 64 } && string.Equals(ha, hb, StringComparison.Ordinal) && folderHashDiffers;
+    }
+    finally { Directory.Delete(a, recursive: true); Directory.Delete(b, recursive: true); }
 }
 
 bool IndexBuildQuotesUnsafeScalarInsteadOfCorrupting()
@@ -4631,6 +5082,49 @@ bool IndexBuildQuotesUnsafeScalarInsteadOfCorrupting()
         var reparsesAndInSync = mirror.Check(root).All(d => d.Severity != PatchDiagnosticSeverity.Error);
 
         return quoted && noRawCorruption && reparsesAndInSync;
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexBuildMigratesOlderFormatVersion()
+{
+    // Read-old / write-new: an index authored against an older same-major minor rises to the
+    // current minor the next time index build touches it, even with no mirror-field drift.
+    var root = CreateMirrorRepo(MirrorIndexYaml(indexFormatVersion: "0.0"), ("mods/alpha", MirrorModYaml()));
+    try
+    {
+        var mirror = new RepoIndexMirror();
+        var diags = mirror.Build(root, checkOnly: false);
+        var current = FormatVersionPolicy.CurrentVersion(ManagedFormat.RepoIndex);
+        var rewritten = File.ReadAllText(Path.Combine(root, "index.yaml"));
+
+        var rose = rewritten.Contains($"indexFormatVersion: \"{current}\"") && !rewritten.Contains("indexFormatVersion: \"0.0\"");
+        var reported = diags.Any(d => d.Code == DiagnosticCodes.FormatMigratedInPlace
+            && d.Severity == PatchDiagnosticSeverity.Info);
+        // Idempotent: a second pass finds it already current and migrates nothing.
+        var idempotent = mirror.Build(root, checkOnly: false).All(d => d.Code != DiagnosticCodes.FormatMigratedInPlace);
+        // The mirror is still readable + in sync afterwards.
+        var inSync = mirror.Check(root).All(d => d.Severity != PatchDiagnosticSeverity.Error);
+
+        return rose && reported && idempotent && inSync;
+    }
+    finally { Directory.Delete(root, recursive: true); }
+}
+
+bool IndexBuildCheckReportsPendingMigration()
+{
+    // --check is non-mutating: it reports a pending version migration as info (an older minor is
+    // still valid, so it is not an error / does not fail the gate) and writes nothing.
+    var indexYaml = MirrorIndexYaml(indexFormatVersion: "0.0");
+    var root = CreateMirrorRepo(indexYaml, ("mods/alpha", MirrorModYaml()));
+    try
+    {
+        var diags = new RepoIndexMirror().Build(root, checkOnly: true);
+        var unchanged = File.ReadAllText(Path.Combine(root, "index.yaml")) == indexYaml;
+        var pending = diags.Any(d => d.Code == DiagnosticCodes.FormatMigratedInPlace
+            && d.Severity == PatchDiagnosticSeverity.Info);
+        var noError = diags.All(d => d.Severity != PatchDiagnosticSeverity.Error);
+        return unchanged && pending && noError;
     }
     finally { Directory.Delete(root, recursive: true); }
 }

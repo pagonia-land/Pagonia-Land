@@ -220,6 +220,9 @@ public sealed class ProfileLifecycleService
                     Tweaks = mod.Tweaks is null
                         ? null
                         : new Dictionary<string, string>(mod.Tweaks),
+                    UserTweaks = mod.UserTweaks is null
+                        ? null
+                        : new List<string>(mod.UserTweaks),
                 })
                 .ToList(),
             LoadOrder = [.. sourceProfile.LoadOrder],

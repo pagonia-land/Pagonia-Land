@@ -78,6 +78,10 @@ public sealed class ActiveProfileService
             _profileStore.Write(layout, mutation.Profile);
         }
 
+        // Advisory dependency / incompatibility check focused on the just-enabled mod: surface an
+        // unmet dependency or a clash with an already-enabled mod, without blocking the enable.
+        diagnostics.AddRange(DetectRelations(layout, mutation.Profile, modId));
+
         return new ActiveProfileResult
         {
             Success = true,
@@ -88,8 +92,46 @@ public sealed class ActiveProfileService
         };
     }
 
+    /// <summary>Load the profile's enabled mods (manifests) and run the dependency/incompatibility
+    /// detector, focused on <paramref name="focusModId"/>. Best-effort: a mod whose manifest can't be
+    /// read is skipped (other paths report that).</summary>
+    private static IReadOnlyList<ManagerDiagnostic> DetectRelations(StoreLayout layout, ProfileFile profile, string focusModId)
+    {
+        var enabledMods = EnabledModSet.Load(layout, profile);
+        var installedIds = new HashSet<string>(
+            new ModLister().List(layout).Select(m => m.Id), StringComparer.Ordinal);
+        return new ModDependencyDetector().Detect(enabledMods, installedIds, focusModId);
+    }
+
     public ActiveProfileResult Disable(StoreLayout layout, string modId)
-        => Mutate(layout, profile => _mutator.Disable(profile, modId));
+    {
+        var result = Mutate(layout, profile => _mutator.Disable(profile, modId));
+
+        // Advisory: warn if other still-enabled mods depended on the one just disabled — before it
+        // silently breaks them. Never blocks (the disable already happened).
+        if (result.Success && result.Mutated && result.Profile is not null)
+        {
+            var dependents = ModDependencyDetector.DependentsOf(EnabledModSet.Load(layout, result.Profile), modId);
+            if (dependents.Count > 0)
+            {
+                var diagnostics = new List<ManagerDiagnostic>(result.Diagnostics)
+                {
+                    new(ManagerDiagnosticSeverity.Warning, ManagerDiagnosticCodes.ModDependedUponByOthers,
+                        $"Disabled '{modId}', but {string.Join(", ", dependents)} still depend(s) on it — that dependency is now unmet. Re-enable '{modId}' or disable the dependent(s)."),
+                };
+                return new ActiveProfileResult
+                {
+                    Success = result.Success,
+                    Mutated = result.Mutated,
+                    ProfileName = result.ProfileName,
+                    Profile = result.Profile,
+                    Diagnostics = diagnostics,
+                };
+            }
+        }
+
+        return result;
+    }
 
     public ActiveProfileResult MoveToPosition(StoreLayout layout, string modId, int position1Based)
         => Mutate(layout, profile => _mutator.MoveToPosition(profile, modId, position1Based));

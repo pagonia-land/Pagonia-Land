@@ -20,6 +20,10 @@ Two safeguards keep the schemas, the patcher's C# code, and the sandbox examples
 
 When you add a new field to a model in `tools/pagonia-patcher/src/PagoniaLand.Patcher.Core/Models/`, add the matching property to the schema here in the same PR. The CI's `schema-validate` step will fail loudly on the first sandbox example that uses the new field if the schema doesn't know it yet — that's how we caught the missing `pak:` block when `schema-validate` first ran. See [CONTRIBUTING.md → When You Touch Tools Or Schemas](../../CONTRIBUTING.md#when-you-touch-tools-or-schemas) for the rule.
 
+## Format Versions
+
+Each file carries a `MAJOR.MINOR` format version (`patchFormatVersion`, `collectionFormatVersion`, `collectionLockVersion`, `indexFormatVersion`, `catalogFormatVersion`), currently `0.1`. The version field accepts any same-major value (the schema constrains it to major `0`); the tools layer a tiered reader on top that the schema can't express: a same-major newer **minor** still reads (newer optional fields ignored, with a recommend-update note), while a newer or retired **major** is refused with an actionable "download a newer tool" message. Bump the **minor** for an additive, backward-compatible field; bump the **major** only for a breaking shape change. Prefer the string form (`"0.1"`) on disk. The full contract — semantics, the tier table, and read-old/write-new migration — is documented in the [Mod Distribution → Format compatibility](https://pagonia-land.github.io/Pagonia-Land/mod-distribution/#format-compatibility) guide.
+
 ## Files
 
 | Schema | Purpose |
@@ -57,7 +61,7 @@ id: pagonia-land.example.cheaper-sawmill
 name: Cheaper Sawmill
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: Lowers one Sawmill construction cost for local testing.
 requiredPackages:
   - core

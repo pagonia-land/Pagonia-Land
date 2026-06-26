@@ -56,7 +56,7 @@ public class CatalogFetcher
     public virtual async Task<CatalogFetchResult> FetchAsync(CatalogSource source, bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
         _ = forceRefresh; // base fetcher has no cache; subclasses observe.
-        return source switch
+        var result = source switch
         {
             GitHubCatalogSource gh => await FetchGitHubAsync(gh, cancellationToken).ConfigureAwait(false),
             FileCatalogSource file => FetchFile(file),
@@ -65,6 +65,27 @@ public class CatalogFetcher
                 source,
                 new[] { Error(ManagerDiagnosticCodes.CatalogFetchFailed, $"Unsupported catalog source type: {source.GetType().Name}.") }),
         };
+        return GateFormatVersion(result);
+    }
+
+    /// <summary>
+    /// Apply the shared format-version policy to a parsed catalog result. A newer-minor
+    /// catalog reads with an info note; a newer/retired major or malformed version turns a
+    /// successful fetch into a failure carrying the actionable diagnostic. The cache-read
+    /// path in <c>CachingCatalogFetcher</c> reuses this so a cached newer-major catalog is
+    /// gated identically to a freshly-fetched one.
+    /// </summary>
+    protected static CatalogFetchResult GateFormatVersion(CatalogFetchResult result)
+    {
+        if (!result.Success || result.Catalog is null)
+        {
+            return result;
+        }
+
+        var diagnostics = new List<ManagerDiagnostic>(result.Diagnostics);
+        return FormatVersionGate.TryAcceptCatalog(result.Catalog.CatalogFormatVersion, diagnostics)
+            ? CatalogFetchResult.Ok(result.Source, result.Catalog, result.RawText!, result.CommitSha, diagnostics)
+            : CatalogFetchResult.Failure(result.Source, diagnostics);
     }
 
     private async Task<CatalogFetchResult> FetchGitHubAsync(GitHubCatalogSource source, CancellationToken cancellationToken)

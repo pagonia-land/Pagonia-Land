@@ -43,10 +43,19 @@ public sealed class CollectionInstallOptions
 
     /// <summary>For remote-fetch installs: mod id -> resolved "gh:owner/repo#&lt;sha&gt;/&lt;id&gt;" origin. Used to populate the lockfile's per-mod <c>source</c> + <c>resolvedAt</c> fields so a re-install months later reproduces byte-identical.</summary>
     public IReadOnlyDictionary<string, string>? RemoteModSources { get; init; }
+
+    /// <summary>For remote-fetch installs: the resolved "gh:owner/repo#&lt;sha&gt;/&lt;collection-id&gt;" origin of the collection itself. Written to a provenance sidecar beside the manifest so a later read-only update check knows which repo's <c>index.yaml</c> advertises this collection's version. Null for local-file installs.</summary>
+    public string? RemoteCollectionSource { get; init; }
 }
 
 public sealed class CollectionInstallService
 {
+    /// <summary>Provenance sidecar written beside a remotely-installed collection's
+    /// manifest (mirrors <see cref="ModInstaller.SidecarFileName"/> for mods).
+    /// <see cref="CollectionLister"/> reads it back into
+    /// <see cref="InstalledCollection.Source"/>.</summary>
+    public const string SidecarFileName = ".manager-collection-install.yaml";
+
     private readonly ProfileStore _profileStore = new();
     private readonly ProfileMutator _mutator = new();
 
@@ -55,12 +64,18 @@ public sealed class CollectionInstallService
     // lives in PagoniaLand.Patcher.Core, not in this assembly — Patcher.Core's
     // own ILLink.Descriptors pins the type today by accident. The annotation
     // here makes the dependency explicit at the use site so it survives even
-    // if the cross-assembly descriptor coverage ever changes.
+    // if the cross-assembly descriptor coverage ever changes. The second pin
+    // covers the collection provenance sidecar this class also serialises.
     [DynamicDependency(
         DynamicallyAccessedMemberTypes.PublicConstructors
         | DynamicallyAccessedMemberTypes.PublicProperties
         | DynamicallyAccessedMemberTypes.PublicFields,
         typeof(CollectionLock))]
+    [DynamicDependency(
+        DynamicallyAccessedMemberTypes.PublicConstructors
+        | DynamicallyAccessedMemberTypes.PublicProperties
+        | DynamicallyAccessedMemberTypes.PublicFields,
+        typeof(CollectionInstallSidecar))]
     public CollectionInstallService()
     {
     }
@@ -113,17 +128,25 @@ public sealed class CollectionInstallService
         var resolution = resolveResult.Value;
         var collection = resolution.Collection;
 
-        foreach (var resolved in resolution.Mods)
+        // Only warn about an unfetched http(s) mod source on the genuinely local-only path. When the
+        // collection itself was remote-fetched (RemoteModSources / RemoteCollectionSource set), those
+        // mods were just downloaded — the "not yet implemented" wording would be stale and wrong.
+        var remoteFetched = options.RemoteModSources is { Count: > 0 }
+            || !string.IsNullOrWhiteSpace(options.RemoteCollectionSource);
+        if (!remoteFetched)
         {
-            var url = resolved.CollectionMod.Source;
-            if (!string.IsNullOrWhiteSpace(url) &&
-                (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                 || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+            foreach (var resolved in resolution.Mods)
             {
-                diagnostics.Add(new ManagerDiagnostic(
-                    ManagerDiagnosticSeverity.Warning,
-                    ManagerDiagnosticCodes.CollectionRemoteSourceUnsupported,
-                    $"Mod '{resolved.CollectionMod.Id}' declares remote source '{url}'; using local match at '{resolved.LocalPath}' instead. Remote fetch is not yet implemented."));
+                var url = resolved.CollectionMod.Source;
+                if (!string.IsNullOrWhiteSpace(url) &&
+                    (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                     || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                {
+                    diagnostics.Add(new ManagerDiagnostic(
+                        ManagerDiagnosticSeverity.Warning,
+                        ManagerDiagnosticCodes.CollectionRemoteSourceUnsupported,
+                        $"Mod '{resolved.CollectionMod.Id}' declares remote source '{url}'; using local match at '{resolved.LocalPath}' instead. A local-file collection install can't fetch it — install the collection from its `gh:` repo to pull remote mods."));
+                }
             }
         }
 
@@ -252,6 +275,23 @@ public sealed class CollectionInstallService
         Directory.CreateDirectory(layout.CollectionVersionDirectory(collection.Id, collection.Version));
         AtomicFile.WriteAllText(manifestPath, File.ReadAllText(collectionPath));
 
+        // Collection provenance sidecar: for a `--from gh:` install, record where
+        // the collection itself came from (the per-mod origins already live in the
+        // lockfile). A later read-only update check reads this to find the repo
+        // whose index.yaml advertises this collection's version. Local-file
+        // installs leave no sidecar — there's nothing to update-check against.
+        if (!string.IsNullOrWhiteSpace(options.RemoteCollectionSource))
+        {
+            var sidecar = new CollectionInstallSidecar
+            {
+                InstalledAt = DateTimeOffset.UtcNow.ToString("o"),
+                Source = options.RemoteCollectionSource!,
+            };
+            AtomicFile.WriteAllText(
+                Path.Combine(layout.CollectionVersionDirectory(collection.Id, collection.Version), SidecarFileName),
+                ManagerYaml.CreateSerializer().Serialize(sidecar));
+        }
+
         // If the caller provided remote sources (i.e. this is a `collection
         // install --from gh:...` run), augment the lockfile with the
         // per-mod source + resolvedAt fields so a future re-install can
@@ -301,7 +341,12 @@ public sealed class CollectionInstallService
             profile = _mutator.Enable(profile, id, version).Profile;
             if (collectionTweaksByMod.TryGetValue(id, out var curatorTweaks) && curatorTweaks is { Count: > 0 })
             {
-                profile = WithModTweaks(profile, id, new Dictionary<string, string>(curatorTweaks, StringComparer.Ordinal));
+                // Normalise curator values against the mod's declarations before seeding (trim,
+                // lowercase booleans, alias->current id) so the patcher's resolver handles them — a
+                // raw " True " / " 3 " would otherwise be stored verbatim and mishandled.
+                var declarations = new ManifestReader().ReadMod(layout.ModVersionDirectory(id, version)).Value?.Manifest.Tweaks
+                    ?? (IReadOnlyList<TweakDeclaration>)Array.Empty<TweakDeclaration>();
+                profile = WithModTweaks(profile, id, TweakOverrideService.NormalizeCuratorTweaks(declarations, curatorTweaks));
             }
         }
 
@@ -352,7 +397,9 @@ public sealed class CollectionInstallService
     {
         var enabled = profile.EnabledMods
             .Select(m => string.Equals(m.Id, modId, StringComparison.Ordinal)
-                ? new ProfileEnabledMod { Id = m.Id, Version = m.Version, Tweaks = tweaks }
+                // Curator-seeded values are not user overrides — record an explicit empty
+                // userTweaks so the origin is unambiguous (and a later read doesn't re-infer it).
+                ? new ProfileEnabledMod { Id = m.Id, Version = m.Version, Tweaks = tweaks, UserTweaks = new List<string>() }
                 : m)
             .ToList();
 

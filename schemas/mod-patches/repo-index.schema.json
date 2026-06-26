@@ -15,10 +15,8 @@
         "string",
         "number"
       ],
-      "enum": [
-        "0.1",
-        0.1
-      ]
+      "description": "Format version, MAJOR.MINOR. This build reads major 0; a newer minor is read with unknown optional fields ignored, a newer major is refused. Prefer the string form, e.g. \"0.1\".",
+      "pattern": "^0\\.[0-9]+$"
     },
     "repo": {
       "type": "object",
@@ -91,6 +89,10 @@
     "gameDatabaseVersion": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+\\+[0-9]+$"
+    },
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "uriString": {
       "type": "string",
@@ -209,6 +211,10 @@
         },
         "gameDatabaseVersion": {
           "$ref": "#/$defs/gameDatabaseVersion"
+        },
+        "contentHash": {
+          "description": "SHA-256 over the mod's logical payload (mod.yaml + the patch files it references), maintained by `pagonia-patcher index build` and verified by `index-check`. A consumer re-computes it on the fetched download for integrity, and a changed hash under an unchanged version flags same-version content drift. Optional.",
+          "$ref": "#/$defs/sha256Hex"
         },
         "tags": {
           "$ref": "#/$defs/tagList"

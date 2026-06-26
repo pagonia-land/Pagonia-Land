@@ -44,6 +44,7 @@ public sealed class GdBinReader
         }
 
         var entries = new List<string>();
+        var hasTrailingTerminator = false;
         Span<byte> lengthBuffer = stackalloc byte[4];
 
         while (true)
@@ -61,10 +62,13 @@ public sealed class GdBinReader
             var charCount = BinaryPrimitives.ReadUInt32LittleEndian(lengthBuffer);
             if (charCount == 0)
             {
-                diagnostics.Add(Error(
-                    DiagnosticCodes.GdBinEntryTruncated,
-                    $"Entry #{entries.Count} declares zero UTF-16 code units; gd.bin entries must be non-empty."));
-                return new GdBinReadResult(null, diagnostics);
+                // A zero-length record is the 1.4.0 Pagonia Editor's terminator: every
+                // editor-emitted index ends with one `00 00 00 00` after the last real
+                // entry (and an empty index is just the header + this terminator). Shipped
+                // paks (core/dlc1/…) omit it and end cleanly at EOF. Treat it as
+                // end-of-list and remember it so the writer can round-trip byte-identically.
+                hasTrailingTerminator = true;
+                break;
             }
             if (charCount > int.MaxValue / 2)
             {
@@ -75,6 +79,17 @@ public sealed class GdBinReader
             }
 
             var byteCount = checked((int)charCount * 2);
+            // On a seekable stream the remaining bytes are an exact upper bound — reject a declared
+            // length the file can't hold before allocating (a corrupt count could otherwise pin up
+            // to ~1 GB from a tiny patched pak).
+            if (stream.CanSeek && byteCount > stream.Length - stream.Position)
+            {
+                diagnostics.Add(Error(
+                    DiagnosticCodes.GdBinEntryTruncated,
+                    $"Entry #{entries.Count} declares {charCount} UTF-16 code units ({byteCount} bytes) but only {stream.Length - stream.Position} remain in the stream."));
+                return new GdBinReadResult(null, diagnostics);
+            }
+
             var pathBuffer = new byte[byteCount];
             var pathRead = ReadAtMost(stream, pathBuffer);
             if (pathRead < byteCount)
@@ -104,9 +119,9 @@ public sealed class GdBinReader
         diagnostics.Add(new PakDiagnostic(
             PakDiagnosticSeverity.Info,
             DiagnosticCodes.GdBinRead,
-            $"Read gd.bin index with {entries.Count} entries."));
+            $"Read gd.bin index with {entries.Count} entries{(hasTrailingTerminator ? " (editor terminator present)" : string.Empty)}."));
 
-        var index = new GdBinIndex(header.ToArray(), entries);
+        var index = new GdBinIndex(header.ToArray(), entries) { HasTrailingTerminator = hasTrailingTerminator };
         return new GdBinReadResult(index, diagnostics);
     }
 

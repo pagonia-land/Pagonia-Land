@@ -17,6 +17,10 @@ Each schema is embedded into the AOT-published `pagonia-manager.exe` (see `tools
 | `deploy-status-report.schema.json` | `deployStatus` | `deploy-status --json <out>` |
 | `expansions-list-report.schema.json` | `expansionsList` | `expansions list --json <out>` |
 | `expansions-set-report.schema.json` | `expansionsSet` | `expansions set --json <out>` |
+| `tweak-list.schema.json` | `tweakList` | `tweak list --json <out>` |
+| `tweak-set.schema.json` | `tweakSet` | `tweak set --json <out>` |
+| `tweak-reset.schema.json` | `tweakReset` | `tweak reset --json <out>` |
+| `updates-report.schema.json` | `updates` | `outdated --json <out>` |
 
 The plan report (`plan --json <out>`) carries its own envelope shape (`{ manager, patcher }`) and round-trips through `ManagerPlanReporter` directly; it's not validated by the manager's schema-validate today.
 

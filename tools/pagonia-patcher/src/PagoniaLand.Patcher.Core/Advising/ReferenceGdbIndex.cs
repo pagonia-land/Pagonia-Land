@@ -99,13 +99,19 @@ public sealed class ReferenceGdbIndex
         return new ReferenceGdbIndex(entitiesByGuid, referencedGuids);
     }
 
-    /// <summary>True when <paramref name="guid"/> is referenced by some entity in the reference set.</summary>
+    /// <summary>True when <paramref name="guid"/> is referenced by some entity in the reference set.
+    /// The argument is trimmed before the lookup because the set stores trimmed values (via
+    /// <c>AddIfGuid</c>), so a whitespace-padded <c>InheritedGuid</c> still matches.</summary>
     public bool IsReferenced(string? guid)
-        => !string.IsNullOrWhiteSpace(guid) && _referencedGuids.Contains(guid);
+        => !string.IsNullOrWhiteSpace(guid) && _referencedGuids.Contains(guid.Trim());
 
-    /// <summary>Gets the inherited entity element for <paramref name="guid"/>, if the reference set defines it.</summary>
+    /// <summary>Gets the inherited entity element for <paramref name="guid"/>, if the reference set
+    /// defines it. The argument is trimmed before the lookup — symmetric with <see cref="IsReferenced"/>
+    /// — because the dictionary keys are the reference DB's unpadded GUIDs, so a whitespace-padded
+    /// <c>InheritedGuid</c> still matches (otherwise the Replace-could-be-Incremental advisory goes
+    /// silently quiet while the Unload check still fires).</summary>
     public XElement? GetEntity(string? guid)
-        => !string.IsNullOrWhiteSpace(guid) && _entitiesByGuid.TryGetValue(guid, out var element)
+        => !string.IsNullOrWhiteSpace(guid) && _entitiesByGuid.TryGetValue(guid.Trim(), out var element)
             ? element
             : null;
 

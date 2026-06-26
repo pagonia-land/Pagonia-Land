@@ -67,6 +67,11 @@ internal static class InteractiveShell
                         WaitForKey();
                         break;
 
+                    case MainMenu.UpdateMods:
+                        UpdateWizard.Run(session);
+                        WaitForKey();
+                        break;
+
                     case MainMenu.ManageActiveProfile:
                         ManageActiveProfileWizard.Run(session);
                         break;

@@ -14,12 +14,25 @@ namespace PagoniaLand.Paker;
 ///   [byte 3] (entries.Count - 1), low byte
 ///   [bytes 4..6] 0x00 0x00 0x00
 ///   [entries] each: uint32 LE length (UTF-16 code units), then 2*length bytes UTF-16 LE
+///   [terminator] optional trailing uint32 LE 0x00000000 (1.4.0 editor only)
 /// </code>
 ///
-/// Byte 3 matches <c>entries.Count - 1</c> across all four shipped indexes
-/// (core: 0x2A=42 for 43 entries, dlc1: 0x0E=14 for 15, decorations1: 0x01=1
-/// for 2, tools: 0x01=1 for 2). Whether the field is meant as a count, a
-/// highest-index, or something else that coincidentally equals N-1 is
+/// Two producers emit slightly different tails. The shipped paks
+/// (core/dlc1/decorations1/tools) end cleanly at the last entry's bytes. The
+/// 1.4.0 Pagonia Editor closes every index it writes with a zero-length
+/// terminator record (<c>00 00 00 00</c>) — after the last entry, or alone
+/// after the header for an empty index (a map-only mod's module-level
+/// <c>&lt;m&gt;.gd.bin</c>). <see cref="GdBinReader"/> tolerates it and records its
+/// presence on <see cref="GdBinIndex.HasTrailingTerminator"/> so
+/// <see cref="GdBinWriter"/> round-trips either shape byte-identically.
+///
+/// Byte 3 matches <c>(record count) - 1</c> across every observed index, where
+/// the editor's terminator counts as a record: the four shipped indexes
+/// (core: 0x2A=42 for 43 entries, dlc1: 0x0E=14 for 15, decorations1/tools:
+/// 0x01=1 for 2) carry no terminator, while the editor's single-entry index
+/// reads 0x01 (1 entry + 1 terminator − 1) and its empty index reads 0x00
+/// (0 entries + 1 terminator − 1). Whether the field is meant as a count, a
+/// highest-index, or something else that coincidentally equals N−1 is
 /// unverified — we expose <see cref="ComputeHeaderByte3"/> for callers that
 /// build fresh indexes and want to set the field consistently.
 ///

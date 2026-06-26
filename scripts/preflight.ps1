@@ -94,16 +94,19 @@ Step 'Workflow lint (actionlint)' {
 # "Phase 9", "patcher roadmap ...") must never appear in shipped source — the
 # public repo ships without the roadmaps/ tree, so these refs would dangle and
 # they couple the code to internal planning. Gate the C# tree (comments +
-# identifiers). Capitalised "Step N" / "Phase N" only, so lowercase algorithm
-# prose ("step 1", "steps 2-3") and tutorial "Step 1/2/3" headings in
-# docs/examples are legitimate and not flagged. "roadmap" is matched
-# case-insensitively.
-Step 'Roadmap-leak policy (no Step/Phase/roadmap refs in C#)' {
-    $hits = Get-ChildItem -Path 'tools' -Recurse -Filter *.cs -File |
-        Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
-        Select-String -Pattern '(?-i:(Step|Phase)[- ]?\d+)|(?i:roadmap)' -CaseSensitive
+# identifiers) AND the shipped tool docs (tools/**/*.md — CLI.md / README /
+# CHANGELOG), since a "(Step 83)" once slipped into a public CLI.md. Capitalised
+# "Step N" / "Phase N" only, so lowercase algorithm prose ("step 1", "steps 2-3")
+# and tutorial "Step 1/2/3" headings under docs/examples are legitimate and not
+# flagged (those trees are not scanned). "roadmap" is matched case-insensitively.
+Step 'Roadmap-leak policy (no Step/Phase/roadmap refs in shipped C# + tool docs)' {
+    $shipped = @(
+        Get-ChildItem -Path 'tools' -Recurse -Filter *.cs -File
+        Get-ChildItem -Path 'tools' -Recurse -Filter *.md -File
+    ) | Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' }
+    $hits = $shipped | Select-String -Pattern '(?-i:(Step|Phase)[- ]?\d+)|(?i:roadmap)' -CaseSensitive
     if ($hits) {
-        Write-Host 'Found roadmap references in C# source (remove them — they belong in internal planning notes only):' -ForegroundColor Red
+        Write-Host 'Found roadmap references in shipped source/docs (remove them — they belong in internal planning notes only):' -ForegroundColor Red
         $hits | ForEach-Object { Write-Host "  $($_.Path):$($_.LineNumber): $($_.Line.Trim())" -ForegroundColor Red }
         $global:LASTEXITCODE = 1
     }

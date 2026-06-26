@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.4.0</Version>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
+    <FileVersion>0.4.0.0</FileVersion>
+    <InformationalVersion>0.4.0-dev</InformationalVersion>
+    <!--
+      Keep InformationalVersion exactly as set: don't let the SDK auto-append
+      "+<git commit>" (matches the other tool cores; the release workflow stamps
+      the real version + sha at cut time, and bumps every project in lockstep).
+    -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reuse the pak format library to extract *.gd.xml from a live install's paks
+         (the same cross-tree reference pattern Patcher.Core -> Paker.Core uses). -->
+    <ProjectReference Include="..\..\..\tools\pagonia-paker\src\PagoniaLand.Paker.Core\PagoniaLand.Paker.Core.csproj" />
+    <!-- PakReader uses System.IO.Hashing (CRC32) at runtime. The transitive package
+         doesn't reliably flow across the two project-reference hops to the app's output,
+         so declare it here (and in the app) to guarantee the assembly is deployed. -->
+    <PackageReference Include="System.IO.Hashing" Version="10.0.9" />
+    <!-- Managed BCn (BC1..BC7) decoder for the game's RTEX icon/texture pixel data
+         (icons ship as BC7_sRGB). Pure C#, no native dependency. -->
+    <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />
+  </ItemGroup>
+
+</Project>

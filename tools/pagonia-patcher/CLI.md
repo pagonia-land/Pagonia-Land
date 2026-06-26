@@ -41,7 +41,7 @@ Validate a mod manifest and patch file layout:
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- validate-mod --mod .\fixtures\mods\cheaper-sawmill
 ```
 
-`validate-mod` runs the patcher's own internal validation (`ManifestValidator`) — the rules the patcher enforces when planning. For mods that declare `tweaks:`, it also runs a lint pass that warns (without failing) about likely authoring mistakes the schema can't catch: a tweak declared but never referenced by a `{{ tweaks.<id> }}` placeholder, a boolean ternary used on a non-boolean tweak, or a numeric tweak whose `min` exceeds its `max`.
+`validate-mod` runs the patcher's own internal validation (`ManifestValidator`) — the rules the patcher enforces when planning. For mods that declare `tweaks:`, it also runs a lint pass that warns (without failing) about likely authoring mistakes the schema can't catch: a tweak declared but never referenced by a `{{ tweaks.<id> }}` placeholder, a boolean ternary used on a non-boolean tweak, a numeric tweak whose `min` exceeds its `max`, a numeric tweak with a non-positive `step`, or an `integer` tweak whose `min` / `max` / `step` is not a whole number.
 
 For mods that ship their own GameDatabase overlay (`*.gd.xml` files declared under `entries:`), `validate-mod` also runs the **conflict-minimising authoring advisor**. It encodes the engine maintainers' guidance — prefer the additive, stackable inheritance modes (`Incremental` / `Template`) over the destructive, last-loaded-wins ones (`Replace` / `Unload`) so a mod co-exists cleanly with others. Findings are advisory (`validate-mod` still exits `0`):
 
@@ -70,6 +70,8 @@ dotnet run --project .\src\PagoniaLand.Patcher.Cli -- schema-validate --catalog 
 
 `schema-validate` is the conformance check third-party tools rely on. The schemas under `schemas/mod-patches/` are the public contract — any mod that passes `schema-validate` is guaranteed to parse cleanly in mod managers, IDE plugins, web validators, and any future tooling built against that contract. Run it before publishing a mod (in CI or as a local pre-commit step).
 
+**Format-version compatibility.** Each validated file carries a `MAJOR.MINOR` format version (`patchFormatVersion`, `collectionFormatVersion`, `collectionLockVersion`, `indexFormatVersion`, `catalogFormatVersion`). `schema-validate` checks that version *before* the schema shape: a file at the same major and a known or older minor validates normally; a **newer minor** still reads (the newer optional fields are ignored) and surfaces an info-level `formatMinorAhead` note recommending a tool update; a **newer or retired major** — a breaking shape this build can't read — is refused with an actionable `formatMajorUnsupported` / `formatMajorRetired` error naming where to get a newer release; a value that isn't `MAJOR.MINOR` reports `formatVersionMalformed`. This replaces the old flat "any version other than the one I know is rejected" behaviour, so a purely additive format bump no longer hard-fails an older tool.
+
 The `--repo-index` variant validates a Git-distribution repo's top-level `index.yaml` against `schemas/mod-patches/repo-index.schema.json`. Mod authors who publish through a Git repo (one mod or many, with or without collections) should wire this into their CI — see [`examples/mod-repo-example/`](../../examples/mod-repo-example/) for a working reference repo with a [`validate.yml`](../../examples/mod-repo-example/.github/workflows/validate.yml) GitHub Action.
 
 ### Keeping `index.yaml` in sync with each `mod.yaml` (`index-check` / `index build`)
@@ -77,6 +79,8 @@ The `--repo-index` variant validates a Git-distribution repo's top-level `index.
 A repo's `index.yaml` duplicates a curated subset of every mod's `mod.yaml` so the manager can browse a catalog (name, version, safety) *without* fetching each mod folder. `schema-validate` checks the index's *shape*, but not that those copies still match the manifests they mirror — so the copy can silently drift (a `safeToRemove` flipped in `mod.yaml`, a version bumped, a game-database version updated, and the index left stale, advertising the wrong thing to users).
 
 The **mirror contract** — index fields that, *when the entry carries them*, must equal their `mod.yaml` source: `displayName` (↔ manifest `name`), `version`, `gameDatabaseVersion`, and the four `safetyFlags` (↔ the flat `requiresNewGame` / `safeToRemove` / `multiplayerSafe` / `campaignSafe`). The index is a curated *subset*, so an entry may **omit** a field (the catalog just won't surface it — that's a curation choice, not drift); only a present-but-wrong copy is flagged, since that's what misleads a browsing user. The index's `description`, `tags`, and `screenshots` are likewise curated and never compared (the index carries a short catalog blurb; the manifest the full text).
+
+The index also carries an optional **`contentHash`** per mod entry — a SHA-256 over the mod's *logical payload* (`mod.yaml` plus the patch files it references, the exact set a `gh:` fetch transfers; extra repo files like a README don't affect it). Unlike the curated mirror fields above, this one is **computed**, not copied: `index build` inserts it for an entry that has none and re-syncs a stale one, and `index-check` recomputes and flags a mismatch — which catches *same-version content drift* (the mod's files changed but its `version` didn't). A consumer re-computes it on the downloaded payload to verify integrity (see the manager's install path).
 
 ```powershell
 # Detect drift (read-only). Errors on a mirror mismatch, an index entry whose
@@ -89,7 +93,9 @@ dotnet run --project .\src\PagoniaLand.Patcher.Cli -- index build ..\..\official
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- index build ..\..\official-mods --check
 ```
 
-`index build` only swaps drifted *values* on fields that already exist in both files (so the rewrite is surgical and leaves surrounding formatting untouched); structural gaps it can't resolve by a value swap — a missing entry, an orphaned entry, an absent field — are reported for you to fix by hand rather than reformatting the file. Wire `index-check` (or `index build --check`) into the same CI job as `schema-validate`.
+`index build` only swaps drifted *values* on mirror fields that already exist in both files (so the rewrite is surgical and leaves surrounding formatting untouched); structural gaps it can't resolve by a value swap — a missing entry, an orphaned entry, an absent *mirror* field — are reported for you to fix by hand rather than reformatting the file. (The one field it does *insert* when absent is the computed `contentHash`, added on the entry's `path` line.) Wire `index-check` (or `index build --check`) into the same CI job as `schema-validate`.
+
+In the same rewrite, `index build` also **migrates the index's own `indexFormatVersion`**: an index authored against an older same-major format minor is stamped up to the current minor in place (`formatMigratedInPlace`), so a purely additive format bump rises the next time you run the tool rather than needing a hand-edit. `index build --check` reports a pending migration as info — an older minor is still valid, so it does not fail the gate. (Newer minors and newer majors are never silently rewritten; they're the read-side gate's concern.) The collection exporter and the lockfile writer likewise always stamp the current version on write.
 
 **Scope.** Missing-entry detection assumes the conventional `mods/<dir>/mod.yaml` layout — a mod kept under a different path isn't discovered as "missing from the index". Collection entries (the index's `collections:` list) are **not** cross-checked against their `*.collection.yaml`; keep those in sync by hand. If a re-sync would produce YAML that no longer parses (an unusually-shaped value that needs quoting), `index build` reports `indexMirrorWriteAborted` and writes nothing rather than corrupt the file.
 
@@ -276,7 +282,7 @@ dotnet publish ./src/PagoniaLand.Patcher.Cli -c Release -r osx-x64
 dotnet publish ./src/PagoniaLand.Patcher.Cli -c Release -r osx-arm64
 ```
 
-The output ends up in `src/PagoniaLand.Patcher.Cli/bin/Release/net8.0/<rid>/publish/`. On Windows that is `pagonia-patcher.exe`; the binary bundles YamlDotNet + JsonSchema.Net into a single Native AOT image. The binary can be copied somewhere on `PATH` and used directly:
+The output ends up in `src/PagoniaLand.Patcher.Cli/bin/Release/net10.0/<rid>/publish/`. On Windows that is `pagonia-patcher.exe`; the binary bundles YamlDotNet + JsonSchema.Net into a single Native AOT image. The binary can be copied somewhere on `PATH` and used directly:
 
 ```powershell
 .\pagonia-patcher.exe --version

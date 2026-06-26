@@ -183,6 +183,22 @@ public sealed partial class ManifestValidator
                             $"tweak '{label}' has a non-positive step {step.ToString(CultureInfo.InvariantCulture)}; step must be greater than zero."));
                     }
 
+                    // For an integer tweak the bounds + step must themselves be whole numbers, or the
+                    // wizard's stepper advances by a fractional amount and stores non-integer values
+                    // in a field the author declared integer. The default already gets this check
+                    // (ValidateNumericTweakDefault); min/max/step are double? and otherwise unchecked.
+                    if (tweak.Type == "integer")
+                    {
+                        foreach (var (boundName, boundValue) in new[] { ("min", tweak.Min), ("max", tweak.Max), ("step", tweak.Step) })
+                        {
+                            if (boundValue is { } bound && bound != Math.Floor(bound))
+                            {
+                                diagnostics.Add(Warning(DiagnosticCodes.TweakBoundNotInteger,
+                                    $"integer tweak '{label}' has a non-integer {boundName} {bound.ToString(CultureInfo.InvariantCulture)}."));
+                            }
+                        }
+                    }
+
                     break;
                 case "enum":
                     ValidateEnumTweakDefault(tweak, label, diagnostics);

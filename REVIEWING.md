@@ -15,6 +15,8 @@ The fastest "does this actually work for me" path:
 3. Go through **Plan + deploy to game** against a real Pioneers of Pagonia install (the manager backs up first, so rollback is safe).
 4. Try **Roll back last deploy** to verify the byte-identical restore.
 
+Want a zero-setup look at the data instead? Grab the **[Pagonia Land app](app/README.md)** from the same release (Windows + Linux), point it at your install, and it builds a browsable, icon-rich GameDatabase catalog on the fly — no clone, no index generation.
+
 Worth telling us:
 - Did the binary launch on your platform without warnings? (Especially macOS — the binaries are ad-hoc signed for Intel and Apple Silicon; Gatekeeper might still complain on first run.)
 - Did the interactive menu feel intuitive, or did you bounce off any wizard step?
@@ -64,7 +66,7 @@ Worth telling us:
 
 These are deliberate boundaries, not gaps — no need to flag them:
 
-- **GUI on top of the manager.** A separate project, not in scope here. The CLI + schemas are the foundation a GUI would build on.
+- **A manager GUI.** Still a separate, future project — the CLI + schemas are the foundation it would build on. (The shipped **[Pagonia Land app](app/README.md)** is a *catalog* viewer, distinct from this — and it **is** fair game to review.)
 - **Tool-internal localization.** The CLI strings are English-only today.
 - **Catalog data redistribution.** The catalog browser is a tool; the search index it reads is generated locally from your own extracted game data and is never shipped in this repository. That's a deliberate content boundary (the repo publishes tooling, not game-derived data), not a missing feature.
 

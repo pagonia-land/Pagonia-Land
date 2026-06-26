@@ -109,6 +109,16 @@ public sealed class RepoIndexMirror
                 indexPath));
         }
 
+        // Read-old / write-new: if indexFormatVersion is an older same-major minor, bump it up to the
+        // current minor in the same in-place rewrite. (Newer minors / majors are the read gate's concern,
+        // never a silent rewrite here.) Returns null when no migration is due.
+        var rootMap = (YamlMappingNode)stream!.Documents[0].RootNode;
+        var versionMigration = ComputeVersionMigration(rootMap);
+
+        // Entries with no contentHash yet — index build inserts a freshly-computed one (a brand-new
+        // optional integrity field, so there's nothing to splice over; it's an insertion).
+        var contentHashInsertions = ComputeContentHashInsertions(repoRoot, stream!);
+
         if (checkOnly)
         {
             foreach (var f in fixable)
@@ -116,7 +126,23 @@ public sealed class RepoIndexMirror
                 diagnostics.Add(IssueToDiagnostic(f, indexPath));
             }
 
-            if (mismatches.Count == 0 && issues.Count == 0)
+            if (versionMigration is { } pending)
+            {
+                diagnostics.Add(Info(
+                    DiagnosticCodes.FormatMigratedInPlace,
+                    $"indexFormatVersion {pending.Declared} -> {pending.Target}: would migrate to the current format minor on the next `index build`.",
+                    indexPath));
+            }
+
+            foreach (var insertion in contentHashInsertions)
+            {
+                diagnostics.Add(Info(
+                    DiagnosticCodes.IndexMirrorUpdated,
+                    $"'{insertion.EntryId}' contentHash: would add {insertion.Hash} on the next `index build`.",
+                    indexPath));
+            }
+
+            if (mismatches.Count == 0 && issues.Count == 0 && versionMigration is null && contentHashInsertions.Count == 0)
             {
                 diagnostics.Add(Info(DiagnosticCodes.IndexMirrorInSync, "index.yaml mirror fields are in sync with every mod.yaml.", indexPath));
             }
@@ -124,7 +150,34 @@ public sealed class RepoIndexMirror
             return diagnostics;
         }
 
-        if (fixable.Count == 0)
+        // Collect every edit as a (start, end, newText) span over the raw source plus the diagnostic
+        // to emit once applied. A value re-sync / version bump replaces its scalar span; a new
+        // contentHash is a zero-width insertion at the end of the entry's `path` line.
+        var edits = new List<(int Start, int End, string NewText, PatchDiagnostic Diagnostic)>();
+        foreach (var f in fixable)
+        {
+            edits.Add((
+                (int)f.IndexNode!.Start.Index,
+                (int)f.IndexNode!.End.Index,
+                FormatScalar(f.ModValue!, f.IndexNode!.Style, f.Field),
+                Info(DiagnosticCodes.IndexMirrorUpdated, $"'{f.EntryId}' {f.Field}: {Show(f.IndexValue)} -> {Show(f.ModValue)}.", indexPath)));
+        }
+        if (versionMigration is { } migration)
+        {
+            edits.Add((
+                (int)migration.Node.Start.Index,
+                (int)migration.Node.End.Index,
+                FormatScalar(migration.Target, migration.Node.Style, "indexFormatVersion"),
+                Info(DiagnosticCodes.FormatMigratedInPlace, $"indexFormatVersion {migration.Declared} -> {migration.Target} (migrated to the current format minor).", indexPath)));
+        }
+        foreach (var insertion in contentHashInsertions)
+        {
+            var at = EndOfLineIndex(rawText!, (int)insertion.Anchor.End.Index);
+            edits.Add((at, at, $"\n{insertion.Indent}contentHash: {insertion.Hash}",
+                Info(DiagnosticCodes.IndexMirrorUpdated, $"'{insertion.EntryId}' contentHash: added {insertion.Hash}.", indexPath)));
+        }
+
+        if (edits.Count == 0)
         {
             diagnostics.Add(Info(
                 manual.Count == 0 && issues.Count == 0 ? DiagnosticCodes.IndexMirrorInSync : DiagnosticCodes.IndexMirrorUpdated,
@@ -133,19 +186,12 @@ public sealed class RepoIndexMirror
             return diagnostics;
         }
 
-        // Surgically splice the new value over each drifted scalar's source span. Apply right-to-left so
-        // earlier replacements don't shift later spans' character indices.
+        // Apply right-to-left so earlier edits don't shift later spans' character indices.
         var updated = rawText!;
-        foreach (var f in fixable.OrderByDescending(i => i.IndexNode!.Start.Index))
+        foreach (var edit in edits.OrderByDescending(e => e.Start))
         {
-            var node = f.IndexNode!;
-            var start = (int)node.Start.Index;
-            var end = (int)node.End.Index;
-            updated = updated[..start] + FormatScalar(f.ModValue!, node.Style, f.Field) + updated[end..];
-            diagnostics.Add(Info(
-                DiagnosticCodes.IndexMirrorUpdated,
-                $"'{f.EntryId}' {f.Field}: {Show(f.IndexValue)} -> {Show(f.ModValue)}.",
-                indexPath));
+            updated = updated[..edit.Start] + edit.NewText + updated[edit.End..];
+            diagnostics.Add(edit.Diagnostic);
         }
 
         // Never write YAML we can't read back. A value that needed quoting but slipped through,
@@ -156,7 +202,7 @@ public sealed class RepoIndexMirror
         }
         catch (YamlException exception)
         {
-            diagnostics.RemoveAll(d => d.Code == DiagnosticCodes.IndexMirrorUpdated);
+            diagnostics.RemoveAll(d => d.Code is DiagnosticCodes.IndexMirrorUpdated or DiagnosticCodes.FormatMigratedInPlace);
             diagnostics.Add(Error(
                 DiagnosticCodes.IndexMirrorWriteAborted,
                 $"Re-syncing index.yaml would have produced invalid YAML ({exception.Message}); nothing was written. Fix the offending mod.yaml value or the index entry by hand.",
@@ -166,6 +212,95 @@ public sealed class RepoIndexMirror
 
         File.WriteAllText(indexPath, updated);
         return diagnostics;
+    }
+
+    // The index's own format version is not a mirror of any mod.yaml — it follows the shared
+    // MAJOR.MINOR contract. index build stamps the current minor when it touches a file authored
+    // against an older same-major minor, so a purely additive format bump rises the next time the
+    // tool runs rather than forcing a hand-edit.
+    private static (YamlScalarNode Node, string Target, string Declared)? ComputeVersionMigration(YamlMappingNode root)
+    {
+        if (!TryGetChild(root, "indexFormatVersion", out var node) || node is not YamlScalarNode scalar || scalar.Value is not { } declared)
+        {
+            return null;
+        }
+
+        if (!FormatVersionPolicy.TryParse(declared, out var parsed))
+        {
+            return null;
+        }
+
+        var known = FormatVersionPolicy.KnownVersion(ManagedFormat.RepoIndex);
+        return parsed.Major == known.Major && parsed.Minor < known.Minor
+            ? (scalar, known.ToString(), declared)
+            : null;
+    }
+
+    // Mod entries that carry no contentHash yet — index build inserts a freshly-computed one. Anchored
+    // on the entry's `path` line (always present), indented to match its sibling keys.
+    private static List<(YamlScalarNode Anchor, string Indent, string Hash, string EntryId)> ComputeContentHashInsertions(string repoRoot, YamlStream stream)
+    {
+        var result = new List<(YamlScalarNode, string, string, string)>();
+        var root = (YamlMappingNode)stream.Documents[0].RootNode;
+        if (!TryGetChild(root, "mods", out var modsNode) || modsNode is not YamlSequenceNode mods)
+        {
+            return result;
+        }
+
+        foreach (var entry in mods.Children.OfType<YamlMappingNode>())
+        {
+            // Already advertises one (any value) — handled by the re-sync path, not insertion.
+            if (TryGetChild(entry, "contentHash", out _))
+            {
+                continue;
+            }
+
+            var path = ScalarValue(entry, "path");
+            if (string.IsNullOrEmpty(path))
+            {
+                continue;
+            }
+
+            var modDirectory = Path.Combine(repoRoot, path.Replace('/', Path.DirectorySeparatorChar));
+            var hash = ContentHash.OfModPayload(modDirectory);
+            if (hash is null)
+            {
+                continue; // no readable mod.yaml — orphan/missing checks own that
+            }
+
+            var pathKey = KeyNode(entry, "path");
+            var pathValue = TryGetChild(entry, "path", out var pv) ? pv as YamlScalarNode : null;
+            if (pathKey is null || pathValue is null)
+            {
+                continue;
+            }
+
+            var indent = new string(' ', Math.Max(0, (int)pathKey.Start.Column - 1));
+            result.Add((pathValue, indent, hash, ScalarValue(entry, "id") ?? string.Empty));
+        }
+
+        return result;
+    }
+
+    // Index of the line terminator at/after <paramref name="from"/> (or end of text). Inserting a new
+    // line at this position appends it after the anchor's line, so a trailing inline comment is left
+    // intact rather than split.
+    private static int EndOfLineIndex(string text, int from)
+    {
+        var newline = text.IndexOf('\n', Math.Min(from, text.Length));
+        return newline < 0 ? text.Length : newline;
+    }
+
+    private static YamlScalarNode? KeyNode(YamlMappingNode map, string key)
+    {
+        foreach (var kv in map.Children)
+        {
+            if (kv.Key is YamlScalarNode scalar && scalar.Value == key)
+            {
+                return scalar;
+            }
+        }
+        return null;
     }
 
     private bool TryLoad(string repoRoot, List<PatchDiagnostic> diagnostics, out string indexPath, out string? rawText, out YamlStream? stream)
@@ -249,7 +384,7 @@ public sealed class RepoIndexMirror
                     issues.Add(new MirrorIssue(IssueKind.IdMismatch, id, "id", id, manifest.Id, null));
                 }
 
-                CompareEntry(entryNode, id, manifest, issues);
+                CompareEntry(entryNode, id, manifest, modDirectory, issues);
             }
         }
 
@@ -276,7 +411,7 @@ public sealed class RepoIndexMirror
         return issues;
     }
 
-    private static void CompareEntry(YamlMappingNode entry, string id, ModManifest manifest, List<MirrorIssue> issues)
+    private static void CompareEntry(YamlMappingNode entry, string id, ModManifest manifest, string modDirectory, List<MirrorIssue> issues)
     {
         AddScalarMismatch(entry, id, "displayName", manifest.Name, issues);
         AddScalarMismatch(entry, id, "version", manifest.Version, issues);
@@ -287,6 +422,32 @@ public sealed class RepoIndexMirror
         AddSafetyMismatch(safety, id, "safeToRemove", manifest.SafeToRemove, issues);
         AddSafetyMismatch(safety, id, "multiplayerSafe", manifest.MultiplayerSafe, issues);
         AddSafetyMismatch(safety, id, "campaignSafe", manifest.CampaignSafe, issues);
+
+        AddContentHashMismatch(entry, id, modDirectory, issues);
+    }
+
+    // contentHash is a COMPUTED mirror field (sha256 of the mod's logical payload), not a copy of a
+    // mod.yaml value. When the entry carries it, drift means the content changed under a possibly
+    // unchanged version — the exact same-version footgun the hash exists to catch. An absent
+    // contentHash is "not advertised" (left for `index build` to insert, not flagged by Check).
+    private static void AddContentHashMismatch(YamlMappingNode entry, string id, string modDirectory, List<MirrorIssue> issues)
+    {
+        var node = TryGetChild(entry, "contentHash", out var n) ? n as YamlScalarNode : null;
+        if (node?.Value is not { Length: > 0 } stored)
+        {
+            return;
+        }
+
+        var computed = ContentHash.OfModPayload(modDirectory);
+        if (computed is null)
+        {
+            return; // no readable mod.yaml — other checks own that
+        }
+
+        if (!string.Equals(stored, computed, StringComparison.Ordinal))
+        {
+            issues.Add(new MirrorIssue(IssueKind.MirrorMismatch, id, "contentHash", stored, computed, node));
+        }
     }
 
     // The index is a curated SUBSET: an entry may legitimately omit a field (the catalog just won't
@@ -325,6 +486,12 @@ public sealed class RepoIndexMirror
 
     private static PatchDiagnostic IssueToDiagnostic(MirrorIssue issue, string indexPath) => issue.Kind switch
     {
+        // contentHash is computed, not mirrored from mod.yaml — a drift means the mod's content
+        // changed (possibly under an unchanged version). Word it as such, not "vs mod.yaml".
+        IssueKind.MirrorMismatch when issue.Field == "contentHash" => Error(
+            DiagnosticCodes.IndexMirrorMismatch,
+            $"'{issue.EntryId}' contentHash is stale (index={Show(issue.IndexValue)} vs computed={Show(issue.ModValue)}) — the mod's content changed; run `index build` to refresh it.",
+            indexPath),
         IssueKind.MirrorMismatch => Error(
             DiagnosticCodes.IndexMirrorMismatch,
             $"'{issue.EntryId}' {issue.Field}: index={Show(issue.IndexValue)} vs mod.yaml={Show(issue.ModValue)}.",

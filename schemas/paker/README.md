@@ -12,10 +12,11 @@ The schemas describe the CLI output contract for tools that do not link against 
 - [pak-patch-report.schema.json](pak-patch-report.schema.json) — JSON report written by `patch --json <path>`. Captures the input pak, the output pak, and the replacement files plus their target entry names.
 - [pak-classify-report.schema.json](pak-classify-report.schema.json) — JSON report written by `classify --json <path>`. Captures what the pak contributes as independent signals — `GdbScopes` (`global` / `map-scoped`), `PopmapCount`, `OverridesAtRoot` — plus the module folder, manifest name, and declared dependencies.
 - [gdbin-info-report.schema.json](gdbin-info-report.schema.json) — JSON report written by `gdbin info --json <path> <gdbin>`. Captures the seven-byte format header (as hex strings), the entry count, and the in-pak path list the index enumerates.
+- [loca-info-report.schema.json](loca-info-report.schema.json) — JSON report written by `loca info --json <path> <loca>`. Captures the decoded localization strings (in order) a compiled `loca_<lang>.bin` carries.
 
 ## Stability
 
-These schemas track the implemented paker commands (`list`, `unpack`, `pack`, `patch`, `classify`, `gdbin info`). They should be treated as the public shape of the paker output. Add fields instead of renaming or removing them whenever possible.
+These schemas track the implemented paker commands (`list`, `unpack`, `pack`, `patch`, `classify`, `gdbin info`, `loca info`). They should be treated as the public shape of the paker output. Add fields instead of renaming or removing them whenever possible.
 
 Each schema is verified against the actual report shape by a roundtrip test in [`tools/pagonia-paker/tests/`](../../tools/pagonia-paker/tests/) — the test produces a real report through the reporter, validates the JSON against the schema, and fails the build on any drift. Run [`scripts/preflight.ps1`](../../scripts/preflight.ps1) before committing changes that touch a report shape or a schema.
 

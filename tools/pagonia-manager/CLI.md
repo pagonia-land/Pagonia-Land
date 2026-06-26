@@ -22,9 +22,10 @@ pagonia-manager --info                                     # print backing core 
 pagonia-manager store init [--store <path>]                # create the mod store layout at the resolved root
 pagonia-manager store info [--store <path>]                # print resolved root, store schema version, and counts
 
-pagonia-manager install --from <folder|zip|gh:owner/repo[:base][#ref]/mod-id|https://.../mod.zip|modio:<game>/<mod-id>[#<ver>]> [--store <p>]
+pagonia-manager install --from <folder|zip|gh:owner/repo[:base][#ref]/mod-id|https://.../mod.zip|modio:<game>/<mod-id>[#<ver>]> [--with-deps] [--store <p>]
                                                            # validate and install a mod into the store
                                                            # :base names a subdirectory holding the repo's index.yaml (e.g. gh:pagonia-land/Pagonia-Land:official-mods/<mod-id>)
+                                                           # --with-deps also pulls the mod's declared dependencies (transitively) from the same repo, then subscribed catalogs
 pagonia-manager uninstall <mod-id> [--version <v>] [--store <p>]
                                                            # remove a mod version (or the only one if unique)
 pagonia-manager list [--store <path>]                      # show installed mods with id+version+sidecar metadata
@@ -57,6 +58,12 @@ pagonia-manager collection install --from <file|gh:owner/repo[:base][#ref]/id> [
 pagonia-manager collection list [--store <p>]              # list installed collections
 pagonia-manager collection show <id> [--store <p>]         # show a collection's details
 pagonia-manager collection uninstall <id> [--store <p>]    # remove a collection's manifest + lockfile
+pagonia-manager collection update <id> [--reseed-tweaks] [--store <p>]
+                                                           # move a collection to its newer published version (reversible)
+
+pagonia-manager outdated [--store <p>] [--json <out>]      # read-only: which installed mods/collections have a newer version published
+pagonia-manager update <mod-id> [--profile <name>] [--store <p>]
+                                                           # move a mod's active-profile pin to its newer published version (transparent + reversible)
 
 pagonia-manager catalog list [--store <p>]                 # list subscribed catalogs
 pagonia-manager catalog add <gh:owner/repo|file:path> [--store <p>]
@@ -88,15 +95,18 @@ pagonia-manager deploys list-orphans [--store <p>]         # list deploy dirs wh
 pagonia-manager deploys clean --keep <N> [--game <p>] [--dry-run] [--store <p>]
                                                            # trim deploy backups to N most recent per fingerprint
 
-pagonia-manager doctor [--store <path>] [--game <path>]    # read-only health roll-up: store, active profile,
-                                                           # enabled-mods-installed, cross-mod overlay conflicts,
-                                                           # orphaned deploys, deploy-backup storage, expansion ownership
+pagonia-manager doctor [--store <path>] [--game <path>] [--check-updates]
+                                                           # read-only health roll-up: store, active profile,
+                                                           # enabled-mods-installed, dependencies + incompatibilities,
+                                                           # cross-mod overlay conflicts, orphaned deploys,
+                                                           # deploy-backup storage, expansion ownership
+                                                           # --check-updates adds the read-only update check (network)
 
 pagonia-manager schema-validate --kind <k> --report <path>  # validate a JSON report against its schema
                                                            # kinds: install, uninstall, deploy, rollback,
                                                            #        collectionInstall, status, deployStatus,
                                                            #        tweakList, tweakSet, tweakReset,
-                                                           #        expansionsList, expansionsSet
+                                                           #        expansionsList, expansionsSet, updates
 ```
 
 `--json <out>` is supported on `install`, `uninstall`, `deploy`, `rollback`, `collection install`, `status`, `deploy-status`, `deploy-list`, `plan`, the three `tweak` verbs, and the two `expansions` verbs. Each writes its report to the given path atomically. (`deploy-list --json` emits a `deployStatus`-kind report — its `deploys[]` array carries every retained deploy — so validate it with `schema-validate --kind deployStatus`.)
@@ -263,7 +273,7 @@ All three target the active profile unless `--profile <name>` names another, and
 Prints every tweak the mod declares with its current effective value and where that value came from:
 
 - **`default`** — no override stored; the mod author's declared default is in effect.
-- **`profile-override`** — a value you stored with `tweak set`.
+- **`profile-override`** — a value you set with `tweak set`. This is tracked **explicitly** (the manager records which tweaks you set), so a value you chose that happens to equal the collection's still reads as your override — and is kept across a `collection update`.
 - **`collection-default`** — a value seeded by a collection install that you haven't changed since. (Edit it with `tweak set` and it becomes `profile-override`.)
 
 For a `number` / `integer` tweak the declared range is shown; for an `enum`, its allowed values. `--json` writes a `tweakList` report (`schemas/manager/tweak-list.schema.json`).
@@ -388,7 +398,7 @@ That's the "one command to try a publisher's setup" path — link from Discord �
 - **`source`** — transport-neutral identifier of where each mod came from at install time, e.g. `gh:owner/repo#<commit-sha>/<mod-id>` (or `gh:owner/repo:base#<commit-sha>/<mod-id>` when the repo's `index.yaml` lives in a `:base` subdirectory). Empty for local-only installs. The SHA is pinned at fetch time so a re-install pulls byte-identical content even after the source branch moves on the remote; the `:base` segment round-trips so the subdirectory is re-resolved on re-install / profile export.
 - **`resolvedAt`** — ISO-8601 timestamp when `source` was resolved.
 
-A lockfile that omits these fields still reads cleanly. A lockfile declaring any other version is rejected with a structured `lockfileVersionUnsupported` error rather than silently producing an under-validated install.
+A lockfile that omits these fields still reads cleanly. `collectionLockVersion` follows the shared `MAJOR.MINOR` format-version contract: a newer same-major minor reads (with an info-level `formatMinorAhead` "newer optional fields ignored, update recommended" note), while a newer or retired major — or a value that isn't `MAJOR.MINOR` — is refused with a structured `formatMajorUnsupported` / `formatMajorRetired` / `formatVersionMalformed` error rather than silently producing an under-validated install.
 
 ### Uninstall Scope
 
@@ -496,7 +506,7 @@ The schema lives at [`schemas/mod-patches/catalog.schema.json`](../../schemas/mo
 
 ## Doctor
 
-`pagonia-manager doctor [--store <path>] [--game <path>]` is a read-only health roll-up — one first-stop command that bundles checks the manager already implements, so a confused user doesn't have to know which verb to reach for. It writes nothing; it's the scriptable form of the interactive Status dashboard.
+`pagonia-manager doctor [--store <path>] [--game <path>] [--check-updates]` is a read-only health roll-up — one first-stop command that bundles checks the manager already implements, so a confused user doesn't have to know which verb to reach for. It writes nothing; it's the scriptable form of the interactive Status dashboard.
 
 It runs, in order:
 
@@ -509,8 +519,67 @@ It runs, in order:
 | Orphaned deploys | no | deploy records whose game install moved or updated |
 | Deploy-backup storage | no | total `<store>/deploys/` size (warns past ~15 GB) |
 | Expansion ownership | **yes** | present / owned / effective expansions (skipped when no game root resolves) |
+| Dependencies & incompatibilities | no | enabled mods whose declared `dependencies` aren't enabled, or `incompatibleWith` pairs both enabled (warns) |
+| Updates available | no (network, opt-in) | with `--check-updates`: how many mods/collections are behind (warns) — otherwise **Skipped** |
 
 The game root is resolved the usual way (`--game` > stored default > platform default), so on a configured machine `doctor` needs no arguments. Each check prints `[OK]` / `[WARN]` / `[FAIL]` / `[SKIP]` plus any diagnostics, then a summary line. Exit code is non-zero only when a check is an **error** (warnings don't fail it) — so it's safe to drop into CI or a pre-deploy script.
+
+> **`doctor` is offline by default.** It performs no network access unless you pass `--check-updates`, which adds the single read-only update check (the same one `outdated` runs). A source it can't reach degrades to a per-item warning, and a wholesale failure makes the check `[SKIP]` — never an error — so `doctor --check-updates` stays CI-safe.
+
+## Outdated
+
+`pagonia-manager outdated [--store <path>] [--json <out>]` is a read-only check for "is anything I have installed out of date?". For each installed mod **and collection** that came from a `gh:` repo, it re-fetches that repo's `index.yaml` **at the default branch** and compares the catalog-advertised `version` to what's installed — **mirror-first** (the curated index is the cheap source of truth; `pagonia-patcher index-check` keeps it honest against each `mod.yaml`). It changes nothing — it only tells you an update exists so you can decide.
+
+```powershell
+pagonia-manager outdated
+```
+
+It prints `id: installed -> available (gameDatabaseVersion …)` per available update — mods (`manager.modUpdateAvailable`) and collections (`manager.collectionUpdateAvailable`) listed in separate sections — or a per-section line ("All N checkable mod(s) are up to date." and "All N checkable collection(s) are up to date."). Items installed from a local folder / zip / file carry no source to compare against and are reported as skipped. A mod or collection whose source repo is unreachable, ships no `index.yaml`, or no longer lists it surfaces a `manager.modUpdateCheckFailed` / `manager.collectionUpdateCheckFailed` **warning** rather than failing the whole check, so one dead repo doesn't hide the rest. Exit code stays `Success` — an available update is information, not an error.
+
+> A collection is checked only when it was installed from a `gh:` repo (`collection install --from gh:…`), which records the collection's origin in a provenance sidecar; a collection installed from a local `.collection.yaml` file has no source to compare against and is reported as skipped.
+
+It also flags a **same-version content re-publish**: for a `gh:`-installed mod whose repo index advertises a `contentHash`, it re-hashes the installed payload and, if the content changed while the `version` did not, reports `manager.modContentDriftAvailable` ("re-install to refresh") — the drift a version string can't show. (Requires the source index to carry `contentHash`; see [patcher `index build`](../pagonia-patcher/CLI.md#keeping-indexyaml-in-sync-with-each-modyaml-index-check-index-build).)
+
+`--json <out>` writes an `updates` report (`schemas/manager/updates-report.schema.json`): `modUpdates[]` + `collectionUpdates[]` (each `id` / `installedVersion` / `availableVersion` / `gameDatabaseVersion`), `contentDrifts[]` (same-version content changes), plus the checked/skipped counts and the diagnostics. Read-only, like the text output.
+
+> **Scope.** `outdated` covers mods and collections, with a `--json` report; the interactive Status line, the `doctor --check-updates` roll-up, and the one-step `update` / `collection update` flows are all in place — including same-version content-drift detection (`manager.modContentDriftAvailable`, surfaced in `contentDrifts[]`) for any `gh:`-installed mod whose index advertises a `contentHash`.
+
+## Update
+
+`pagonia-manager update <mod-id> [--profile <name>] [--store <path>]` moves the active profile's pin for one mod from its current version to the newer one its source repo advertises. It's the apply step that `outdated` only reports — opt-in (you name the mod) and **transparent + reversible**:
+
+1. **Detect** — compares the pinned version to the source `index.yaml` at the default branch (the same mirror-first check `outdated` uses). If the pin is already current, nothing happens (`manager.modUpdateAlreadyCurrent`).
+2. **Install** the new version through the normal remote-install path — it **coexists** with the old version on disk (each version is its own directory), so the old one stays as a **rollback anchor**.
+3. **Re-point the pin** to the new version, **preserving your per-mod tweak overrides** across the bump (a renamed tweak is migrated forward by the existing on-read alias migration, so no value is lost). Emits `manager.modUpdated` naming from→to.
+
+```powershell
+pagonia-manager update pagonia-land.example.cheaper-sawmill
+```
+
+Nothing is deleted: to roll back, `enable <mod-id> --version <old-version>`; to reclaim the disk later, `uninstall <mod-id> --version <old-version>`. The mod must be **enabled in the active profile** (that's the pin being moved) and have a `gh:` source — otherwise the update is refused (`manager.modUpdateNotEnabled` / `manager.modUpdateNoRemoteSource`) with nothing changed.
+
+### Collection update
+
+`pagonia-manager collection update <collection-id> [--reseed-tweaks] [--store <path>]` is the collection counterpart. It re-checks the collection's source repo (the one recorded in its provenance sidecar) and, if a strictly-newer version is published, re-fetches it and **reinstalls over the linked profile**, picking up the curator's new mod set. The previous collection version stays on disk as a rollback anchor (its own version directory), and each referenced mod version coexists, so the move is reversible.
+
+```powershell
+pagonia-manager collection update pagonia-land.example.beginner-qol
+```
+
+Emits `manager.collectionUpdated` naming from→to. Only a collection installed from a `gh:` repo can be updated (a local-file install has no recorded source → `manager.collectionUpdateNoRemoteSource`); an already-current collection is a no-op (`manager.collectionUpdateAlreadyCurrent`) and an uninstalled id is refused (`manager.collectionUpdateNotInstalled`), each changing nothing.
+
+#### Tweak handling on a collection update
+
+Your own per-mod tweak settings are reconciled the same non-destructive way the per-mod `update` treats them — by **default they're merged**:
+
+- A tweak you **set yourself** (origin `profile-override` — tracked explicitly, so this holds even if your value equals the curator's) is **kept** across the update (`manager.collectionTweakKept`). If the updated mod no longer accepts that value (the tweak was removed, or its range/type changed so the value no longer validates), it falls back to the collection's value (`manager.collectionTweakReset`).
+- A tweak you'd **left at the curator's value** is not really yours, so it **follows the collection's new default**.
+
+Pass `--reseed-tweaks` to skip the merge and **reseed the curator defaults wholesale**, discarding your overrides — the original `collection install --overwrite` behaviour (it surfaces `manager.tweakOverridesResetByReinstall`). The interactive *Update mods + collections* screen additionally lets you choose per changed setting (keep mine / take the collection's / decide each).
+
+> This makes the collection update consistent with the per-mod `update` in spirit — a deliberate override is never silently lost — while still letting a curated set re-assert its defaults on request (`--reseed-tweaks`).
+
+> **Interactive.** Both mod + collection updates are also available from the menu under *Update mods + collections* — it runs the check, lists what's behind, shows the delta, and applies on confirm. The Status dashboard surfaces the count once checked, and `doctor --check-updates` folds it into the health roll-up. Content-hash download verification — re-hashing a fetched `gh:` payload against the advertised `contentHash` and warning (`manager.modContentHashMismatch`) on a mismatch — is in place on the install path.
 
 ## Plan
 
@@ -791,8 +860,8 @@ Every command listed above accepts `--json <out>` and writes a stable, schema-va
 ### Stable Contract
 
 - `schemaVersion`: `"0.1"` on every report. Each schema versions independently; a future bump signals a shape change to that one report.
-- `reportKind`: discriminator, one of `install`, `uninstall`, `deploy`, `rollback`, `collectionInstall`, `status`, `deployStatus`, `tweakList`, `tweakSet`, `tweakReset`, `expansionsList`, `expansionsSet`.
-- `gameProductVersion` (on `deployStatus`): the live install's game version, read from the executable's Win32 **ProductVersion** — byte-for-byte the same string mods declare as `gameDatabaseVersion` (e.g. `1.4.0-11944+194631`). `null` when no readable exe (extracted layout / fixture); the human-readable output renders that as `(unknown)`. The same version drives the game-vs-mod compatibility check below.
+- `reportKind`: discriminator, one of `install`, `uninstall`, `deploy`, `rollback`, `collectionInstall`, `status`, `deployStatus`, `tweakList`, `tweakSet`, `tweakReset`, `expansionsList`, `expansionsSet`, `updates`.
+- `gameProductVersion` (on `deployStatus`): the live install's game version, read from the executable's Win32 **ProductVersion** — byte-for-byte the same string mods declare as `gameDatabaseVersion` (e.g. `1.4.0-12032+195221`). `null` when no readable exe (extracted layout / fixture); the human-readable output renders that as `(unknown)`. The same version drives the game-vs-mod compatibility check below.
 - `diagnostics`: always an array of `{ severity, code, message, path? }`.
 - The plan report (`plan --json`) uses its own `{ manager, patcher }` envelope shape — its embedded patcher payload uses the patcher's PascalCase property names.
 
@@ -862,7 +931,8 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | --- | --- | --- |
 | `manager.storeNotInitialised` | error | A store operation found no `state.yaml` at the resolved root. Run `pagonia-manager store init` first. |
 | `manager.storeStateUnreadable` | error | `state.yaml` exists but is empty or not valid YAML. |
-| `manager.storeSchemaVersionUnsupported` | error | Reserved — emitted when the store's `storeVersion` is newer or older than the running manager supports. Not currently raised; will land alongside a forward-/backward-compat check. |
+| `manager.storeSchemaVersionUnsupported` | error | The store's `storeVersion` was written by a **newer** manager than this build understands. `state.yaml` / profiles are internal same-install formats, so rather than read a newer store and silently drop the fields it doesn't know, the manager refuses and asks you to upgrade. An absent/older same-major version reads normally. |
+| `manager.profileVersionUnsupported` | error | A profile's `profileVersion` was written by a newer manager than this build understands — the profile-level companion to `storeSchemaVersionUnsupported`. |
 | `manager.modSourceNotFound` | error | The `--from` path does not exist (or was empty). |
 | `manager.modSourceNotAFolderOrZip` | error | The `--from` path exists but is neither a directory nor a readable `.zip` archive. |
 | `manager.modManifestMissing` | error | The source root contains no `mod.yaml`. |
@@ -870,6 +940,29 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.modNotInstalled` | error | `uninstall` was called against a mod id that the store doesn't have. |
 | `manager.modVersionAmbiguous` | error | `uninstall` without `--version` against a mod that has multiple installed versions. Pass `--version` to choose. |
 | `manager.modVersionNotInstalled` | error | `uninstall --version <v>` against a mod where that specific version is not installed, or `enable --version <v>` against the same. |
+| `manager.modDependencyMissing` | warning | An enabled mod declares a `dependencies` entry that isn't enabled in the profile (message says installed-but-disabled vs not installed). Advisory — surfaced at `enable` / `plan` / `deploy` / `doctor`; never blocks. |
+| `manager.modIncompatibleEnabled` | warning | Two enabled mods declare each other (or one declares the other) in `incompatibleWith`, yet both are enabled. Advisory — disable one. |
+| `manager.modDependedUponByOthers` | warning | You disabled or uninstalled a mod that other enabled mods declare as a `dependencies` entry — their dependency is now unmet. Advisory — re-enable it or remove the dependents. |
+| `manager.modDependencyInstalled` | info | `install --with-deps` pulled a declared dependency (from the same repo or a subscribed catalog). |
+| `manager.modDependencyUnresolved` | warning | `install --with-deps` couldn't find a source for a declared dependency in the same repo or any subscribed catalog (or its fetch/install failed); install it manually. The rest still install. |
+| `manager.loadOrderAdjusted` | info | `plan` / `deploy` reordered the enabled set away from the manual profile order to honour `loadAfter` / `loadBefore` (names the effective order). Your manual order stays the tiebreaker; this only says so out loud. |
+| `manager.loadOrderCycle` | warning | The enabled mods' `loadAfter` / `loadBefore` form a cycle and can't be auto-ordered; the cyclic mods are left in your manual order. Remove a conflicting constraint. |
+| `manager.modUpdateAvailable` | info | `outdated` found a `gh:`-sourced mod whose repo `index.yaml` advertises a newer `version` than the installed one. Read-only — names from→to + the advertised `gameDatabaseVersion`. |
+| `manager.modUpdateCheckFailed` | **warning** | `outdated` couldn't check one mod — its source repo was unreachable, ships no `index.yaml`, or no longer lists it. The other mods are still checked. |
+| `manager.modContentDriftAvailable` | info | `outdated` found a `gh:`-sourced mod whose source re-published the **same** version with different content (advertised `contentHash` ≠ the installed payload's). Read-only — re-install to refresh. |
+| `manager.collectionUpdateAvailable` | info | `outdated` found a `gh:`-sourced collection whose repo `index.yaml` advertises a newer `version` than the installed one. Read-only — names from→to + the advertised `gameDatabaseVersion`. |
+| `manager.collectionUpdateCheckFailed` | **warning** | `outdated` couldn't check one collection — its source repo was unreachable, ships no `index.yaml`, or no longer lists it. The other collections are still checked. |
+| `manager.modUpdated` | info | `update` moved the active profile's pin for a mod from one version to a newer one (names from→to). The old version is kept on disk for rollback. |
+| `manager.modUpdateAlreadyCurrent` | info | `update` found the pin already at the latest version the source advertises — nothing changed. |
+| `manager.modUpdateNotEnabled` | **warning** | `update <mod-id>` against a mod that isn't enabled in the active profile — there's no pin to move. Install + enable it first. |
+| `manager.modUpdateNoRemoteSource` | **warning** | `update <mod-id>` against a mod with no `gh:` provenance (a local install, or the pinned version isn't on disk) — nothing to update from. |
+| `manager.collectionUpdated` | info | `collection update` reinstalled a collection at a newer version + reseeded the linked profile (names from→to). The old version is kept on disk for rollback. |
+| `manager.collectionUpdateAlreadyCurrent` | info | `collection update` found the collection already at the latest version the source advertises — nothing changed. |
+| `manager.collectionUpdateNotInstalled` | **warning** | `collection update <id>` against a collection id that isn't installed — nothing to update. |
+| `manager.collectionUpdateNoRemoteSource` | **warning** | `collection update <id>` against a collection installed from a local file (no `gh:` provenance sidecar) — nothing to update from. |
+| `manager.collectionUpdateAmbiguousProfile` | **warning** | `collection update <id>` found several profiles linking the collection and none named after it — it reseeds the ordinally-first deterministically and names which one. |
+| `manager.collectionTweakKept` | info | `collection update` carried a genuine user tweak override forward across the update (merge default), instead of reseeding the curator value. |
+| `manager.collectionTweakReset` | info | `collection update` set a tweak back to the collection's value — by `--reseed-tweaks`, an interactive "take the collection's", a dropped/removed tweak, or a kept value that no longer validates against the updated mod. |
 | `manager.profileMissing` | error | The active profile name in `state.yaml` has no matching `<name>.profile.yaml` on disk. |
 | `manager.modAlreadyEnabled` | **warning** | `enable` against a mod already enabled at the same version. The command is a noop and exit code stays at `Success`. |
 | `manager.modNotEnabled` | **warning** | `disable` against a mod that isn't in the active profile's enabled list (and isn't in its load order either). Noop, exit `Success`. |
@@ -947,6 +1040,7 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.remoteIndexMalformed` | error | The remote repo's `index.yaml` parsed as invalid YAML or as a structurally-broken `RepoIndex`. Install aborts; the repo author needs to fix it. Validate locally with `pagonia-patcher schema-validate --repo-index <yaml>` before publishing. |
 | `manager.modNotInRepoIndex` | error | The `<mod-id-or-path>` segment of the source spec was not found in the remote repo's `index.yaml` (neither as a mod id nor as a path). Message lists every id the index actually offers so the user can fix the typo. |
 | `manager.repoIndexMetadataMismatch` | warning | The catalog/repo `index.yaml` advertised metadata (version / gameDatabaseVersion / safety) that disagrees with the `mod.yaml` actually fetched — the browse list may have misled the user. Non-fatal: the authoritative `mod.yaml` still installs. |
+| `manager.modContentHashMismatch` | warning | A `gh:`-installed mod's downloaded payload (`mod.yaml` + patches) hashes differently than the `contentHash` its repo `index.yaml` advertised — a stale index (author didn't re-run `index build`), a corrupt/tampered download, or same-version content drift. Non-fatal: the fetched files still install. |
 | `manager.crossRepoSourceResolved` | info | A `collection install --from gh:...` followed a per-mod `source: gh:other/other-repo[#ref]` field across repository boundaries; the other repo's ref was resolved to a concrete commit SHA before fetching that mod's files. Surfaces once per cross-repo hop. |
 | `manager.collectionLockfileVersionMismatch` | error | Reserved — declared for a future collection-lockfile version-compat check; not currently emitted. |
 | `manager.profileCreatedFromCollection` | info | A profile was created (or replaced under `--overwrite`) from a collection's resolved mod list + load order. Names the profile + the collection + mod count. |
@@ -977,6 +1071,7 @@ The manager's own diagnostic codes follow the `manager.<area><Detail>` pattern. 
 | `manager.modIoUnknownGameAlias` | error | The `<game>` segment of `modio:<game>/<mod-id>` is neither a numeric id nor one of the recognised slugs (`pioneers-of-pagonia`, `pop`). Message names what IS accepted so the user can fix a typo. |
 | `manager.modIoVersionPinNotImplemented` | info | The install was pinned to `modio:<game>/<mod-id>#<version>` but mod.io's current modfile has a different version. Pinning a mod.io install to a specific `#<version>` isn't supported; the install proceeds with mod.io's current modfile bytes. |
 | `manager.modIoInsecureDownloadUrl` | error | mod.io returned a download URL whose scheme is not `https` — refused rather than fetch UGC bytes over an unencrypted/unknown transport. The URL is not echoed. |
+| `manager.modIoChecksumMismatch` | **warning** | A mod.io download's MD5 did not match the `filehash.md5` the API advertised — the archive may be corrupt or tampered. It still installs the authoritative bytes; the warning flags the integrity gap. |
 | `manager.tweakUnknownMod` | error | A tweak read/set/reset targeted a mod that is not enabled in the resolved profile (overrides live on a profile's enabled-mod entry). |
 | `manager.tweakUnknownId` | error | The mod is enabled but declares no tweak with the given id (`tweak set`/`reset`). Run `tweak list <mod-id>` to see the ids it exposes. |
 | `manager.tweakValueOutOfRange` | error | A `tweak set` value for a `number`/`integer` tweak fell outside the declared `min..max`. (The patcher uses the same code as a plan-time *warning*; the manager raises it at error severity because the user supplied the value and can fix it.) |
@@ -1009,14 +1104,14 @@ dotnet publish ./src/PagoniaLand.Manager.Cli -c Release -r osx-x64
 dotnet publish ./src/PagoniaLand.Manager.Cli -c Release -r osx-arm64
 ```
 
-Output lands at `src/PagoniaLand.Manager.Cli/bin/Release/net8.0/<rid>/publish/`. On Windows that's `pagonia-manager.exe`; the binary bundles YamlDotNet + JsonSchema.Net + the linked Patcher.Core + Paker.Core into a single Native AOT image.
+Output lands at `src/PagoniaLand.Manager.Cli/bin/Release/net10.0/<rid>/publish/`. On Windows that's `pagonia-manager.exe`; the binary bundles YamlDotNet + JsonSchema.Net + the linked Patcher.Core + Paker.Core into a single Native AOT image.
 
 ### Verify The Build
 
 Smoke-test the published binary against a temporary store + game fixture before shipping:
 
 ```powershell
-$EXE = ".\src\PagoniaLand.Manager.Cli\bin\Release\net8.0\win-x64\publish\pagonia-manager.exe"
+$EXE = ".\src\PagoniaLand.Manager.Cli\bin\Release\net10.0\win-x64\publish\pagonia-manager.exe"
 $STORE = "$env:TEMP\pagonia-mgr-aot-smoke"
 
 # Should print version + linked Patcher.Core / Paker.Core versions

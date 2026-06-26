@@ -54,18 +54,20 @@ public static class ArithmeticPatchOps
 
         var rounded = ApplyRounding(combined, rounding);
         var result = rounded;
-        // Round the clamp bounds with the same policy before applying them: game values are
-        // integers, so a fractional bound (e.g. clampMin "1.5") must not leave a non-integer
-        // result in an integer field. With both the value and the bounds rounded, the clamped
-        // result stays integral.
+        // Round the clamp bounds so the clamped result stays integral (game values are integers,
+        // so a fractional bound like clampMin "1.5" must not leave a non-integer result), but always
+        // in the *conservative* direction regardless of the value's rounding policy: a min bound
+        // rounds UP and a max bound rounds DOWN. Using the value's policy (e.g. ceil) on a max bound
+        // would loosen it — a clampMax of "9.1" under ceil would become 10, letting the result exceed
+        // the author's stated ceiling — so a min/max bound is never relaxed past what the author wrote.
         if (clampMin is { } rawMin)
         {
-            var min = ApplyRounding(rawMin, rounding);
+            var min = Math.Ceiling(rawMin);
             if (result < min) { result = min; }
         }
         if (clampMax is { } rawMax)
         {
-            var max = ApplyRounding(rawMax, rounding);
+            var max = Math.Floor(rawMax);
             if (result > max) { result = max; }
         }
 

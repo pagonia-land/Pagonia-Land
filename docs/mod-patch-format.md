@@ -82,7 +82,7 @@ id: pagonia-land.example.cheaper-sawmill
 name: Cheaper Sawmill
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: Lowers one Sawmill construction cost for local testing.
 requiredPackages:
   - core
@@ -125,7 +125,7 @@ operations:
 | `name` | Human-readable mod name |
 | `version` | Mod version |
 | `author` | Author or team |
-| `gameDatabaseVersion` | Exact program/database version the mod was authored against, such as `1.4.0-11944+194631` |
+| `gameDatabaseVersion` | Exact program/database version the mod was authored against, such as `1.4.0-12032+195221` |
 | `description` | Short description |
 | `requiredPackages` | Packages that must be present, such as `core`, `dlc1`, `decorations1`, or `tools` |
 | `optionalPackages` | Packages that enable optional patch sets when present |
@@ -142,7 +142,7 @@ operations:
 Use the exact program version that belongs to the extracted GameDatabase XML set:
 
 ```yaml
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 ```
 
 Prefer this exact version over descriptive names such as "Meadowsong release". Human labels can still be used in notes, but validators and patch files need stable, unambiguous identifiers.
@@ -241,7 +241,7 @@ Good target information:
 
 The `entityGuid` should be the primary identity. The `entityName` is a helpful cross-check and error message, but names can be duplicated or changed.
 
-The schema permits a `target` that carries only `entityName` (no `entityGuid`), but this is **discouraged** — names are not guaranteed unique or stable across versions. Treat "require `entityGuid`" as the rule for any patch you intend to share (see [Mod Conflicts → Recommended first rule set](mod-conflicts.md)); the `entityName`-only form is a convenience for quick local experiments only.
+The schema's `target` is permissive — its `anyOf` accepts `entityName` alone because `addEntity` uses `entityName` as the new entity's group name — but **every operation that edits an existing entity requires `entityGuid`**. `entityName` alone cannot locate an entity; such a target fails planning with a clear "requires target.entityGuid" diagnostic rather than resolving. Always set `entityGuid` as the primary identity (see [Mod Conflicts → Recommended first rule set](mod-conflicts.md)); `entityName` stays a human-readable cross-check that warns on a name mismatch.
 
 ## Patch Operations
 
@@ -403,16 +403,16 @@ pak:
     - core
 ```
 
-When `pak:` is present, the patcher's apply step writes the four-file module skeleton the engine needs to recognise the folder as a loadable module:
+When `pak:` is present, the patcher's apply step writes the module skeleton the engine needs to recognise the folder as a loadable module:
 
 | File | Always written? | Contents |
 | --- | :---: | --- |
 | `<name>/manifest.json` | yes | `{ Name, Summary, Author, Image, Dependencies }` mirroring shipped paks. |
 | `<name>/memory.bin` | yes | 28 zero bytes (shipped paks carry per-module allocation stats here; a fresh scaffold uses zeros and trusts the engine to repopulate). |
-| `<name>/files.json` | only when `*.gd.xml` is present under `<name>/` | `{ "Files": [{ "Key": "GameDatabase", "Paths": ["<name>/<name>.gd.bin"] }] }`. Asset-only overlays (System.pak-style) skip this file. |
+| `<name>/files.json` | when `*.gd.xml` and/or a `localization/` folder is present under `<name>/` | Pointer table. A `GameDatabase` key (`["<name>/<name>.gd.bin"]`) is added when the module ships `*.gd.xml`; a `Localization` key (`["<name>/localization"]`, the folder) is added **only when it actually ships compiled `loca_<lang>.bin` files**. An asset-only overlay with neither (System.pak-style) skips this file. (The 1.4.0 editor instead writes the `Localization` key *unconditionally* whenever it emits `files.json` — pointing at a `localization/` folder even when none is shipped; we deliberately don't write that dangling pointer. See [Mod Distribution → files.json](mod-distribution.md#filesjson).) |
 | `<name>/<name>.gd.bin` | only when `*.gd.xml` is present under `<name>/` | Index listing every `*.gd.xml` the module ships, in ordinal order. `byte[3]` tracks `entries.Count - 1` per the [`.gd.bin` format](../tools/pagonia-paker/CLI.md). |
 
-The scaffold runs AFTER patches and entry operations are applied, so any new `*.gd.xml` from `entries.add` is picked up automatically — no need to list it twice.
+The scaffold runs AFTER patches and entry operations are applied, so any new `*.gd.xml` or `localization/loca_<lang>.bin` from `entries.add` is picked up automatically — no need to list it twice.
 
 `pak.name` must be a single path segment (no slashes, no `..`); validation surfaces `scaffoldNameInvalid` if the value contains separators. A missing or empty `pak.name` produces `scaffoldNameMissing` and fails the apply.
 
@@ -461,7 +461,7 @@ it, by `schema-validate` / IDE JSON-Schema validation):
 | `type` | all | One of `number`, `integer`, `boolean`, `enum`. |
 | `label` | all | Required, max 80 chars. |
 | `default` | all | Required, and its literal must match `type` (a number for `number`/`integer`, `true`/`false` for `boolean`, one of `values` for `enum`). The literal↔type match itself is enforced by `schema-validate` / IDE JSON-Schema; `validate-mod` adds the semantic checks on top — `default` within `min..max`, and `default` ∈ `values`. |
-| `min` / `max` / `step` | number, integer | Optional bounds. The `default` must fall inside `min..max`. |
+| `min` / `max` / `step` | number, integer | Optional bounds. The `default` must fall inside `min..max`; `validate-mod` warns when `min` exceeds `max`, when `step` is given but not greater than zero, or — for an `integer` tweak — when `min` / `max` / `step` is not a whole number. |
 | `values` | enum | Required array of `{ value, label }` options. |
 | `aliases` | all | Optional legacy ids, each satisfying the `id` pattern. |
 
@@ -501,7 +501,7 @@ That is the **entire** grammar — literal substitution plus one boolean ternary
 Resolution rules:
 
 - A placeholder that names a tweak the mod didn't declare fails planning with `tweakUndeclared`. Malformed placeholder syntax fails with `tweakSyntaxError`.
-- Each substitution emits an info `tweakValueResolved` diagnostic naming the value's origin (`default` or an external override).
+- Each substitution emits an info `tweakValueResolved` diagnostic naming the value's origin (`default`, `collection`, `external`, or `lockfile`).
 - The ternary treats the tweak value `true` (case-insensitive) as the first branch and anything else as the second.
 
 A CLI consumer (or the manager) supplies overrides; absent overrides resolve to the declared defaults. From the CLI:

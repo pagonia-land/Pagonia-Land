@@ -18,8 +18,7 @@ public static class AtomicFile
         }
 
         var tempPath = path + TempSuffix;
-        File.WriteAllText(tempPath, contents);
-        File.Move(tempPath, path, overwrite: true);
+        WriteThenMove(tempPath, path, () => File.WriteAllText(tempPath, contents));
     }
 
     public static void WriteAllBytes(string path, byte[] contents)
@@ -31,8 +30,25 @@ public static class AtomicFile
         }
 
         var tempPath = path + TempSuffix;
-        File.WriteAllBytes(tempPath, contents);
-        File.Move(tempPath, path, overwrite: true);
+        WriteThenMove(tempPath, path, () => File.WriteAllBytes(tempPath, contents));
+    }
+
+    // Run a temp-file write, then atomically rename over the destination — deleting the partial .tmp
+    // eagerly if the write (or rename) throws, so a failed write (disk full, permission) doesn't strand
+    // a "<dest>.tmp" beside the real file (CleanupLeftoverTempFiles is the backstop, but not every
+    // caller runs it). Mirrors CopyAtomic.
+    private static void WriteThenMove(string tempPath, string path, Action write)
+    {
+        try
+        {
+            write();
+            File.Move(tempPath, path, overwrite: true);
+        }
+        catch
+        {
+            try { if (File.Exists(tempPath)) { File.Delete(tempPath); } } catch { /* best effort */ }
+            throw;
+        }
     }
 
     /// <summary>

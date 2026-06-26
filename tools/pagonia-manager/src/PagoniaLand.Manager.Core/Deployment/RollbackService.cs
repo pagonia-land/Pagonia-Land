@@ -198,98 +198,61 @@ public sealed class RollbackService
         var backupDir = layout.DeployBackupDirectory(fingerprint, latest.Timestamp);
         var restored = 0;
 
-        // Dispatch on which list the manifest populated:
-        //   - RebuiltPaks  -> live-install deploy, restore whole pak files
-        //   - ModifiedFiles -> extracted-layout deploy, restore loose XMLs
-        // Pattern B AddedFiles below run in both modes (they're always
-        // <gameRoot>/mods/*.pak overlay paks that need deletion).
-        if (manifest.RebuiltPaks.Count > 0)
+        // All-or-nothing restore. Validate EVERY backup (exists + SHA-256 matches what was recorded
+        // at deploy time) BEFORE writing any — a one-by-one restore that aborts midway leaves a
+        // half-restored, mixed install that the next rollback's drift preflight then refuses as drift
+        // (the self-sabotage R5-004 fixed). Both lists are validated (and, below, restored): they
+        // target disjoint paths and today exactly one is populated per deploy path, but validating
+        // both means a future manifest carrying both can't half-restore either (R5-033). Restores
+        // stream via AtomicFile.CopyAtomic so a multi-GB pak — or loose file — never hits the 2 GB
+        // single-array ceiling File.ReadAllBytes would (R5-032).
+        //   - RebuiltPaks  -> live-install deploy, whole pak files
+        //   - ModifiedFiles -> extracted-layout deploy, loose XMLs
+        // Pattern B AddedFiles below run in both modes (overlay paks that need deletion).
+        var pakRestores = new List<(string Backup, string Target, DeployRebuiltPakEntry Entry)>();
+        foreach (var entry in manifest.RebuiltPaks)
         {
-            var pakIndex = 0;
-            var pakTotal = manifest.RebuiltPaks.Count;
-            foreach (var entry in manifest.RebuiltPaks)
+            var backupPath = Path.Combine(backupDir, entry.BackupRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            var targetPath = Path.Combine(gameRoot, entry.TargetRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(backupPath))
             {
-                pakIndex++;
-                var backupPath = Path.Combine(backupDir,
-                    entry.BackupRelativePath.Replace('/', Path.DirectorySeparatorChar));
-                var targetPath = Path.Combine(gameRoot,
-                    entry.TargetRelativePath.Replace('/', Path.DirectorySeparatorChar));
-
-                progress?.Report(new DeployProgress("restore", pakIndex * 100 / pakTotal, $"Restoring {entry.PakName} ({pakIndex}/{pakTotal})"));
-
-                if (!File.Exists(backupPath))
-                {
-                    diagnostics.Add(new ManagerDiagnostic(
-                        ManagerDiagnosticSeverity.Error,
-                        ManagerDiagnosticCodes.RollbackBackupMissing,
-                        $"Backup pak '{backupPath}' for '{entry.PakName}' is missing; cannot restore."));
-                    continue;
-                }
-
-                // Verify the backup wasn't tampered with or truncated. If the
-                // SHA recorded at deploy time doesn't match what's on disk now,
-                // refuse the restore — overwriting the live pak with wrong bytes
-                // would brick the install in a way 'rollback' is supposed to fix.
-                var backupSha = ComputeFileSha256(backupPath);
-                if (!string.Equals(backupSha, entry.OriginalSha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    diagnostics.Add(new ManagerDiagnostic(
-                        ManagerDiagnosticSeverity.Error,
-                        ManagerDiagnosticCodes.RollbackHashMismatch,
-                        $"Backup pak '{backupPath}' SHA-256 {backupSha} does not match the {entry.OriginalSha256} recorded at deploy time. Refusing to overwrite the live pak with possibly-corrupt bytes."));
-                    continue;
-                }
-
-                // Streaming copy via AtomicFile — same .tmp + File.Move pattern
-                // PakRebuilder uses, and equally important for multi-GB paks
-                // (File.ReadAllBytes here would hit the 2 GB single-array limit).
-                AtomicFile.CopyAtomic(backupPath, targetPath);
-                restored++;
-                diagnostics.Add(new ManagerDiagnostic(
-                    ManagerDiagnosticSeverity.Info,
-                    ManagerDiagnosticCodes.PakRollbackRestored,
-                    $"Restored '{entry.PakName}' from backup ({entry.ByteSizeBefore} bytes)."));
+                diagnostics.Add(new ManagerDiagnostic(ManagerDiagnosticSeverity.Error, ManagerDiagnosticCodes.RollbackBackupMissing,
+                    $"Backup pak '{backupPath}' for '{entry.PakName}' is missing; cannot restore."));
+                continue;
             }
-        }
-        else
-        {
-            foreach (var entry in manifest.ModifiedFiles)
+            var backupSha = ComputeFileSha256(backupPath);
+            if (!string.Equals(backupSha, entry.OriginalSha256, StringComparison.OrdinalIgnoreCase))
             {
-                var backupPath = Path.Combine(backupDir, entry.RelativePath);
-                var targetPath = Path.Combine(gameRoot, entry.RelativePath);
-
-                if (!File.Exists(backupPath))
-                {
-                    diagnostics.Add(new ManagerDiagnostic(
-                        ManagerDiagnosticSeverity.Error,
-                        ManagerDiagnosticCodes.RollbackBackupMissing,
-                        $"Backup file '{backupPath}' for '{entry.RelativePath}' is missing; cannot restore."));
-                    continue;
-                }
-
-                // Same integrity discipline as the RebuiltPaks branch above: if
-                // the backup's SHA-256 no longer matches what was recorded at
-                // deploy time, refuse rather than overwrite the live file with
-                // possibly-corrupt bytes.
-                var backupSha = ComputeFileSha256(backupPath);
-                if (!string.Equals(backupSha, entry.OriginalSha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    diagnostics.Add(new ManagerDiagnostic(
-                        ManagerDiagnosticSeverity.Error,
-                        ManagerDiagnosticCodes.RollbackHashMismatch,
-                        $"Backup file '{backupPath}' SHA-256 {backupSha} does not match the {entry.OriginalSha256} recorded at deploy time. Refusing to overwrite the live file with possibly-corrupt bytes."));
-                    continue;
-                }
-
-                AtomicFile.WriteAllBytes(targetPath, File.ReadAllBytes(backupPath));
-                restored++;
+                diagnostics.Add(new ManagerDiagnostic(ManagerDiagnosticSeverity.Error, ManagerDiagnosticCodes.RollbackHashMismatch,
+                    $"Backup pak '{backupPath}' SHA-256 {backupSha} does not match the {entry.OriginalSha256} recorded at deploy time. Refusing to overwrite the live pak with possibly-corrupt bytes."));
+                continue;
             }
+            pakRestores.Add((backupPath, targetPath, entry));
         }
 
-        // If any canonical-pak / loose-XML restore failed (missing or corrupt backup),
-        // abort NOW — before touching the Pattern B overlay paks. Deleting overlays while
-        // the canonical paks are only partly restored would leave a mixed, unbootable
-        // install with no clean undo path.
+        var fileRestores = new List<(string Backup, string Target)>();
+        foreach (var entry in manifest.ModifiedFiles)
+        {
+            var backupPath = Path.Combine(backupDir, entry.RelativePath);
+            var targetPath = Path.Combine(gameRoot, entry.RelativePath);
+            if (!File.Exists(backupPath))
+            {
+                diagnostics.Add(new ManagerDiagnostic(ManagerDiagnosticSeverity.Error, ManagerDiagnosticCodes.RollbackBackupMissing,
+                    $"Backup file '{backupPath}' for '{entry.RelativePath}' is missing; cannot restore."));
+                continue;
+            }
+            var backupSha = ComputeFileSha256(backupPath);
+            if (!string.Equals(backupSha, entry.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(new ManagerDiagnostic(ManagerDiagnosticSeverity.Error, ManagerDiagnosticCodes.RollbackHashMismatch,
+                    $"Backup file '{backupPath}' SHA-256 {backupSha} does not match the {entry.OriginalSha256} recorded at deploy time. Refusing to overwrite the live file with possibly-corrupt bytes."));
+                continue;
+            }
+            fileRestores.Add((backupPath, targetPath));
+        }
+
+        // Any validation failure aborts NOW — before a single byte is written and before the Pattern B
+        // overlay paks are touched, so the install is left exactly as it was for a clean retry.
         if (diagnostics.Any(d => d.Severity == ManagerDiagnosticSeverity.Error))
         {
             return new RollbackResult
@@ -297,6 +260,26 @@ public sealed class RollbackService
                 GameFingerprint = fingerprint,
                 Diagnostics = diagnostics,
             };
+        }
+
+        // Every backup validated — now restore, all of it.
+        var pakIndex = 0;
+        var pakTotal = pakRestores.Count;
+        foreach (var (backupPath, targetPath, entry) in pakRestores)
+        {
+            pakIndex++;
+            progress?.Report(new DeployProgress("restore", pakIndex * 100 / Math.Max(pakTotal, 1), $"Restoring {entry.PakName} ({pakIndex}/{pakTotal})"));
+            AtomicFile.CopyAtomic(backupPath, targetPath);
+            restored++;
+            diagnostics.Add(new ManagerDiagnostic(
+                ManagerDiagnosticSeverity.Info,
+                ManagerDiagnosticCodes.PakRollbackRestored,
+                $"Restored '{entry.PakName}' from backup ({entry.ByteSizeBefore} bytes)."));
+        }
+        foreach (var (backupPath, targetPath) in fileRestores)
+        {
+            AtomicFile.CopyAtomic(backupPath, targetPath);
+            restored++;
         }
 
         // Pattern B addedFiles have no backup — they were created by deploy. Just delete them.
@@ -332,7 +315,10 @@ public sealed class RollbackService
                     File.Delete(targetPath);
                     deletedAdded++;
                 }
-                catch (IOException ex)
+                // A read-only overlay throws UnauthorizedAccessException (a sibling of IOException,
+                // not a subclass); catch both so a permission issue records a diagnostic and
+                // continues rather than escaping after the pak/file restores already committed.
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     diagnostics.Add(new ManagerDiagnostic(
                         ManagerDiagnosticSeverity.Error,
@@ -375,7 +361,7 @@ public sealed class RollbackService
         {
             Directory.Delete(layout.DeployTimestampDirectory(fingerprint, latest.Timestamp), recursive: true);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // History is already updated, so the leftover dir is harmless to rollback — but
             // surface it so the user can reclaim the space and it isn't mistaken for a live backup.

@@ -4,8 +4,8 @@ Pioneers of Pagonia loads game content from `.pak` archives. Mods are also `.pak
 
 This page describes the loading model, the three observed mod patterns, and how the tools in this repository fit each pattern.
 
-> [!NOTE]
-> The loading details below are reverse-engineered from the shipped paks (`core.pak`, `dlc1.pak`, `decorations1.pak`, `tools.pak`) and verified against community mods on mod.io. Sections marked **(empirical)** describe behaviour we observed but haven't yet confirmed against a runtime-debug build or EE documentation — when in doubt, install a mod and verify against your game version. The Meadowsong cross-pak merging primitives (covered in their own section below) are derived from the diff between the pre-Meadowsong `1.2.2-11216+189567` baseline and the public `1.3.0-11768+193445` release.
+!!! note
+    The loading details below are reverse-engineered from the shipped paks (`core.pak`, `dlc1.pak`, `decorations1.pak`, `tools.pak`) and verified against community mods on mod.io. Sections marked **(empirical)** describe behaviour we observed but haven't yet confirmed against a runtime-debug build or EE documentation — when in doubt, install a mod and verify against your game version. The Meadowsong cross-pak merging primitives (covered in their own section below) are derived from the diff between the pre-Meadowsong `1.2.2-11216+189567` baseline and the public `1.3.0-11768+193445` release.
 
 ## The Pak Loading Model
 
@@ -54,6 +54,8 @@ A pak's `Name` is its **module identity**. `Dependencies` is the list of other m
 
 `files.json` is the **pointer table** the engine reads at load time. The `GameDatabase` key points at a `.gd.bin` file inside the pak; the `Localization` key points at a folder. Other keys may appear in future packs.
 
+> **The editor writes `Localization` unconditionally.** The 1.4.0 editor emits the `Localization` key whenever it writes `files.json` (i.e. alongside `GameDatabase`), pointing at `<module>/localization` **even when the module ships no compiled `loca_<lang>.bin`** — the folder simply doesn't exist in the pak, and the engine tolerates the dangling pointer. Confirmed against two real editor mods from mod.io (CatDog, "Eye of The Spire"), both GDB-only with a `Localization` key but no `localization/` folder. Our own [pak scaffold](mod-patch-format.md#standalone-overlay-paks-pak-block) deliberately **differs**: it adds the `Localization` key only when a `localization/` folder actually has content, so it never writes a pointer to a missing folder. Both shapes load; ours is the stricter one.
+
 ### `<pakname>.gd.bin`
 
 Despite the name, the `.gd.bin` file is **not** compiled game data. It's a small (a few hundred bytes to a few kilobytes) index that lists the absolute in-pak paths of every `*.gd.xml` file this module contributes to the database. The first ~200 bytes of `core.gd.bin` decoded:
@@ -69,6 +71,18 @@ Despite the name, the `.gd.bin` file is **not** compiled game data. It's a small
 The engine reads `files.json -> GameDatabase`, follows it to a `.gd.bin`, walks the path list, and loads each referenced `*.gd.xml` from the pak. That is how the XML files we patch actually reach the game.
 
 **Implication for modding:** if a mod adds a NEW `*.gd.xml`, the matching `.gd.bin` must list it. The XML alone isn't enough — the engine never scans for unlisted files. Replacing an existing XML works because its path is already in `.gd.bin`.
+
+### `localization/loca_<lang>.bin`
+
+The `Localization` key in `files.json` points at a folder (e.g. `dlc1/localization`) holding one compiled blob per language, named `loca_<lang>.bin` (`loca_en_us.bin`, …). The format is inferred empirically from two test paks produced by the 1.4.0 Pagonia Editor ("package gdb with dependency" and "package map with dlc1 and gdb"), so treat it as best-effort. The blob is a **bare sequence of length-prefixed UTF-8 strings, read until end-of-stream** — no header, version, count, or key table:
+
+```text
+12 M.Y. .F.e.s.t.i.v.a.l. .G.r.o.u.n.d   7-bit-encoded byte length (0x12=18), then UTF-8
+1d W.o.o.k.i.e.e.t.r.e.i.b.e.r.s. ...    0x1d=29, "Wookieetreibers Festiveground"
+... (one entry per localized string)
+```
+
+Each string is exactly what `System.IO.BinaryWriter.Write(string)` emits: a 7-bit-encoded (LEB128-style) **byte**-length prefix followed by the UTF-8 payload. The strings are value-only and positionally ordered — no keys are embedded, so the engine presumably resolves them by index from the GameDatabase side. Decode one with [`pagonia-paker loca info <loca>`](../tools/pagonia-paker/CLI.md#loca-info-json-report-loca); the byte layout is documented in the paker's [`loca_<lang>.bin` Localization Format](../tools/pagonia-paker/CLI.md#loca_langbin-localization-format) section. (Authoring/compiling these blobs is the editor's job — the paker only reads them.)
 
 ### Load order and overrides (empirical)
 
@@ -155,8 +169,8 @@ The override is the single 6 KB `system.json` file at the pak root. Compared wit
 
 ## Pattern C — User Maps (Editor Output)
 
-> [!IMPORTANT]
-> **Updated in 1.4.0 (Pagonia Editor Update, beta).** A map published by the 1.4.0 Pagonia Editor is an ordinary GameDatabase-contributing pak — it ships `files.json` + `<mod>.gd.bin` + compiled `localization/loca_<lang>.bin` **and** the map under `usermaps/` (`.popmap` + a map-scoped `*.gd.xml`), so [`classify`](../tools/pagonia-paker/CLI.md) reports `GdbScopes: map-scoped` (its GameDatabase changes apply only when playing that map, not your normal games) alongside a `PopmapCount`. Our tools handle it like any other pak; the editor's authoring UI and project format are EE's domain (see the [community wiki](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding)). The popmap-only description below still fits maps from the **pre-1.4.0** editor (no GameDatabase changes).
+!!! important
+    **Updated in 1.4.0 (Pagonia Editor Update, beta).** A map published by the 1.4.0 Pagonia Editor is an ordinary GameDatabase-contributing pak — it ships `files.json` + `<mod>.gd.bin` + compiled `localization/loca_<lang>.bin` **and** the map under `usermaps/` (`.popmap` + a map-scoped `*.gd.xml`), so [`classify`](../tools/pagonia-paker/CLI.md) reports `GdbScopes: map-scoped` (its GameDatabase changes apply only when playing that map, not your normal games) alongside a `PopmapCount`. Our tools handle it like any other pak; the editor's authoring UI and project format are EE's domain (see the [community wiki](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding)). The popmap-only description below still fits maps from the **pre-1.4.0** editor (no GameDatabase changes).
 
 The Pagonia Editor lets a player author a map and exports it as a self-contained pak. Inside, the pak follows the **same module layout** as `core.pak` or `dlc1.pak` (a `<modulename>/` folder with `manifest.json` and `memory.bin`), but it skips `files.json` / `.gd.bin` and instead drops the actual map under `<modulename>/usermaps/<mapname>.popmap`. The engine surfaces these in the custom-map browser rather than wiring them into the database.
 
@@ -257,11 +271,11 @@ The information below is collected from two **public statements by an Envision E
 
 > You can [add] new buildings, resources etc. There is an editor for the game database. But importing new meshes into the game is not possible yet.
 
-**How to read this:** "There is an editor for the game database" refers to **EE's internal authoring tool** — the same tool the dev team uses to author the shipped GameDatabase content. EE is surfacing that capability to modders by extending the existing Pagonia Editor, in two waves: **Wave 1 (per-map GDB editing) shipped in the 1.4.0 beta** (the June 2026 free base-game update), and **Wave 2 (globally-active GDB mods) is still to come (Q3 2026)**. For Wave-2 global content — and on pre-1.4.0 game versions — modders author GDB content by hand-writing `*.gd.xml` files (Pattern A patches against shipped paks, or Pattern B overlay paks with their own gdb).
+**How to read this (updated for the 1.4.0 official release):** "There is an editor for the game database" referred to **EE's internal authoring tool** — the same tool the dev team uses to author the shipped GameDatabase content. EE has now surfaced that capability to modders by extending the Pagonia Editor. As of the **1.4.0 official release (2026-06-24)** the editor authors GameDatabase mods both **map-scoped** *and* **globally-active** through a UI — no hand-written `*.gd.xml` required. (EE's May 2026 roadmap had framed this as a two-wave rollout — per-map first, globally-active later in Q3 2026 — but the official 1.4.0 release delivered the global capability early, alongside single-language localization modding.) Hand-writing `*.gd.xml` (Pattern A patches against shipped paks, or Pattern B overlay paks with their own gdb) is no longer the *only* path to global GDB content — it is now the **text / CI / automation / batch-authoring** path alongside the editor's visual one, plus the fallback for pre-1.4.0 game versions and for non-entity assets the editor can't express.
 
 Two concrete consequences for this repository's audience:
 
-- **A *globally-active* GDB modder UI is on EE's roadmap, not in the current build.** EE has an internal authoring tool (the "editor for the game database" the dev's reply refers to) and is surfacing it to modders by extending the existing Pagonia Editor — Wave 1 (per-map GDB editing) shipped in the 1.4.0 beta; Wave 2 (Q3 2026) opens globally-active GDB mods. **For global GDB content, the only way to author it today is by hand-writing `*.gd.xml`** (Pattern A patches or Pattern B overlays). This repository's patcher + paker are the practical tools for that path until the global editor extension ships.
+- **The globally-active GDB modder UI has shipped (1.4.0 official).** The Pagonia Editor now authors both per-map and globally-active GDB mods directly, via "create / replace / unload / enhance … by using proxies" (the same `InheritedGuid` inheritance model documented under [Confirmed primitives](#confirmed-primitives); "proxy" is the user-facing name, not a new primitive). This repository's patcher + paker remain the practical tools for the **text-based / reproducible / CI** authoring path, for non-entity assets, and for older game versions — they are now a *complement* to the editor, not a stand-in for a missing one.
 - **No custom-mesh import (yet).** New entities can reference any existing mesh, texture, audio, or prefab that ships in `core.pak` / `dlc1.pak` / etc., but a mod cannot ship its own 3D model and have the game render it. Practical implication: new buildings/units must reuse the visuals of an existing one (a "Cool New Sawmill" looks like the regular sawmill); custom recipes, balance changes, and entity-shape variations are fully in scope, but anything that needs novel art is blocked until mesh import opens up.
 
 ### Dev review follow-up (2026-06-06)
@@ -282,24 +296,24 @@ This **corrects** the inference we'd drawn from the shipped-data scan. The scan 
 
 Three things this settles:
 
-- **External pak rewriting is a non-sanctioned path.** EE's intended distribution shape is a *separate* overlay pak that the engine merges at load time — exactly **Pattern B** below — not a rewritten copy of `core.pak` / `dlc1.pak`. Our **Pattern A** (byte-level pak patching) stays useful for non-entity assets the merge model can't reach (icons, audio, `system.json`) and for pre-Meadowsong versions, but it is explicitly **not** the path EE plans around for GameDatabase content. We had already de-prioritised it (the patcher roadmap's standing guidance is "do not extend the byte-level op surface"); this confirms the call rather than changing it.
+- **External pak rewriting is a non-sanctioned path.** EE's intended distribution shape is a *separate* overlay pak that the engine merges at load time — exactly **Pattern B** below — not a rewritten copy of `core.pak` / `dlc1.pak`. Our **Pattern A** (byte-level pak patching) stays useful for non-entity assets the merge model can't reach (icons, audio, `system.json`) and for pre-Meadowsong versions, but it is explicitly **not** the path EE plans around for GameDatabase content. We had already de-prioritised it (our standing guidance is "do not extend the byte-level op surface"); this confirms the call rather than changing it.
 - **The multi-mod conflict-resolution rule is now known, not open.** For same-path file conflicts and for two mods that `Replace` the same entity, **the last-loaded mod wins** (load order decides). `Incremental` is the exception — multiple mods can each stack additions onto the same inherited entity without clobbering one another. This answers what we'd flagged as "unobserved" in [quirks-and-anomalies.md](quirks-and-anomalies.md#each-inheritedguid-target-is-hit-exactly-once) and "still empirical" elsewhere.
 - **Conflict-minimising authoring guidance, straight from EE.** Prefer `Incremental` / `Template` (additive, stackable) over `Replace` / `Unload` (destructive, last-loaded-wins) when editing core/dlc entities, because the destructive modes are precisely where competing mods collide. The fewer entities a mod `Replace`s or `Unload`s, the better it co-exists with the rest of a player's mod set.
 
-### Two-wave rollout
+### Rollout: planned in two waves, delivered together in 1.4.0
 
-The second dev statement separates the feature into two waves; EE's May 2026 post-release roadmap then pinned concrete dates.
+The second dev statement separated the feature into two scopes; EE's May 2026 post-release roadmap framed them as two waves (per-map first, globally-active in Q3 2026). In the event, the **official 1.4.0 release (2026-06-24) delivered both**: the Pagonia Editor now authors map-scoped *and* globally-active GDB mods, and single-language localization modding shipped alongside. The table below maps each scope to the closest pattern in this doc.
 
-| Wave | When | Scope | Authoring path | Closest pattern in this doc |
+| Scope | Status | What it does | Authoring path | Closest pattern in this doc |
 | --- | --- | --- | --- | --- |
-| **1. Map-scoped** | **Shipped (beta) in 1.4.0** — the June 2026 "Free base game update — editor expansion for scenario maps" | Entity changes only active while playing this specific map | The Pagonia Editor exports a map pak that bundles per-map GDB entity changes (live in the 1.4.0 beta — see the Pattern C box above) | **Pattern C with own gdb** — a user-map pak that also ships entity changes, applied only for the duration of that map |
-| **2. Global** | **Q3 2026** ("Balancing Data & Localization Modding": make profound game changes, create new language packages, modify existing texts) | Entity changes apply across every map and game mode while the mod is active | Modder ships a standalone overlay pak with its own gdb using the engine's entity-relation primitives | **Pattern B (overlay) with merged gdb** — exactly what the bundled paker's scaffold produces today (see [`tools/pagonia-paker/CLI.md`](../tools/pagonia-paker/CLI.md)) |
+| **Map-scoped** | **Shipped in 1.4.0** (first as a 1.4.0 beta, then the official release) | Entity changes only active while playing this specific map | The Pagonia Editor exports a map pak that bundles per-map GDB entity changes (see the Pattern C box above) | **Pattern C with own gdb** — a user-map pak that also ships entity changes, applied only for the duration of that map |
+| **Globally-active** | **Shipped in the 1.4.0 official release** ("modifications are no longer limited to the package's map"; balancing data — population growth, production ratios, combat, raids, plant growth — now editable) | Entity changes apply across every map and game mode while the mod is active | The Pagonia Editor, **or** a hand-authored standalone overlay pak with its own gdb using the engine's entity-relation primitives | **Pattern B (overlay) with merged gdb** — exactly what the bundled paker's scaffold produces (see [`tools/pagonia-paker/CLI.md`](../tools/pagonia-paker/CLI.md)) |
 
-The Q3 2026 wave also introduces **Localization modding** ("create new language packages, modify existing texts") as a distinct capability alongside the gameplay-modding part. The shape of localization-only mod paks isn't documented yet — expect a separate section to land here when EE's schema becomes public.
+**Localization modding** also shipped in 1.4.0 ("Mods can now contain localization in one language, e.g. adding a new building with a custom name"). The compiled per-language blob an editor mod ships — `localization/loca_<lang>.bin` — is decoded in [`localization/loca_<lang>.bin`](#localizationloca_langbin) above (a bare sequence of length-prefixed UTF-8 strings). What an authoring-side, localization-*only* mod pak looks like — and whether keys move into the blob or stay positional — isn't fully documented yet; this repository's paker can *read* the compiled blob today, but `mod.yaml` has no declarative `localization:` authoring block yet.
 
-This means the Pattern B scaffold we already ship is, by construction, the **right shape** for Wave-2 (global) Meadowsong mods. The four-file module skeleton plus a `<modname>/gdb/*.gd.xml` that uses the four entity-relation primitives the devs named (unload / replace / template / extend) is the complete pre-flight for a global Meadowsong mod once that wave lands. The exact XML attribute names and per-primitive schema land in [Confirmed primitives](#confirmed-primitives) below once the public release is available.
+The Pattern B scaffold this repository ships is, by construction, the **right shape** for a globally-active GDB mod: the four-file module skeleton plus a `<modname>/gdb/*.gd.xml` that uses the four entity-relation primitives the devs named (unload / replace / template / extend). With the editor now authoring these mods visually, hand-writing that XML is the **power-user / CI / batch** path rather than the only path.
 
-For Wave 1 (map-scoped), the 1.4.0 Pagonia Editor (beta) is now the intended producer of per-map entity changes rather than hand-authored map gdb. Our [classifier](../tools/pagonia-paker/CLI.md) reports such a published editor map's per-map GameDatabase as `GdbScopes: map-scoped` (distinct from a `global` mod) alongside its `PopmapCount`, so the dual nature is surfaced today.
+For map-scoped content, the 1.4.0 Pagonia Editor is the intended producer of per-map entity changes rather than hand-authored map gdb. Our [classifier](../tools/pagonia-paker/CLI.md) reports such a published editor map's per-map GameDatabase as `GdbScopes: map-scoped` (distinct from a `global` mod) alongside its `PopmapCount`, so the dual nature is surfaced today.
 
 ### Confirmed primitives
 
@@ -354,8 +368,8 @@ The practical takeaway EE stressed: **prefer `Incremental` / `Template` over `Re
 ### Status of "what we built" against this
 
 - The patcher's existing operation set (`replaceValue`, `multiplyValue`, `addValue`, `mergeComponent`, `addEntity`, `removeEntity`, `addListItem`, `removeListItem`, `replaceAttribute`, `replaceNode`) is **byte-level** — it edits the XML of the shipped paks. Meadowsong's relation mechanism is **declarative inside a fresh XML file**: the mod ships its own entity that references the inherited one. These are complementary, not competing — a Meadowsong-aware mod often writes the new XML directly rather than patching the shipped one. **EE has confirmed (2026-06-06) that externally rewriting the shipped paks is not their intended path** ([Dev statement 4](#dev-statement-4)); the sanctioned shape is a separate overlay pak (Pattern B) merged at load time. The byte-level ops remain a legitimate fallback for non-entity assets and pre-Meadowsong versions, but they are not the canonical GameDatabase-modding path and the op surface is intentionally frozen.
-- The Pattern B scaffold already produces the right module shape for a Meadowsong mod. No tooling work is needed there to support the new primitives; the modder writes the XML by hand today (a modder-facing GDB editor is on the EE roadmap for Q3 2026, see "Two-wave rollout" above).
-- A future patcher iteration might add declarative `entity:` operations to `mod.yaml` so the patch format can describe Meadowsong-style merges without the modder authoring the engine's XML by hand. The primitives are now confirmed against the public release; the remaining hold is the planned post-DLC hotfix wave — once any short-term schema tweaks settle in, that work can move.
+- The Pattern B scaffold already produces the right module shape for a global GDB mod. No tooling work is needed there to support the new primitives. With the **1.4.0 official release**, modders can author both map-scoped and globally-active GDB mods directly in the Pagonia Editor (see "Rollout" above) — hand-writing the XML is now the power-user / CI / batch path, and our scaffold wraps it into an engine-loadable pak.
+- A future patcher iteration could add declarative `entity:` operations to `mod.yaml` so the patch format describes the engine's merge primitives without the modder authoring the XML by hand. The primitives are confirmed against the public release. **Priority note:** now that the editor authors these mods visually, this is lower-value as a primary authoring surface — its remaining justification is specifically the CI / automation / batch-generation flows the visual editor doesn't serve, so it is gated on concrete demand from that audience rather than on EE's schema settling.
 
 
 ## Distribution Channels
@@ -391,6 +405,25 @@ pagonia-patcher schema-validate --collection path\to\collections\<name>.collecti
 
 The schemas live at [`schemas/mod-patches/`](../schemas/mod-patches/) and are the **public contract** — any package that passes `schema-validate` is guaranteed to parse cleanly in mod managers, IDE plugins, and future tooling.
 
+### Format compatibility
+
+Every distribution file carries a `MAJOR.MINOR` **format version** — `patchFormatVersion` (a mod), `collectionFormatVersion`, `indexFormatVersion`, `catalogFormatVersion`, and the resolved-lockfile's `collectionLockVersion`. It describes the *shape of the file*, not the mod's own `version` and not the `gameDatabaseVersion`; it moves on its own clock, and only when the file's structure changes. They all sit at `0.1` today.
+
+When a tool reads a file, it compares that version to the latest it knows for that format and behaves predictably across versions — the same rule in the patcher and in the manager:
+
+| File vs. the tool (same format) | What happens | Signal |
+|---|---|---|
+| same major, same or older minor | reads normally | — |
+| same major, **newer** minor | reads anyway, ignoring any newer optional fields | `formatMinorAhead` (info) — "update recommended" |
+| **newer** major | refused — a breaking shape this build can't read | `formatMajorUnsupported` (error) — names where to get a newer release |
+| **older, retired** major | refused — re-export the file with a current tool | `formatMajorRetired` (error) |
+| a value that isn't `MAJOR.MINOR` | refused | `formatVersionMalformed` (error) |
+
+So a package authored against a slightly newer toolchain still opens in an older one (you just get a nudge to update), while a genuinely incompatible one tells you exactly what to do instead of failing cryptically. (One caveat: on the manager's remote-**install** path — which aborts on any reject rather than carrying a diagnostics channel — a tolerated newer-minor reads fine but the `formatMinorAhead` info note is not surfaced; the browse / `catalog show` paths do show it.) Two rules follow for authors:
+
+- **Bump the minor only for an additive, backward-compatible change** (a new *optional* field). Bump the major only for a breaking one (a field removed, renamed, re-typed, or re-meant). Never bump on a game update or a content change.
+- **You never hand-migrate an additive bump.** When a tool writes a managed file (a collection export, a lockfile, an `index build`), it stamps the current version; `index build` also raises an older same-major `index.yaml` to the current minor in place (`formatMigratedInPlace`). The file rises the next time a tool touches it.
+
 ### The index mirror contract
 
 A repo's `index.yaml` lists a curated entry per mod so the manager can browse a catalog — show every mod's name, version, and safety — **without fetching each mod folder**. That means each entry *duplicates* a subset of the mod's own `mod.yaml`, which is the authoritative manifest. The copy is a deliberate cache, but a cache can drift: edit `safeToRemove` in a `mod.yaml` and forget the index, and the browse list now advertises the wrong thing. `schema-validate` checks the index's *shape*, not whether those copies still match.
@@ -404,6 +437,7 @@ A repo's `index.yaml` lists a curated entry per mod so the manager can browse a 
 | `version` | `version` | **mirror** | a bug — flagged |
 | `gameDatabaseVersion` | `gameDatabaseVersion` | **mirror** | a bug — flagged |
 | `safetyFlags.{requiresNewGame, safeToRemove, multiplayerSafe, campaignSafe}` | the flat fields of the same name | **mirror** (flat ↔ nested) | a bug — flagged (safety-critical) |
+| `contentHash` | *computed* (sha256 of `mod.yaml` + referenced patches) | **computed** | a bug — flagged (same-version content drift); `index build` inserts/refreshes it |
 | `description` | `description` | **curated** | allowed — the index is a short catalog blurb, the manifest the full text |
 | `tags`, `screenshots` | `tags` (+ none) | **curated** | allowed — the catalog may curate its own |
 | `path` | — | index-only | n/a |
@@ -413,6 +447,16 @@ Because the index is a curated *subset*, an entry may **omit** a mirror field en
 `index-check` also flags **orphaned** entries (an index entry whose `mod.yaml` is missing on disk) and **missing** entries (a mod folder present but not listed — invisible to the catalog). `pagonia-patcher index build <repo-root>` re-syncs the mirror values from the manifests in place — surgically, preserving formatting — and `index build --check` is the write-nothing CI gate. Wire one of them next to `schema-validate` in your validate job; the first-party [`official-mods/`](../official-mods/) tree runs `index-check` in [preflight](../scripts/preflight.ps1). Full field reference: [patcher CLI → index-check / index build](../tools/pagonia-patcher/CLI.md#keeping-indexyaml-in-sync-with-each-modyaml-index-check-index-build).
 
 That author-side check has a **consumer-side complement** in the manager: when it installs a mod from a repo with an `index.yaml`, it cross-checks what the catalog advertised against the `mod.yaml` it actually downloads and warns (`manager.repoIndexMetadataMismatch`) if they disagree — so even a catalog that skipped the CI gate (or is deliberately misleading) can't quietly hand you something other than what you browsed. See [Mod Catalogs](mod-catalogs.md#how-it-looks-from-the-user-side).
+
+## Mod dependencies & load order
+
+A `mod.yaml` can declare how it relates to other mods — `dependencies`, `incompatibleWith`, `loadAfter`, and `loadBefore` (all lists of mod ids). The manager reads and acts on these:
+
+- **Dependencies.** When you enable a mod (or `plan` / `deploy` / `doctor`), a declared dependency that isn't enabled is flagged (`manager.modDependencyMissing`, saying whether it's installed-but-disabled or not installed). Installing with `pagonia-manager install --with-deps` (or the interactive "install its dependencies?" prompt) pulls the missing ones — and theirs, transitively — from the **same repo** the mod came from first, then your **subscribed catalogs**; an unresolvable one warns (`manager.modDependencyUnresolved`) without failing the rest. Disabling or uninstalling a mod others still depend on warns first (`manager.modDependedUponByOthers`).
+- **Incompatibilities.** Two enabled mods that declare each other in `incompatibleWith` are flagged (`manager.modIncompatibleEnabled`) — advisory, disable one.
+- **Load order.** At `plan` / `deploy` the enabled set is topologically ordered to honour `loadAfter` / `loadBefore`, with your manual profile order as the **stable tiebreaker** — so a mod that must load after another lands correctly without hand-sorting. A reorder is reported (`manager.loadOrderAdjusted`), never silent; a constraint *cycle* is flagged (`manager.loadOrderCycle`) and those mods are left in your manual order. The interactive *Reorder load order* screen marks which positions are dependency-pinned. This is the cross-mod companion to the [overlay-conflict checks](mod-conflicts.md): load order decides which mod wins a destructive overlay collision.
+
+All of these are **advisory** — they inform and assist, they never block an install, enable, or deploy. Full diagnostic reference: [manager CLI → diagnostics](../tools/pagonia-manager/CLI.md#diagnostic-codes).
 
 ### Reference Examples
 

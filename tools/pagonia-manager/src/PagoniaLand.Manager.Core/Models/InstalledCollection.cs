@@ -12,4 +12,13 @@ public sealed class InstalledCollection
     public string ManifestPath { get; init; } = string.Empty;
     public string? LockfilePath { get; init; }
     public string? GeneratedAt { get; init; }
+
+    /// <summary>
+    /// Transport-neutral provenance string from the collection install sidecar —
+    /// e.g. <c>gh:owner/repo#&lt;sha&gt;/&lt;collection-id&gt;</c> for a remote
+    /// install. Empty / null for a local-file collection install. Used by the
+    /// read-only update check to find the repo whose <c>index.yaml</c> advertises
+    /// this collection's version.
+    /// </summary>
+    public string? Source { get; init; }
 }

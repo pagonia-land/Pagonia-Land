@@ -17,7 +17,7 @@ id: pagonia-land.example.production-tuning
 name: Production Tuning With Optional DLC Support
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: Demonstrates package-aware patch sets.
 
 requiredPackages:

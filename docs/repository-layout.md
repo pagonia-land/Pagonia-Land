@@ -17,6 +17,7 @@ For the high-level map of the database *content* (packages, systems, how entitie
 | `tools/pagonia-paker/` | C# paker source, tests, fixtures, CLI contract |
 | `tools/pagonia-manager/` | C# manager source, tests, CLI contract — install / deploy / rollback / profiles / collections on top of the patcher + paker cores |
 | `tools/catalog-browser/` | Static HTML browser for the generated catalog index |
+| `app/` | C# Avalonia desktop app — the *Pagonia Land app* (interactive GameDatabase catalog viewer) plus its shared `Catalog.Core` engine library |
 | `sandbox/` | Modder workspace — templates plus your own `mods/`, `collections/`, `out/` (all but templates ignored); also hosts the [end-to-end manager walkthrough](../sandbox/examples/manager-walkthrough/) |
 
 **Local-only (git-ignored):**
@@ -59,7 +60,7 @@ Run the scripts under [`scripts/`](../scripts/) to regenerate machine-readable a
 | `generated/catalog/search-index.json` | Index that powers `tools/catalog-browser/index.html` |
 | `generated/diffs/<old>_to_<new>/` | Per-version diff reports produced by `scripts/diff_versions.ps1` |
 
-Current scan: **4,715 entities · 31,763 references · 24,422 resolved · 7,311 explicit null GUIDs · 30 other unresolved (12 known-stable engine wildcards + 18 transient `NoMVP.` orphans)**. Full breakdown in [Validation Baseline](../VALIDATION_BASELINE.md).
+Current scan: **4,717 entities · 31,755 references · 24,414 resolved · 7,311 explicit null GUIDs · 30 other unresolved (12 known-stable engine wildcards + 18 transient `NoMVP.` orphans)**. Full breakdown in [Validation Baseline](../VALIDATION_BASELINE.md).
 
 ## Local Snapshots And Version Updates
 

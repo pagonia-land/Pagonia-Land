@@ -26,6 +26,7 @@ public static class ManagerReports
     public static string ToJson(DeployStatusResult result, string gameRoot) => Build(result, gameRoot).ToJsonString(WriteIndented);
     public static string ToExpansionsListJson(ExpansionListResult result) => Build(result).ToJsonString(WriteIndented);
     public static string ToExpansionsSetJson(ExpansionSetResult result) => Build(result).ToJsonString(WriteIndented);
+    public static string ToJson(UpdateCheckResult result) => Build(result).ToJsonString(WriteIndented);
     public static string ToTweakListJson(TweakReadResult result) => Build(result).ToJsonString(WriteIndented);
     public static string ToTweakSetJson(TweakMutationResult result, string tweakId, string value) => BuildSet(result, tweakId, value).ToJsonString(WriteIndented);
     public static string ToTweakResetJson(TweakMutationResult result, string? tweakId) => BuildReset(result, tweakId).ToJsonString(WriteIndented);
@@ -162,6 +163,42 @@ public static class ManagerReports
             ["gameProductVersion"] = result.GameProductVersion,
             ["hasDeploys"] = result.HasDeploys,
             ["deploys"] = deploys,
+            ["diagnostics"] = DiagnosticsArray(result.Diagnostics),
+        };
+    }
+
+    private static JsonObject Build(UpdateCheckResult result)
+    {
+        static JsonArray Updates(IEnumerable<(string Id, string Installed, string Available, string Gdb)> updates)
+            => new(updates
+                .Select(u => (JsonNode?)new JsonObject
+                {
+                    ["id"] = u.Id,
+                    ["installedVersion"] = u.Installed,
+                    ["availableVersion"] = u.Available,
+                    ["gameDatabaseVersion"] = u.Gdb,
+                })
+                .ToArray());
+
+        return new JsonObject
+        {
+            ["schemaVersion"] = CurrentReportVersion,
+            ["reportKind"] = "updates",
+            ["checkedModCount"] = result.CheckedCount,
+            ["skippedLocalModCount"] = result.SkippedLocalCount,
+            ["checkedCollectionCount"] = result.CheckedCollectionCount,
+            ["skippedLocalCollectionCount"] = result.SkippedLocalCollectionCount,
+            ["modUpdates"] = Updates(result.Updates.Select(u => (u.Id, u.InstalledVersion, u.AvailableVersion, u.GameDatabaseVersion))),
+            ["collectionUpdates"] = Updates(result.CollectionUpdates.Select(u => (u.Id, u.InstalledVersion, u.AvailableVersion, u.GameDatabaseVersion))),
+            ["contentDrifts"] = new JsonArray(result.ContentDrifts
+                .Select(d => (JsonNode?)new JsonObject
+                {
+                    ["id"] = d.Id,
+                    ["version"] = d.Version,
+                    ["advertisedHash"] = d.AdvertisedHash,
+                    ["installedHash"] = d.InstalledHash,
+                })
+                .ToArray()),
             ["diagnostics"] = DiagnosticsArray(result.Diagnostics),
         };
     }

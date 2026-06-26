@@ -4,6 +4,7 @@ var reader = new PakReader();
 var packer = new PakPacker();
 var patcher = new PakPatcher();
 var gdBinReader = new GdBinReader();
+var locaReader = new LocaReader();
 var classifier = new PakClassifier();
 
 if (args is ["--version"] or ["-v"])
@@ -129,6 +130,27 @@ if (args.Length >= 2 && args[0] == "gdbin" && args[1] == "info")
         return PakerExitCodes.Usage;
     }
     return RunGdBinInfo(parsed.Positional[0], parsed.JsonReportPath);
+}
+
+if (args.Length >= 2 && args[0] == "loca" && args[1] == "info")
+{
+    var parsed = FilterArgumentParser.Parse(args[2..]);
+    if (!parsed.Success)
+    {
+        Console.Error.WriteLine($"Error: {parsed.Error}");
+        return PakerExitCodes.Usage;
+    }
+    if (!parsed.Filter.IsUnrestricted)
+    {
+        Console.Error.WriteLine("Error: filter flags are not supported on `loca info`.");
+        return PakerExitCodes.Usage;
+    }
+    if (parsed.Positional.Count < 1)
+    {
+        PrintUsage();
+        return PakerExitCodes.Usage;
+    }
+    return RunLocaInfo(parsed.Positional[0], parsed.JsonReportPath);
 }
 
 if (args.Length >= 1 && args[0] == "classify")
@@ -466,7 +488,7 @@ int RunGdBinInfo(string gdbinPath, string? jsonReportPath)
     if (!File.Exists(gdbinPath))
     {
         Console.Error.WriteLine($"Error: gd.bin file not found: {gdbinPath}");
-        WriteGdBinInfoReport(jsonReportPath, gdbinPath, success: false, headerBytes: Array.Empty<byte>(), entries: Array.Empty<string>(), diagnostics);
+        WriteGdBinInfoReport(jsonReportPath, gdbinPath, success: false, headerBytes: Array.Empty<byte>(), entries: Array.Empty<string>(), hasTrailingTerminator: false, diagnostics);
         return PakerExitCodes.Error;
     }
 
@@ -477,33 +499,78 @@ int RunGdBinInfo(string gdbinPath, string? jsonReportPath)
 
     if (!result.Success || result.Index is null)
     {
-        WriteGdBinInfoReport(jsonReportPath, gdbinPath, success: false, headerBytes: Array.Empty<byte>(), entries: Array.Empty<string>(), diagnostics);
+        WriteGdBinInfoReport(jsonReportPath, gdbinPath, success: false, headerBytes: Array.Empty<byte>(), entries: Array.Empty<string>(), hasTrailingTerminator: false, diagnostics);
         return PakerExitCodes.Error;
     }
 
     Console.WriteLine($"Gdbin: {gdbinPath}");
     Console.WriteLine($"Entries: {result.Index.Entries.Count}");
     Console.WriteLine($"Header: {string.Join(' ', GdBinInfoReport.HeaderBytesToHex(result.Index.HeaderBytes))}");
+    Console.WriteLine($"EditorTerminator: {(result.Index.HasTrailingTerminator ? "yes" : "no")}");
     for (var i = 0; i < result.Index.Entries.Count; i++)
     {
         Console.WriteLine($"  [{i}] {result.Index.Entries[i]}");
     }
 
-    WriteGdBinInfoReport(jsonReportPath, gdbinPath, success: true, result.Index.HeaderBytes, result.Index.Entries, diagnostics);
+    WriteGdBinInfoReport(jsonReportPath, gdbinPath, success: true, result.Index.HeaderBytes, result.Index.Entries, result.Index.HasTrailingTerminator, diagnostics);
     return PakerExitCodes.Success;
 }
 
 static void WriteGdBinInfoReport(
     string? jsonReportPath, string gdbin, bool success,
-    IReadOnlyList<byte> headerBytes, IReadOnlyList<string> entries,
+    IReadOnlyList<byte> headerBytes, IReadOnlyList<string> entries, bool hasTrailingTerminator,
     IReadOnlyList<PakDiagnostic> diagnostics)
 {
     if (string.IsNullOrWhiteSpace(jsonReportPath)) return;
     var report = new GdBinInfoReport(
         gdbin, success, entries.Count,
-        GdBinInfoReport.HeaderBytesToHex(headerBytes), entries,
+        GdBinInfoReport.HeaderBytesToHex(headerBytes), entries, hasTrailingTerminator,
         PakReportDiagnostic.FromAll(diagnostics));
     WriteReportFile(jsonReportPath, GdBinInfoReport.Serialize(report));
+}
+
+int RunLocaInfo(string locaPath, string? jsonReportPath)
+{
+    var diagnostics = new List<PakDiagnostic>();
+
+    if (!File.Exists(locaPath))
+    {
+        Console.Error.WriteLine($"Error: loca file not found: {locaPath}");
+        WriteLocaInfoReport(jsonReportPath, locaPath, success: false, strings: Array.Empty<string>(), diagnostics);
+        return PakerExitCodes.Error;
+    }
+
+    using var stream = File.OpenRead(locaPath);
+    var result = locaReader.Read(stream);
+    diagnostics.AddRange(result.Diagnostics);
+    PrintDiagnostics(result.Diagnostics);
+
+    if (!result.Success || result.Strings is null)
+    {
+        WriteLocaInfoReport(jsonReportPath, locaPath, success: false, strings: Array.Empty<string>(), diagnostics);
+        return PakerExitCodes.Error;
+    }
+
+    Console.WriteLine($"Loca: {locaPath}");
+    Console.WriteLine($"Strings: {result.Strings.Count}");
+    for (var i = 0; i < result.Strings.Count; i++)
+    {
+        Console.WriteLine($"  [{i}] {result.Strings[i]}");
+    }
+
+    WriteLocaInfoReport(jsonReportPath, locaPath, success: true, result.Strings, diagnostics);
+    return PakerExitCodes.Success;
+}
+
+static void WriteLocaInfoReport(
+    string? jsonReportPath, string loca, bool success,
+    IReadOnlyList<string> strings, IReadOnlyList<PakDiagnostic> diagnostics)
+{
+    if (string.IsNullOrWhiteSpace(jsonReportPath)) return;
+    var report = new LocaInfoReport(
+        loca, success, strings.Count, strings,
+        PakReportDiagnostic.FromAll(diagnostics));
+    WriteReportFile(jsonReportPath, LocaInfoReport.Serialize(report));
 }
 
 static void WriteListReport(
@@ -655,6 +722,7 @@ static void PrintUsage()
     Console.WriteLine("  pagonia-paker compress   <input> <output>");
     Console.WriteLine("  pagonia-paker decompress <input> <output>");
     Console.WriteLine("  pagonia-paker gdbin info [--json <report>] <gdbin>");
+    Console.WriteLine("  pagonia-paker loca info  [--json <report>] <loca>");
     Console.WriteLine("  pagonia-paker classify   [--json <report>] <pak>");
     Console.WriteLine();
     Console.WriteLine("Filters (apply to unpack and pack; AND-composed; entry indices are 0-based):");

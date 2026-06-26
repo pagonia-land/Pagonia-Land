@@ -39,6 +39,15 @@ public sealed class StoreStateReader
                 $"state.yaml at '{layout.StateFile}' is empty or invalid.");
         }
 
+        // Internal format-version guard: refuse a store written by a newer manager so this
+        // build doesn't read it and silently drop fields it doesn't know on the next write.
+        InternalFormatVersionGuard.EnsureNotNewer(
+            state.StoreVersion,
+            StoreLayoutConstants.CurrentStoreVersion,
+            "storeVersion",
+            ManagerDiagnosticCodes.StoreSchemaVersionUnsupported,
+            layout.StateFile);
+
         return state;
     }
 }

@@ -3,7 +3,7 @@ id: pagonia-land.example.wine-icon-test
 name: Wine Icon Test
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: Cosmetic DLC pack patch — swaps the Wine icon for the Grapes icon. Demonstrates how to ship a patch that only runs when the dlc1 package is installed.
 requiredPackages:
   - core

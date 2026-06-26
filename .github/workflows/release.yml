@@ -25,10 +25,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (no v prefix, e.g. 0.3.0)'
+        # No default on purpose: a pre-filled value is always the last cut, which is already tagged —
+        # accepting it would build the whole matrix and then fail at `gh release create v<x>` on the
+        # existing tag. Leaving it blank forces a deliberate entry (the guard job rejects an empty /
+        # non-semver value, and refuses a version whose tag already exists).
+        description: 'Release version to cut, no v prefix (must be a new, unreleased semver, e.g. 0.4.0)'
         required: true
         type: string
-        default: '0.3.0'
       draft:
         description: 'Create as draft (admin reviews + publishes in GitHub UI)'
         required: true
@@ -63,10 +66,23 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$ ]]; then
-            echo "::error::Release version '$VERSION' is not valid (expected e.g. 0.3.0)." >&2
+            echo "::error::Release version '$VERSION' is not valid (expected e.g. 0.4.0)." >&2
             exit 1
           fi
-          echo "Release version '$VERSION' accepted."
+          echo "Release version '$VERSION' is well-formed."
+      - name: Refuse a version whose tag already exists
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fail fast before the matrix builds: `gh release create vX.Y.Z` would otherwise fail at the
+          # very end on an existing tag, wasting a full 4-RID run. Refuse a tag that already exists.
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists — pick a new, unreleased version." >&2
+            exit 1
+          fi
+          echo "Release version '$VERSION' accepted (no existing tag)."
 
   build:
     name: build ${{ matrix.rid }}
@@ -79,10 +95,12 @@ jobs:
             runner: windows-latest
             ext: '.exe'
             archive_ext: 'zip'
+            app: true
           - rid: linux-x64
             runner: ubuntu-latest
             ext: ''
             archive_ext: 'tar.gz'
+            app: true
           - rid: osx-x64
             # Intel runner — Native AOT for osx-x64 must build on x64 hardware.
             # macos-13 (the old default-Intel image) was retired by GitHub;
@@ -97,12 +115,13 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
-      - name: Set up .NET 8 SDK
+      # Everything — the Native AOT tools and the Pagonia Land app — targets net10.0.
+      - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Publish patcher (Native AOT)
         run: >
@@ -122,6 +141,18 @@ jobs:
         run: >
           dotnet publish tools/pagonia-manager/src/PagoniaLand.Manager.Cli
           -c Release -r ${{ matrix.rid }}
+          -p:Version=${{ inputs.version }}
+          -p:InformationalVersion=${{ inputs.version }}+${{ github.sha }}
+
+      # The "Pagonia Land" app — Avalonia GUI, published self-contained single-file (no AOT/trim;
+      # Avalonia's reflection-based XAML/bindings don't trim cleanly). win-x64 + linux-x64 only for
+      # now; a macOS .app bundle (with notarization) is a follow-up.
+      - name: Publish app (self-contained single-file)
+        if: ${{ matrix.app }}
+        run: >
+          dotnet publish app/src/PagoniaLand.App/PagoniaLand.App.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded
           -p:Version=${{ inputs.version }}
           -p:InformationalVersion=${{ inputs.version }}+${{ github.sha }}
 
@@ -145,7 +176,7 @@ jobs:
               paker)   cli=PagoniaLand.Paker.Cli ;;
               manager) cli=PagoniaLand.Manager.Cli ;;
             esac
-            bin="tools/pagonia-$tool/src/$cli/bin/Release/net8.0/${{ matrix.rid }}/publish/pagonia-$tool"
+            bin="tools/pagonia-$tool/src/$cli/bin/Release/net10.0/${{ matrix.rid }}/publish/pagonia-$tool"
             codesign --force --sign - --timestamp=none "$bin"
             codesign --verify --verbose=2 "$bin"
           done
@@ -160,7 +191,7 @@ jobs:
           }
           foreach ($tool in $tools.Keys) {
             $cli = $tools[$tool]
-            $bin = "tools/pagonia-$tool/src/$cli/bin/Release/net8.0/${{ matrix.rid }}/publish/pagonia-$tool${{ matrix.ext }}"
+            $bin = "tools/pagonia-$tool/src/$cli/bin/Release/net10.0/${{ matrix.rid }}/publish/pagonia-$tool${{ matrix.ext }}"
             if ($IsLinux -or $IsMacOS) {
               chmod +x $bin
             }
@@ -169,6 +200,19 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "pagonia-$tool --version failed" }
           }
 
+      # The GUI app has no --version flag (launching it would open a window), so sanity-check the
+      # published single-file by existence + plausible size before it's archived — a publish that
+      # silently emitted nothing (or a stub) would otherwise ship to the Release attached.
+      - name: Sanity-check the published app single-file
+        if: ${{ matrix.app }}
+        shell: pwsh
+        run: |
+          $exe = "app/src/PagoniaLand.App/bin/Release/net10.0/${{ matrix.rid }}/publish/Pagonia Land${{ matrix.ext }}"
+          if (-not (Test-Path $exe)) { throw "app publish produced no '$exe'" }
+          $len = (Get-Item $exe).Length
+          if ($len -lt 1MB) { throw "app single-file '$exe' is implausibly small ($len bytes)" }
+          Write-Host "==> app single-file OK: $exe ($([math]::Round($len / 1MB, 1)) MB)"
+
       - name: Package per-tool archives
         shell: pwsh
         run: |
@@ -176,7 +220,7 @@ jobs:
           # `pagonia-manager-win-x64.zip`) so the README's
           # `releases/latest/download/<name>` links stay stable across releases.
           # The wrapper directory INSIDE the archive keeps the version
-          # (`pagonia-manager-0.1.0-win-x64/`) so extracted folders self-identify
+          # (`pagonia-manager-<version>-win-x64/`) so extracted folders self-identify
           # and don't collide across versions on disk.
           $tools = @{
             patcher = 'PagoniaLand.Patcher.Cli'
@@ -187,7 +231,7 @@ jobs:
 
           foreach ($tool in $tools.Keys) {
             $cli         = $tools[$tool]
-            $pubDir      = "tools/pagonia-$tool/src/$cli/bin/Release/net8.0/${{ matrix.rid }}/publish"
+            $pubDir      = "tools/pagonia-$tool/src/$cli/bin/Release/net10.0/${{ matrix.rid }}/publish"
             $wrapperName = "pagonia-$tool-${{ inputs.version }}-${{ matrix.rid }}"
             $stageDir    = "stage/$wrapperName"
 
@@ -196,6 +240,7 @@ jobs:
             Copy-Item "tools/pagonia-$tool/README.md" "$stageDir/"
             Copy-Item "tools/pagonia-$tool/CLI.md"    "$stageDir/"
             Copy-Item "LICENSE"                       "$stageDir/"
+            Copy-Item "THIRD-PARTY-NOTICES.md"        "$stageDir/"
 
             $archive = "out/pagonia-$tool-${{ matrix.rid }}.${{ matrix.archive_ext }}"
             if ('${{ matrix.archive_ext }}' -eq 'zip') {
@@ -208,6 +253,31 @@ jobs:
           }
 
           Get-ChildItem out | Format-Table
+
+      - name: Package app archive
+        if: ${{ matrix.app }}
+        shell: pwsh
+        run: |
+          # Versionless archive name (stable releases/latest links); versioned wrapper dir inside.
+          $pubDir      = "app/src/PagoniaLand.App/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          $wrapperName = "pagonia-land-app-${{ inputs.version }}-${{ matrix.rid }}"
+          $stageDir    = "stage-app/$wrapperName"
+
+          New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
+          Copy-Item "$pubDir/Pagonia Land${{ matrix.ext }}" "$stageDir/"
+          Copy-Item "app/README.md"          "$stageDir/"
+          Copy-Item "app/CHANGELOG.md"       "$stageDir/"
+          Copy-Item "LICENSE"                "$stageDir/"
+          Copy-Item "THIRD-PARTY-NOTICES.md" "$stageDir/"
+
+          New-Item -ItemType Directory -Path 'out' -Force | Out-Null
+          $archive = "out/pagonia-land-app-${{ matrix.rid }}.${{ matrix.archive_ext }}"
+          if ('${{ matrix.archive_ext }}' -eq 'zip') {
+            Compress-Archive -Path $stageDir -DestinationPath $archive -Force
+          } else {
+            tar -czf $archive -C 'stage-app' $wrapperName
+          }
+          Write-Host "==> packaged $archive (wraps $wrapperName/)"
 
       - name: Upload archives
         uses: actions/upload-artifact@v7
@@ -223,7 +293,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Package schemas bundle
         shell: bash
@@ -285,7 +355,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8

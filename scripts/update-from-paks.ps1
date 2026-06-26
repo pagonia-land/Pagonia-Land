@@ -23,7 +23,7 @@
 #
 # Usage:
 #   pwsh ./scripts/update-from-paks.ps1                                # auto-reads version from the game-paks/ exe
-#   pwsh ./scripts/update-from-paks.ps1 -NewVersion 1.4.0-11944+194631
+#   pwsh ./scripts/update-from-paks.ps1 -NewVersion 1.4.0-11975+194885
 #
 # Without -NewVersion, the version is read from the game executable staged in
 # game-paks/ (its ProductVersion — the same string mods declare as

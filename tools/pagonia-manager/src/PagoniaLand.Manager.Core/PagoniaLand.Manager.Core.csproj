@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.3.0</Version>
-    <AssemblyVersion>0.3.0.0</AssemblyVersion>
-    <FileVersion>0.3.0.0</FileVersion>
-    <InformationalVersion>0.3.0-dev</InformationalVersion>
+    <Version>0.4.0</Version>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
+    <FileVersion>0.4.0.0</FileVersion>
+    <InformationalVersion>0.4.0-dev</InformationalVersion>
     <!--
       Keep InformationalVersion exactly as set: don't let the SDK auto-append
       "+<git commit>". Locally that kept the version clean (0.1.0-dev), and in
@@ -31,7 +31,7 @@
     Manager.Core wraps the two engine cores. Both are referenced directly so the
     dependency graph is obvious from this csproj alone (Patcher.Core already
     pulls Paker.Core transitively, but explicit beats implicit here). All three
-    libraries target .NET 8 with AOT-friendly types, so the published manager
+    libraries target .NET 10 with AOT-friendly types, so the published manager
     binary stays trimmable.
   -->
   <ItemGroup>
@@ -65,6 +65,7 @@
     <EmbeddedResource Include="..\..\..\..\schemas\manager\collection-install-report.schema.json" LogicalName="PagoniaLand.Manager.Schemas.collection-install-report.schema.json" />
     <EmbeddedResource Include="..\..\..\..\schemas\manager\status-report.schema.json" LogicalName="PagoniaLand.Manager.Schemas.status-report.schema.json" />
     <EmbeddedResource Include="..\..\..\..\schemas\manager\deploy-status-report.schema.json" LogicalName="PagoniaLand.Manager.Schemas.deploy-status-report.schema.json" />
+    <EmbeddedResource Include="..\..\..\..\schemas\manager\updates-report.schema.json" LogicalName="PagoniaLand.Manager.Schemas.updates-report.schema.json" />
     <EmbeddedResource Include="..\..\..\..\schemas\manager\tweak-list.schema.json" LogicalName="PagoniaLand.Manager.Schemas.tweak-list.schema.json" />
     <EmbeddedResource Include="..\..\..\..\schemas\manager\tweak-set.schema.json" LogicalName="PagoniaLand.Manager.Schemas.tweak-set.schema.json" />
     <EmbeddedResource Include="..\..\..\..\schemas\manager\tweak-reset.schema.json" LogicalName="PagoniaLand.Manager.Schemas.tweak-reset.schema.json" />

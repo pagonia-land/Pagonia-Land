@@ -1,11 +1,11 @@
 # Dependabot configuration.
 #
-# Why: keep NuGet dependencies for the three .NET tools and GitHub Actions
-# pinned versions current without manual sweeps. Updates land as PRs against
-# main that the maintainer can review on a weekly cadence.
+# Why: keep NuGet dependencies for the three .NET tools, the Pagonia Land app, and
+# GitHub Actions pinned versions current without manual sweeps. Updates land as PRs
+# against main that the maintainer can review on a weekly cadence.
 #
 # What we DO NOT auto-update:
-#   - Anything outside the three tool projects (no python, npm, etc. — none today)
+#   - Anything outside the tool projects + the app (no python, npm, etc. — none today)
 #
 # Scope rationale: each tool gets its own ecosystem block so PRs are scoped
 # to one tool at a time. A single root-level NuGet block would lump updates
@@ -52,6 +52,20 @@ updates:
       - manager
     commit-message:
       prefix: "manager: deps"
+
+  # NuGet — Pagonia Land app (Avalonia GUI). Recurses into app/src/* to find both the
+  # app and Catalog.Core csproj, the same way the tool blocks above recurse into src/.
+  - package-ecosystem: nuget
+    directory: /app
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - app
+    commit-message:
+      prefix: "app: deps"
 
   # GitHub Actions — every action @version is pinned and watched
   - package-ecosystem: github-actions

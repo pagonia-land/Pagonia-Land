@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pagonia-land/Pagonia-Land/schemas/paker/loca-info-report.schema.json",
+  "title": "Pagonia Land Paker Loca Info Report",
+  "description": "JSON report emitted by `pagonia-paker loca info --json <path> <loca>`. Describes the decoded contents of a Pioneers of Pagonia compiled-localization blob (`<modulename>/localization/loca_<lang>.bin`): the flat, positionally ordered list of localized strings it carries, and any diagnostics from parsing. The format has no header or key table — strings are .NET 7-bit-length-prefixed UTF-8, read until end-of-stream — so the decode is best-effort.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Loca",
+    "Success",
+    "StringCount",
+    "Strings",
+    "Diagnostics"
+  ],
+  "properties": {
+    "Loca": {
+      "type": "string",
+      "description": "Path to the loca_<lang>.bin file the report describes."
+    },
+    "Success": {
+      "type": "boolean",
+      "description": "True when the file parsed cleanly. On false, see Diagnostics for the parse error."
+    },
+    "StringCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of strings decoded from the blob."
+    },
+    "Strings": {
+      "type": "array",
+      "description": "The localized strings in on-disk order. The engine appears to resolve these by position from the GameDatabase side; no embedded keys are stored in the blob.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "Diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "Severity",
+        "Code",
+        "Message",
+        "Path"
+      ],
+      "properties": {
+        "Severity": {
+          "type": "string",
+          "enum": [
+            "Info",
+            "Warning",
+            "Error"
+          ]
+        },
+        "Code": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        },
+        "Path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

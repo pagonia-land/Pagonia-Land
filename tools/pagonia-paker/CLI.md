@@ -15,6 +15,7 @@ pagonia-paker patch      [-j <n>] [--json <report>] [--delete <path> ...] [--no-
 pagonia-paker compress   <input> <output>
 pagonia-paker decompress <input> <output>
 pagonia-paker gdbin info [--json <report>] <gdbin>
+pagonia-paker loca info  [--json <report>] <loca>
 pagonia-paker classify   [--json <report>] <pak>
 ```
 
@@ -115,16 +116,38 @@ Read a `<modulename>.gd.bin` index file (the small index that lists which `*.gd.
 
 ```text
 Gdbin: game-paks/core/core.gd.bin
-Entries: 43
-Header: 0x03 0x00 0x02 0x2A 0x00 0x00 0x00
+Entries: 44
+Header: 0x03 0x00 0x02 0x2B 0x00 0x00 0x00
+EditorTerminator: no
   [0] core/gdb/abilities.gd.xml
   [1] core/gdb/audio.gd.xml
   ...
 ```
 
-With `--json <path>` the same information is written to disk as a `GdBinInfoReport` (entries list, hex-formatted header, diagnostics). The CLI rejects filter flags on this subcommand.
+`EditorTerminator` reports whether the index ended with the 1.4.0 Pagonia Editor's zero-length terminator record (`yes` for editor-emitted paks, `no` for the shipped `core`/`dlc1`/… indexes) — see the format section below.
+
+With `--json <path>` the same information is written to disk as a `GdBinInfoReport` (entries list, hex-formatted header, `HasTrailingTerminator`, diagnostics). The CLI rejects filter flags on this subcommand.
 
 For the format itself, see the `.gd.bin Index Format` section below.
+
+### `loca info [--json <report>] <loca>`
+
+Read a compiled `loca_<lang>.bin` localization blob (the file an editor mod ships under `<modulename>/localization/`) and print the strings it carries, in on-disk order:
+
+```text
+Loca: package map with dlc1 and gdb/localization/loca_en_us.bin
+Strings: 6
+  [0] My Animal Farm
+  [1] Wookieetreibers Animal farm
+  [2] My Animal Farm Plural
+  [3] A Farms
+  [4] My Animal Farm detail view description
+  [5] Map exclusive
+```
+
+With `--json <path>` the same information is written to disk as a `LocaInfoReport` (string list, count, diagnostics). The CLI rejects filter flags on this subcommand.
+
+The blob has no header, version, or key table — it is a bare sequence of strings read until end-of-stream, so the decode is best-effort and there is no magic number to confirm a candidate file actually is a loca blob. For the byte layout, see the `loca_<lang>.bin Localization Format` section below.
 
 ## Filter Flags (for `unpack` and `pack`)
 
@@ -140,7 +163,7 @@ Filters are AND-composed. Entry indices are 0-based and refer to the positions i
 
 `-c` and `-d` are mutually exclusive — passing both is a usage error. The flags can appear before or after the positional arguments and in any order; both `--name value` and `--name=value` are accepted.
 
-## JSON Reports (for `list`, `unpack`, `pack`, `patch`)
+## JSON Reports (for `list`, `unpack`, `pack`, `patch`, `classify`, `gdbin info`, `loca info`)
 
 | Flag | Form | Effect |
 | --- | --- | --- |
@@ -154,6 +177,9 @@ The report shapes are documented in the [`schemas/paker/`](../../schemas/paker/)
 | `unpack` | [pak-unpack-report.schema.json](../../schemas/paker/pak-unpack-report.schema.json) |
 | `pack` | [pak-pack-report.schema.json](../../schemas/paker/pak-pack-report.schema.json) |
 | `patch` | [pak-patch-report.schema.json](../../schemas/paker/pak-patch-report.schema.json) |
+| `classify` | [pak-classify-report.schema.json](../../schemas/paker/pak-classify-report.schema.json) |
+| `gdbin info` | [gdbin-info-report.schema.json](../../schemas/paker/gdbin-info-report.schema.json) |
+| `loca info` | [loca-info-report.schema.json](../../schemas/paker/loca-info-report.schema.json) |
 
 Every report carries a `Diagnostics` array with the same `{Severity, Code, Message, Path}` shape the patcher uses. A mod manager that already reads patcher diagnostics needs no extra code to read paker ones.
 
@@ -228,6 +254,10 @@ gdbinHeaderInvalid
 gdbinEntryTruncated
 gdbinPathDecodingFailed
 
+# loca blob errors
+locaEntryTruncated
+locaStringDecodingFailed
+
 # Classify warnings
 classifyMultipleModules
 classifyManifestUnreadable
@@ -240,6 +270,7 @@ pakPatchWritten
 pakEntryAdded
 pakEntryDeleted
 gdbinRead
+locaRead
 pakPatchGdbinUpdated
 pakClassified
 ```
@@ -254,25 +285,52 @@ Layout:
 [byte 0]      0x03               magic (constant)
 [byte 1]      0x00 or 0x01       semantics unknown — possibly a minor version
 [byte 2]      0x02               magic (constant)
-[byte 3]      (entries.Count - 1) low byte — matches all four shipped indexes
+[byte 3]      (record count - 1) low byte — see below (the editor terminator counts)
 [bytes 4..6]  0x00 0x00 0x00     padding/reserved (constant)
-[entries]     repeated until EOF:
+[entries]     repeated:
                 uint32 LE  length in UTF-16 code units
                 length*2   bytes UTF-16 LE path inside the pak
+[terminator]  uint32 LE 0x00000000  — present only on 1.4.0-editor-emitted indexes
 ```
 
-There is no entry count field and no terminator — the reader consumes entries until the stream is exhausted. Entry paths are in-pak paths (not on-disk paths), forward slashes throughout, and may point outside the owning module's namespace (e.g. `tools/tools.gd.bin` carries `core/audio/core.guids` alongside its own `tools/gdb/magmaview.gd.xml`).
+Entry paths are in-pak paths (not on-disk paths), forward slashes throughout, and may point outside the owning module's namespace (e.g. `tools/tools.gd.bin` carries `core/audio/core.guids` alongside its own `tools/gdb/magmaview.gd.xml`).
 
-The seven-byte header is preserved verbatim by `GdBinReader` and `GdBinWriter` so reads round-trip byte-identically. When scaffolding a new `.gd.bin` from scratch, callers can either start from `GdBinIndex.CreateEmpty()` (which uses a default header matching `decorations1.gd.bin`'s shape) or use `GdBinFormatConstants.ComputeHeaderByte3(int)` to derive byte[3] from the entry count.
+**Two producers, two tails.** The shipped paks (`core`/`dlc1`/`decorations1`/`tools`) have no entry count and no terminator — the reader consumes entries until the stream is exhausted. The **1.4.0 Pagonia Editor** instead closes every index it writes with a zero-length terminator record (`00 00 00 00`): after the last entry, or alone after the header for an empty index (a map-only mod's module-level `<m>.gd.bin` is exactly the 7-byte header + this terminator). `GdBinReader` tolerates both — a zero-length record is treated as end-of-list — and records which shape it saw on `GdBinIndex.HasTrailingTerminator` (surfaced as `EditorTerminator` / `HasTrailingTerminator`), so `GdBinWriter` re-serialises either byte-identically.
 
-| Shipped index | Entries | Header bytes (hex) |
-| --- | ---: | --- |
-| `core/core.gd.bin` | 43 | `03 00 02 2A 00 00 00` |
-| `dlc1/dlc1.gd.bin` | 15 | `03 00 02 0E 00 00 00` |
-| `decorations1/decorations1.gd.bin` | 2 | `03 00 02 01 00 00 00` |
-| `tools/tools.gd.bin` | 2 | `03 01 02 01 00 00 00` |
+The seven-byte header is preserved verbatim by `GdBinReader` and `GdBinWriter`. When scaffolding a new `.gd.bin` from scratch, callers can either start from `GdBinIndex.CreateEmpty()` (which uses a default header matching `decorations1.gd.bin`'s shape) or use `GdBinFormatConstants.ComputeHeaderByte3(int)` to derive byte[3] from the record count.
 
-Byte[3] is consistent with `entries.Count - 1` across all four. Whether the engine actually reads byte[3] as a count, ignores it, or treats it as something else (highest GameDatabase-key index?) is unverified — the conservative move when editing an index is to keep byte[3] in sync via `WithComputedHeader()`. Byte[1] varies between `0x00` (core/dlc1/decorations1) and `0x01` (tools), with no observed correlation; preserving it from the source file is the safe choice.
+| Index | Entries | Terminator | Header bytes (hex) |
+| --- | ---: | --- | --- |
+| `core/core.gd.bin` (1.4.0) | 44 | no | `03 00 02 2B 00 00 00` |
+| `dlc1/dlc1.gd.bin` | 15 | no | `03 00 02 0E 00 00 00` |
+| `decorations1/decorations1.gd.bin` | 2 | no | `03 00 02 01 00 00 00` |
+| `tools/tools.gd.bin` | 2 | no | `03 01 02 01 00 00 00` |
+| editor single-entry mod (e.g. the 1.4.0-editor test paks) | 1 | yes | `03 00 02 01 00 00 00` |
+| editor map-only module index | 0 | yes | `03 00 02 00 00 00 00` |
+
+Byte[3] is consistent with `(record count) - 1` across every observed index, where the **editor's terminator counts as a record**: shipped `core` reads `0x2B`=43 for 44 entries, while the editor's single-entry index reads `0x01` (1 entry + terminator − 1) and its empty index reads `0x00` (0 + terminator − 1). Whether the engine actually reads byte[3] as a count, ignores it, or treats it as something else is unverified — the conservative move when editing an index is to keep byte[3] in sync via `WithComputedHeader()` (which counts the terminator when present). Byte[1] varies between `0x00` (core/dlc1/decorations1) and `0x01` (tools), with no observed correlation; preserving it from the source file is the safe choice. (Shipped entry counts track the game version — `core` was 43 before the 1.4.0 update and is 44 after.)
+
+## `loca_<lang>.bin` Localization Format
+
+A `loca_<lang>.bin` file (e.g. `loca_en_us.bin`) is the compiled-localization blob an editor mod ships under `<modulename>/localization/`. The format was inferred empirically from two test paks produced by the 1.4.0 Pagonia Editor ("package gdb with dependency" and "package map with dlc1 and gdb"), so treat it as a best-effort decode rather than a guaranteed spec.
+
+Layout:
+
+```text
+[no header, no count field]
+[strings]   repeated until EOF:
+              7-bit-encoded int   byte length of the UTF-8 payload (LEB128-style)
+              length              bytes UTF-8 string
+```
+
+Each string is exactly what `System.IO.BinaryWriter.Write(string)` emits: a length-prefixed UTF-8 string where the prefix is a 7-bit-encoded integer holding the **byte** length, not the character count. In both sample files every prefix fit in a single byte (e.g. `0x12`=18 for `MY Festival Ground`, `0x26`=38 for `My Animal Farm detail view description`); strings ≥ 128 bytes use the multi-byte continuation form (`GdBinReader`'s sibling `LocaReader` decodes both, but the multi-byte case has not been observed in the wild).
+
+There is no magic number, version, or string count — like `.gd.bin`, the file is a bare sequence read until end-of-stream, and a 0-byte file is a valid empty blob. The strings appear to be **value-only and positionally ordered**; no embedded keys were seen, so the engine presumably resolves them by index from the GameDatabase side. Because there is no magic, `loca info` cannot prove a candidate file *is* a loca blob beyond "every length prefix lands inside the stream and every payload decodes as UTF-8".
+
+| Sample blob | Strings | Bytes | First string (prefix → value) |
+| --- | ---: | ---: | --- |
+| `package gdb with dependency` `loca_en_us.bin` | 2 | 49 | `0x12` → `MY Festival Ground` |
+| `package map with dlc1 and gdb` `loca_en_us.bin` | 6 | 126 | `0x0E` → `My Animal Farm` |
 
 ## Publishing A Standalone Binary
 
@@ -290,7 +348,7 @@ dotnet publish ./src/PagoniaLand.Paker.Cli -c Release -r osx-x64
 dotnet publish ./src/PagoniaLand.Paker.Cli -c Release -r osx-arm64
 ```
 
-The output ends up in `src/PagoniaLand.Paker.Cli/bin/Release/net8.0/<rid>/publish/`. On Windows that is `pagonia-paker.exe`. The binary can be copied somewhere on `PATH` and used directly:
+The output ends up in `src/PagoniaLand.Paker.Cli/bin/Release/net10.0/<rid>/publish/`. On Windows that is `pagonia-paker.exe`. The binary can be copied somewhere on `PATH` and used directly:
 
 ```powershell
 pagonia-paker --version
@@ -303,7 +361,7 @@ AOT cross-compilation needs the target's native toolchain, so producing all plat
 To verify a release build, after publishing run the same command set the test runner exercises:
 
 ```powershell
-$exe = ".\src\PagoniaLand.Paker.Cli\bin\Release\net8.0\win-x64\publish\pagonia-paker.exe"
+$exe = ".\src\PagoniaLand.Paker.Cli\bin\Release\net10.0\win-x64\publish\pagonia-paker.exe"
 & $exe --version
 & $exe list   <pak> <out-dir>
 & $exe unpack <pak> <out-dir>

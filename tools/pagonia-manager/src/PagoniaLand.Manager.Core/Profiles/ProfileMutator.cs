@@ -39,6 +39,7 @@ public sealed class ProfileMutator
                 Id = modId,
                 Version = version,
                 Tweaks = enabled[existingIndex].Tweaks,
+                UserTweaks = enabled[existingIndex].UserTweaks,
             };
         }
         else

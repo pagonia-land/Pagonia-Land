@@ -31,7 +31,7 @@ No .NET runtime needed at the destination. Building from source is also document
 
 ## How Changes Are Validated
 
-If you modify anything under this folder, run [`scripts/preflight.ps1`](../../scripts/preflight.ps1) from the repository root before committing. It builds both tool solutions, runs every test (currently 64 patcher tests, 58 paker tests), and runs `schema-validate` against every sandbox example. [`.github/workflows/tools.yml`](../../.github/workflows/tools.yml) runs the same steps on every push and PR. See [CONTRIBUTING.md → When You Touch Tools Or Schemas](../../CONTRIBUTING.md#when-you-touch-tools-or-schemas) for the contract between this codebase and the schemas under [`schemas/mod-patches/`](../../schemas/mod-patches/).
+If you modify anything under this folder, run [`scripts/preflight.ps1`](../../scripts/preflight.ps1) from the repository root before committing. It builds both tool solutions, runs every test (currently 174 patcher tests, 78 paker tests), and runs `schema-validate` against every sandbox example. [`.github/workflows/tools.yml`](../../.github/workflows/tools.yml) runs the same steps on every push and PR. See [CONTRIBUTING.md → When You Touch Tools Or Schemas](../../CONTRIBUTING.md#when-you-touch-tools-or-schemas) for the contract between this codebase and the schemas under [`schemas/mod-patches/`](../../schemas/mod-patches/).
 
 ## Implemented Commands
 
@@ -39,6 +39,7 @@ If you modify anything under this folder, run [`scripts/preflight.ps1`](../../sc
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- --version
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- inspect-mod --mod .\fixtures\mods\cheaper-sawmill
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- validate-mod --mod .\fixtures\mods\cheaper-sawmill
+dotnet run --project .\src\PagoniaLand.Patcher.Cli -- schema-validate --mod .\fixtures\mods\cheaper-sawmill
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- inspect-collection --collection ..\..\docs\examples\collections\beginner-qol.collection.yaml
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- inspect-lock --lock ..\..\docs\examples\collections\beginner-qol.collection-lock.yaml
 dotnet run --project .\src\PagoniaLand.Patcher.Cli -- resolve-collection --collection .\fixtures\collections\local-beginner.collection.yaml --mods-root .\fixtures\mods --lock .\fixtures\out\collection-lock.yaml

@@ -21,6 +21,16 @@ public sealed record GdBinIndex(
     IReadOnlyList<string> Entries)
 {
     /// <summary>
+    /// Whether the source index ended with a zero-length terminator record
+    /// (<c>00 00 00 00</c>). The 1.4.0 Pagonia Editor emits one on every index
+    /// it writes — after the last entry, or alone after the header for an empty
+    /// index — while the shipped paks (core/dlc1/…) end cleanly at EOF without
+    /// it. Tracked so <see cref="GdBinWriter"/> can round-trip an editor-emitted
+    /// index byte-identically. Defaults to <c>false</c> (shipped / scaffold shape).
+    /// </summary>
+    public bool HasTrailingTerminator { get; init; }
+
+    /// <summary>
     /// Build a fresh, empty index using <see cref="GdBinFormatConstants.DefaultHeader"/>.
     /// Use this when scaffolding a new mod pak from scratch; for round-tripping
     /// a shipped pak, prefer <see cref="GdBinReader.Read"/> which preserves the
@@ -57,7 +67,10 @@ public sealed record GdBinIndex(
         if (HeaderBytes.Count != GdBinFormatConstants.HeaderSize) return this;
         var next = new byte[GdBinFormatConstants.HeaderSize];
         for (var i = 0; i < next.Length; i++) next[i] = HeaderBytes[i];
-        next[3] = GdBinFormatConstants.ComputeHeaderByte3(Entries.Count);
+        // byte[3] tracks (record count - 1); the editor's terminator counts as a
+        // record, so an index that carries one contributes +1 (see GdBinFormatConstants).
+        var recordCount = Entries.Count + (HasTrailingTerminator ? 1 : 0);
+        next[3] = GdBinFormatConstants.ComputeHeaderByte3(recordCount);
         return this with { HeaderBytes = next };
     }
 }

@@ -48,4 +48,4 @@ Downloads on the [latest release](https://github.com/pagonia-land/Pagonia-Land/r
 
 ## Where Modding Fits
 
-The Pagonia Editor that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod; the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it. Pagonia Land is the GameDatabase data and distribution side underneath: a structured map of it, declarative patches with conflict detection, and the install / deploy / rollback lifecycle.
+The Pagonia Editor that ships with the game lets you author all of it — maps, scenarios, GameDatabase changes — and publish it as a `.pak` mod; the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it. Pagonia Land **complements** it, not replaces it: a structured map of the GameDatabase, declarative patches with conflict detection for the text / CI path, and the install / deploy / rollback lifecycle.

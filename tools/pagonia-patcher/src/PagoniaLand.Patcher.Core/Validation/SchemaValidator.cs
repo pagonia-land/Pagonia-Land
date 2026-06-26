@@ -27,21 +27,37 @@ public sealed class SchemaValidator
 {
     private const string ResourcePrefix = "PagoniaLand.Patcher.Schemas.";
 
-    private readonly JsonSchema _modSchema;
     private readonly JsonSchema _patchFileSchema;
-    private readonly JsonSchema _collectionSchema;
-    private readonly JsonSchema _collectionLockSchema;
-    private readonly JsonSchema _repoIndexSchema;
-    private readonly JsonSchema _catalogSchema;
+    private readonly FormatVersionPolicy _formatPolicy = new();
+
+    // Two compiled variants per versioned format: the strict schema (with the
+    // schema's own additionalProperties:false) for same-major files, and a relaxed
+    // variant (additionalProperties tolerated) used only for a newer-minor file so
+    // its unknown optional fields are ignored rather than rejected — the read tier
+    // the closed-enum approach couldn't express. See FormatVersionPolicy.
+    private readonly Dictionary<ManagedFormat, JsonSchema> _strictByFormat;
+    private readonly Dictionary<ManagedFormat, JsonSchema> _relaxedByFormat;
 
     public SchemaValidator()
     {
-        _modSchema = LoadEmbeddedSchema("mod.schema.json");
         _patchFileSchema = LoadEmbeddedSchema("patch-file.schema.json");
-        _collectionSchema = LoadEmbeddedSchema("collection.schema.json");
-        _collectionLockSchema = LoadEmbeddedSchema("collection-lock.schema.json");
-        _repoIndexSchema = LoadEmbeddedSchema("repo-index.schema.json");
-        _catalogSchema = LoadEmbeddedSchema("catalog.schema.json");
+
+        _strictByFormat = new Dictionary<ManagedFormat, JsonSchema>
+        {
+            [ManagedFormat.Mod] = LoadEmbeddedSchema("mod.schema.json"),
+            [ManagedFormat.Collection] = LoadEmbeddedSchema("collection.schema.json"),
+            [ManagedFormat.CollectionLock] = LoadEmbeddedSchema("collection-lock.schema.json"),
+            [ManagedFormat.RepoIndex] = LoadEmbeddedSchema("repo-index.schema.json"),
+            [ManagedFormat.Catalog] = LoadEmbeddedSchema("catalog.schema.json"),
+        };
+        _relaxedByFormat = new Dictionary<ManagedFormat, JsonSchema>
+        {
+            [ManagedFormat.Mod] = LoadRelaxedSchema("mod.schema.json"),
+            [ManagedFormat.Collection] = LoadRelaxedSchema("collection.schema.json"),
+            [ManagedFormat.CollectionLock] = LoadRelaxedSchema("collection-lock.schema.json"),
+            [ManagedFormat.RepoIndex] = LoadRelaxedSchema("repo-index.schema.json"),
+            [ManagedFormat.Catalog] = LoadRelaxedSchema("catalog.schema.json"),
+        };
     }
 
     /// <summary>
@@ -61,7 +77,7 @@ public sealed class SchemaValidator
             return diagnostics;
         }
 
-        ValidateFile(modYamlPath, _modSchema, "mod.yaml", diagnostics);
+        ValidateVersionedFile(modYamlPath, ManagedFormat.Mod, "mod.yaml", diagnostics);
 
         // Discover referenced patch files by re-parsing the mod manifest minimally. We deliberately
         // do not depend on ManifestReader / LoadedMod here so this validator can run even when the
@@ -75,7 +91,7 @@ public sealed class SchemaValidator
                 continue;
             }
 
-            ValidateFile(resolved, _patchFileSchema, patchPath, diagnostics);
+            ValidateAgainstSchema(resolved, _patchFileSchema, patchPath, diagnostics);
         }
 
         return diagnostics;
@@ -93,7 +109,7 @@ public sealed class SchemaValidator
             return diagnostics;
         }
 
-        ValidateFile(collectionYamlPath, _collectionSchema, Path.GetFileName(collectionYamlPath), diagnostics);
+        ValidateVersionedFile(collectionYamlPath, ManagedFormat.Collection, Path.GetFileName(collectionYamlPath), diagnostics);
         return diagnostics;
     }
 
@@ -109,7 +125,7 @@ public sealed class SchemaValidator
             return diagnostics;
         }
 
-        ValidateFile(lockYamlPath, _collectionLockSchema, Path.GetFileName(lockYamlPath), diagnostics);
+        ValidateVersionedFile(lockYamlPath, ManagedFormat.CollectionLock, Path.GetFileName(lockYamlPath), diagnostics);
         return diagnostics;
     }
 
@@ -127,7 +143,7 @@ public sealed class SchemaValidator
             return diagnostics;
         }
 
-        ValidateFile(repoIndexPath, _repoIndexSchema, Path.GetFileName(repoIndexPath), diagnostics);
+        ValidateVersionedFile(repoIndexPath, ManagedFormat.RepoIndex, Path.GetFileName(repoIndexPath), diagnostics);
         return diagnostics;
     }
 
@@ -146,12 +162,57 @@ public sealed class SchemaValidator
             return diagnostics;
         }
 
-        ValidateFile(catalogPath, _catalogSchema, Path.GetFileName(catalogPath), diagnostics);
+        ValidateVersionedFile(catalogPath, ManagedFormat.Catalog, Path.GetFileName(catalogPath), diagnostics);
         return diagnostics;
     }
 
-    private void ValidateFile(string filePath, JsonSchema schema, string displayPath, List<PatchDiagnostic> diagnostics)
+    /// <summary>
+    /// Validate a file that carries a <c>*FormatVersion</c> field. The format-version
+    /// gate runs <em>before</em> strict schema validation (so a newer-minor file isn't
+    /// rejected for an unknown optional field by <c>additionalProperties: false</c>):
+    /// a newer/retired major or a malformed value is reported and validation stops; a
+    /// newer minor reads against the relaxed schema; a same-major known/older minor
+    /// reads against the strict schema.
+    /// </summary>
+    private void ValidateVersionedFile(string filePath, ManagedFormat format, string displayPath, List<PatchDiagnostic> diagnostics)
     {
+        if (!TryLoadYamlNode(filePath, out var node, diagnostics))
+        {
+            return;
+        }
+
+        var declared = ReadVersionField(node, FormatVersionPolicy.FieldName(format));
+        var verdict = _formatPolicy.Evaluate(format, declared);
+        if (verdict.Diagnostic is not null)
+        {
+            diagnostics.Add(verdict.Diagnostic);
+        }
+        if (!verdict.Accepted)
+        {
+            return;
+        }
+
+        var schema = verdict.TolerateUnknownFields ? _relaxedByFormat[format] : _strictByFormat[format];
+        EvaluateNodeAgainstSchema(node, schema, displayPath, filePath, diagnostics);
+    }
+
+    /// <summary>
+    /// Validate a file that has no format-version field (a patch file) against
+    /// <paramref name="schema"/> directly.
+    /// </summary>
+    private void ValidateAgainstSchema(string filePath, JsonSchema schema, string displayPath, List<PatchDiagnostic> diagnostics)
+    {
+        if (!TryLoadYamlNode(filePath, out var node, diagnostics))
+        {
+            return;
+        }
+
+        EvaluateNodeAgainstSchema(node, schema, displayPath, filePath, diagnostics);
+    }
+
+    private static bool TryLoadYamlNode(string filePath, out JsonNode? node, List<PatchDiagnostic> diagnostics)
+    {
+        node = null;
         string yamlText;
         try
         {
@@ -160,10 +221,9 @@ public sealed class SchemaValidator
         catch (Exception ex)
         {
             diagnostics.Add(Error(DiagnosticCodes.SchemaValidationFailed, $"Cannot read file: {ex.Message}", filePath));
-            return;
+            return false;
         }
 
-        JsonNode? node;
         try
         {
             node = YamlToJsonNode(yamlText);
@@ -171,9 +231,24 @@ public sealed class SchemaValidator
         catch (Exception ex)
         {
             diagnostics.Add(Error(DiagnosticCodes.SchemaValidationFailed, $"YAML parse failed: {ex.Message}", filePath));
-            return;
+            return false;
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// Read a root scalar field as a string, whether it was authored as a string or a
+    /// number (so <c>0.1</c> and <c>"0.1"</c> both reach the policy as <c>"0.1"</c>).
+    /// Returns null when the field is absent.
+    /// </summary>
+    private static string? ReadVersionField(JsonNode? node, string field)
+        => node is JsonObject obj && obj.TryGetPropertyValue(field, out var value) && value is not null
+            ? value.ToString()
+            : null;
+
+    private static void EvaluateNodeAgainstSchema(JsonNode? node, JsonSchema schema, string displayPath, string filePath, List<PatchDiagnostic> diagnostics)
+    {
         EvaluationResults results;
         try
         {
@@ -424,21 +499,67 @@ public sealed class SchemaValidator
         return obj;
     }
 
-    private static JsonSchema LoadEmbeddedSchema(string fileName)
+    private static JsonSchema LoadEmbeddedSchema(string fileName) => CompileSchema(LoadSchemaText(fileName));
+
+    /// <summary>
+    /// Compile a copy of <paramref name="fileName"/>'s schema with every
+    /// <c>additionalProperties: false</c> removed, so a newer-minor file's unknown
+    /// optional fields pass. Only used for the <see cref="FormatVersionTier.MinorAhead"/>
+    /// tier — such a file was written by a newer tool we trust to have validated it,
+    /// so tolerating fields this build doesn't know is the whole point of the tier.
+    /// </summary>
+    private static JsonSchema LoadRelaxedSchema(string fileName)
+    {
+        var root = JsonNode.Parse(LoadSchemaText(fileName))
+            ?? throw new InvalidOperationException($"Embedded schema '{fileName}' parsed to null.");
+        RelaxAdditionalProperties(root);
+        return CompileSchema(root.ToJsonString());
+    }
+
+    private static void RelaxAdditionalProperties(JsonNode? node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                if (obj.TryGetPropertyValue("additionalProperties", out var ap)
+                    && ap is JsonValue value && value.TryGetValue<bool>(out var allowed) && !allowed)
+                {
+                    obj["additionalProperties"] = true;
+                }
+                // ToList: RelaxAdditionalProperties only mutates the visited object's own
+                // additionalProperties, but snapshot the children to be safe against enumeration.
+                foreach (var (_, child) in obj.ToList())
+                {
+                    RelaxAdditionalProperties(child);
+                }
+                break;
+            case JsonArray array:
+                foreach (var item in array)
+                {
+                    RelaxAdditionalProperties(item);
+                }
+                break;
+        }
+    }
+
+    private static string LoadSchemaText(string fileName)
     {
         var assembly = typeof(SchemaValidator).Assembly;
         var resourceName = ResourcePrefix + fileName;
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded schema '{resourceName}' not found. Check the EmbeddedResource entries in PagoniaLand.Patcher.Core.csproj.");
         using var reader = new StreamReader(stream, Encoding.UTF8);
-        var schemaText = reader.ReadToEnd();
-        // JsonSchema.Net 9 registers each evaluated schema by $id and refuses to overwrite it with
-        // a different document. A second SchemaValidator instance re-parsing these schemas would
-        // otherwise throw "Overwriting registered schemas is not permitted". Build into a fresh
-        // local registry (which still falls back to the global one) so each parse is isolated;
-        // these schemas are self-contained (only internal #/$defs refs).
-        return JsonSchema.FromText(schemaText, new BuildOptions { SchemaRegistry = new SchemaRegistry() });
+        return reader.ReadToEnd();
     }
+
+    private static JsonSchema CompileSchema(string schemaText) =>
+        // JsonSchema.Net 9 registers each evaluated schema by $id and refuses to overwrite it with
+        // a different document. A second SchemaValidator instance re-parsing these schemas (or the
+        // strict + relaxed variants sharing a $id) would otherwise throw "Overwriting registered
+        // schemas is not permitted". Build into a fresh local registry (which still falls back to
+        // the global one) so each parse is isolated; these schemas are self-contained (only
+        // internal #/$defs refs).
+        JsonSchema.FromText(schemaText, new BuildOptions { SchemaRegistry = new SchemaRegistry() });
 
     private static PatchDiagnostic Error(string code, string message, string? path = null) =>
         new(PatchDiagnosticSeverity.Error, code, message, path);

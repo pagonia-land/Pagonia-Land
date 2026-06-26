@@ -106,10 +106,10 @@ public sealed class PakReader
 
         // A corrupt count (e.g. 0xFFFFFFFF) must not drive a multi-GB List allocation or a
         // ~2-billion-iteration read loop before a single entry is read. The smallest possible
-        // entry on disk is 18 bytes (1 compressed flag + 1-byte filename length + empty name +
+        // entry on disk is 21 bytes (1 compressed flag + 4-byte filename length + empty name +
         // 8-byte begin + 8-byte size), so a count whose entries can't fit the index data area is
         // corrupt — guard against count * minEntryBytes, not the looser count >= 1 byte bound.
-        const int minEntryBytes = 18;
+        const int minEntryBytes = 21;
         var indexDataLength = indexLength - PakFormatConstants.IndexHeaderSize;
         if ((long)count * minEntryBytes > indexDataLength)
         {
@@ -201,6 +201,17 @@ public sealed class PakReader
                     $"Expected long-filename marker 0x01 before a {filenameLength}-byte filename, found 0x{marker:X2}."));
                 return null;
             }
+        }
+
+        // Guard the allocation: a corrupt filenameLength (e.g. 0xFFFFFFFF) would otherwise throw
+        // OverflowException/OutOfMemoryException out of OpenIndex — neither is caught here, so the
+        // process crashes instead of emitting the clean PakEntryTruncated every other corrupt-index
+        // path produces. A filename can't be longer than the index bytes still ahead of it.
+        var remainingIndexBytes = indexStream.CanSeek ? indexStream.Length - indexStream.Position : long.MaxValue;
+        if (filenameLength > remainingIndexBytes)
+        {
+            diagnostics.Add(Error(DiagnosticCodes.PakEntryTruncated, $"Filename length {filenameLength} exceeds the {remainingIndexBytes} remaining index byte(s)."));
+            return null;
         }
 
         var filenameBytes = new byte[filenameLength];
@@ -295,17 +306,20 @@ public sealed class PakReader
 
     /// <summary>
     /// Reports whether a gd.bin entry lists at least one <c>*.gd.xml</c> resource path — i.e. whether
-    /// the module contributes GameDatabase content. Only the 7-byte header is pulled (cheap even for a
-    /// multi-MB gd.bin, since a compressed entry is decompressed lazily): it is validated for the
-    /// gd.bin magic <c>[0x03][versionMinor][0x02]</c> followed by three zero bytes, and content is
-    /// then decided by whether any entry record follows the header. An empty module-level gd.bin —
-    /// the editor emits one even for a map-only mod — is exactly the 7-byte header and reports
-    /// <c>false</c>.
+    /// the module contributes GameDatabase content. Only the 7-byte header plus the first 4-byte length
+    /// field are pulled (cheap even for a multi-MB gd.bin, since a compressed entry is decompressed
+    /// lazily): the header is validated for the gd.bin magic <c>[0x03][versionMinor][0x02]</c> followed
+    /// by three zero bytes, then content is decided by the first record's length. An empty module-level
+    /// gd.bin — the editor emits one even for a map-only mod — reports <c>false</c>.
     /// </summary>
     /// <remarks>
-    /// Byte 3 of the header is <c>entries.Count - 1</c> (see <see cref="GdBinFormatConstants"/>), NOT a
-    /// usable count: it reads as 0 for both an empty index AND a single-entry one, and wraps modulo 256.
-    /// So the presence of an entry record — not byte 3 — is the source of truth for "has content".
+    /// Two empty shapes exist and both must read as "no content": a shipped/scaffolded skeleton is
+    /// exactly the 7-byte header (no length field follows), while the 1.4.0 Pagonia Editor writes the
+    /// header plus a zero-length terminator (<c>00 00 00 00</c>). A naive "any byte past the header"
+    /// test mis-classifies the 11-byte editor-empty index as content (it once made a map-only editor
+    /// pak report a false <c>global</c> scope). Byte 3 of the header is no help — it reads 0 for both an
+    /// empty index and a single-entry one and wraps modulo 256 — so the <em>first record's length</em>
+    /// being non-zero is the source of truth.
     /// </remarks>
     public bool GdBinHasEntries(Stream pakStream, PakEntry entry)
     {
@@ -314,6 +328,8 @@ public sealed class PakReader
         if (entry.BeginOffset < 0 || entry.SizeInPak < 0 || entry.Size < 7) return false;
 
         Span<byte> head = stackalloc byte[7];
+        Span<byte> firstLength = stackalloc byte[4];
+        bool hasFirstLength;
         try
         {
             pakStream.Seek(entry.BeginOffset, SeekOrigin.Begin);
@@ -322,10 +338,12 @@ public sealed class PakReader
                 using var limited = new LimitedStream(pakStream, entry.SizeInPak);
                 using var gzip = new GZipStream(limited, CompressionMode.Decompress, leaveOpen: true);
                 if (!TryReadExactly(gzip, head)) return false;
+                hasFirstLength = TryReadExactly(gzip, firstLength);
             }
             else
             {
                 if (!TryReadExactly(pakStream, head)) return false;
+                hasFirstLength = TryReadExactly(pakStream, firstLength);
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException)
@@ -333,14 +351,14 @@ public sealed class PakReader
             return false;
         }
 
-        // gd.bin header: [0x03][versionMinor][0x02][entries.Count-1][0x00][0x00][0x00].
+        // gd.bin header: [0x03][versionMinor][0x02][record count-1][0x00][0x00][0x00].
         if (head[0] != 0x03 || head[2] != 0x02 || head[4] != 0x00 || head[5] != 0x00 || head[6] != 0x00)
             return false;
 
-        // Any bytes beyond the 7-byte header are entry records (a uint32 length + a UTF-16 path that
-        // the reader walks until EOF). A decompressed size past the header therefore means the index
-        // lists at least one resource — the reliable signal byte 3 cannot give for a single entry.
-        return entry.Size > 7;
+        // No length field at all → bare 7-byte skeleton (shipped/scaffold empty). A first length of 0
+        // is the editor's zero-length terminator on an otherwise-empty index. Either way: no resources.
+        if (!hasFirstLength) return false;
+        return BinaryPrimitives.ReadUInt32LittleEndian(firstLength) != 0;
     }
 
     private static bool TryReadExactly(Stream source, Span<byte> buffer)

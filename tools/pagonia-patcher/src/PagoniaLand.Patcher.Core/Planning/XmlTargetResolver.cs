@@ -667,6 +667,13 @@ public sealed class XmlTargetResolver
                 $"Operation '{operation.Id}' merge xml root <{parsedComponent.Name.LocalName}> must match target.component '{target.Component}'."));
         }
 
+        if (string.IsNullOrWhiteSpace(target.EntityGuid))
+        {
+            return TargetResolveResult.Failed(Error(
+                DiagnosticCodes.MissingPatchOperationField,
+                $"Operation '{operation.Id}' requires target.entityGuid: entityName alone cannot locate an existing entity."));
+        }
+
         var documentResult = LoadTargetDocument(gameRoot, operation);
         if (documentResult.Failure is not null)
         {
@@ -796,6 +803,18 @@ public sealed class XmlTargetResolver
                 fullPath)));
         }
 
+        // entityGuid is the only key FindEntity matches on. A target that carries only entityName
+        // (the schema's permissive anyOf allows it, because addEntity uses entityName as the new
+        // group name) cannot locate an *existing* entity — surface that precisely instead of the
+        // misleading "GUID '' was not found". Mirrors the removeEntity guard.
+        if (string.IsNullOrWhiteSpace(target.EntityGuid))
+        {
+            return TargetNodeResolution.Fail(TargetResolveResult.Failed(Error(
+                DiagnosticCodes.MissingPatchOperationField,
+                $"Operation '{operation.Id}' requires target.entityGuid: entityName alone cannot locate an existing entity.",
+                fullPath)));
+        }
+
         var entity = FindEntity(document, target.EntityGuid);
 
         if (entity is null)
@@ -895,9 +914,10 @@ public sealed class XmlTargetResolver
         return current;
     }
 
-    // Strip exactly one matching surrounding quote pair, so a value like 'O''Brien' or a
-    // genuinely-quoted literal is handled cleanly while a mismatched/duplicated quote isn't
-    // silently swallowed (the old char-set Trim removed any run of leading/trailing quotes).
+    // Strip exactly one matching surrounding quote pair, so a genuinely-quoted literal is
+    // handled cleanly while a mismatched/duplicated quote isn't silently swallowed (the old
+    // char-set Trim removed any run of leading/trailing quotes). Inner doubled quotes are not
+    // unescaped — only the outer pair is removed.
     private static string StripOneQuotePair(string value)
         => value.Length >= 2 && (value[0] == '\'' || value[0] == '"') && value[^1] == value[0]
             ? value[1..^1]
@@ -968,10 +988,26 @@ public sealed class XmlTargetResolver
     {
         var segmentStart = 0;
         var bracketDepth = 0;
+        var quote = '\0'; // the open quote char while inside a predicate value, else '\0'
 
         for (var index = 0; index < path.Length; index++)
         {
             var character = path[index];
+
+            // Inside a quoted predicate value, '[' / ']' / '/' are literal data — a value like
+            // Item[Name=']']/Sub must not be split at the in-quote ']' (which would otherwise drop
+            // bracketDepth to 0 and treat the following '/' as a top-level separator).
+            if (quote != '\0')
+            {
+                if (character == quote) { quote = '\0'; }
+                continue;
+            }
+
+            if (character is '\'' or '"')
+            {
+                quote = character;
+                continue;
+            }
 
             if (character == '[')
             {

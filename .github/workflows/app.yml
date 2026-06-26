@@ -1,0 +1,62 @@
+# Builds the "Pagonia Land" desktop app and runs its engine tests on every push
+# and PR that touches app/ (or the Paker.Core it depends on). The app is a separate
+# .slnx solution not covered by scripts/preflight.ps1 / the tools workflow, so this
+# is the workflow that catches app + Catalog.Core regressions before merge.
+#
+# Builds the .csproj directly (not the .slnx). The app, Catalog.Core, and the Paker.Core they
+# depend on all target net10.0. Multi-platform packaging lives in the release workflow; this
+# just guards build + tests on every push/PR.
+name: app
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'app/**'
+      - 'tools/pagonia-paker/src/PagoniaLand.Paker.Core/**'
+      - '.github/workflows/app.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'app/**'
+      - 'tools/pagonia-paker/src/PagoniaLand.Paker.Core/**'
+      - '.github/workflows/app.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build + engine tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build app (Release)
+        run: dotnet build app/src/PagoniaLand.App/PagoniaLand.App.csproj -c Release
+
+      - name: Run engine tests (Release)
+        run: dotnet run --project app/tests/PagoniaLand.Catalog.Tests/PagoniaLand.Catalog.Tests.csproj -c Release
+
+      # The release workflow ships the app as a self-contained single-file (PublishSingleFile +
+      # IncludeNativeLibrariesForSelfExtract) — a materially different path from the plain build
+      # above. Exercise it per-PR so a regression that only breaks single-file publish (e.g. an
+      # Avalonia asset that doesn't survive self-extract) is caught here, not at release time.
+      - name: Publish app (self-contained single-file — the shipped config)
+        run: >
+          dotnet publish app/src/PagoniaLand.App/PagoniaLand.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded
+
+      - name: Assert the published single-file exists and is non-empty
+        shell: pwsh
+        run: |
+          $exe = "app/src/PagoniaLand.App/bin/Release/net10.0/win-x64/publish/Pagonia Land.exe"
+          if (-not (Test-Path $exe)) { throw "app single-file publish produced no '$exe'" }
+          $len = (Get-Item $exe).Length
+          if ($len -lt 1MB) { throw "app single-file '$exe' is implausibly small ($len bytes)" }
+          Write-Host "app single-file OK: $exe ($([math]::Round($len / 1MB, 1)) MB)"

@@ -218,6 +218,22 @@ public sealed class RemoteFetcher
             return RemoteFetchResult.Failure(diagnostics);
         }
 
+        // Integrity / drift gate: if the catalog advertised a contentHash, re-compute it over the
+        // freshly-staged payload (mod.yaml + patches — the same logical set the author hashed) and
+        // warn on a mismatch. Non-fatal, like the metadata cross-check above: the fetched mod.yaml is
+        // the authority and still installs, but a mismatch flags a stale index, a corrupt/tampered
+        // download, or content that changed under an unchanged version.
+        if (indexEntry is { ContentHash: { Length: > 0 } advertised })
+        {
+            var actual = ContentHash.OfModPayload(tempDir);
+            if (actual is not null && !string.Equals(actual, advertised, StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(Warning(ManagerDiagnosticCodes.ModContentHashMismatch,
+                    $"The catalog advertised contentHash '{advertised}' for '{resolvedModId ?? modFolder}' but the fetched payload hashes to '{actual}'. " +
+                    "Installing the downloaded files — the catalog index may be stale (author didn't re-run `index build`), or the content changed."));
+            }
+        }
+
         // The resolved source string is what the sidecar records and what
         // `pagonia-manager list` shows as the mod's provenance. We pin the SHA
         // (not the user-typed ref) so the trail stays accurate when the branch
@@ -279,6 +295,13 @@ public sealed class RemoteFetcher
                 Error(ManagerDiagnosticCodes.RemoteIndexMalformed,
                     $"Could not parse index.yaml at {source.Owner}/{source.Repo}@{Shorten(commitSha)}: {ex.Message}")
             });
+        }
+
+        // Format-version gate: refuse a repo index this build can't read (newer/retired
+        // major or malformed) before resolving a mod path against a structure we can't trust.
+        if (FormatVersionGate.RejectRepoIndex(index.IndexFormatVersion) is { } rejectedIndex)
+        {
+            throw new RemoteFetchAbortException(new[] { rejectedIndex });
         }
 
         // Try mod id first; fall back to path-equality; finally give up with a
@@ -667,6 +690,11 @@ public sealed class RemoteFetcher
             });
         }
 
+        if (FormatVersionGate.RejectRepoIndex(repoIndex.IndexFormatVersion) is { } rejectedIndex)
+        {
+            throw new RemoteFetchAbortException(new[] { rejectedIndex });
+        }
+
         var byId = repoIndex.Collections.FirstOrDefault(c => string.Equals(c.Id, source.ModSpec, StringComparison.Ordinal));
         if (byId is not null)
         {
@@ -836,6 +864,11 @@ public sealed class RemoteFetcher
                 Error(ManagerDiagnosticCodes.RemoteIndexMalformed,
                     $"Could not parse index.yaml at {crossSource.Owner}/{crossSource.Repo}@{Shorten(crossSha)}: {ex.Message}"),
             });
+        }
+
+        if (FormatVersionGate.RejectRepoIndex(idx.IndexFormatVersion) is { } rejectedIndex)
+        {
+            throw new RemoteFetchAbortException(new[] { rejectedIndex });
         }
 
         var byId = idx.Mods.FirstOrDefault(m => string.Equals(m.Id, modSpec, StringComparison.Ordinal));

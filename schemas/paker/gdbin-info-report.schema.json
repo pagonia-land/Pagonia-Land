@@ -11,6 +11,7 @@
     "EntryCount",
     "HeaderBytesHex",
     "Entries",
+    "HasTrailingTerminator",
     "Diagnostics"
   ],
   "properties": {
@@ -42,6 +43,10 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "HasTrailingTerminator": {
+      "type": "boolean",
+      "description": "True when the index ended with a zero-length terminator record (`00 00 00 00`). The 1.4.0 Pagonia Editor emits one on every index it writes; the shipped paks (core/dlc1/…) do not. Round-tripped so an editor-emitted index re-serialises byte-identically."
     },
     "Diagnostics": {
       "type": "array",

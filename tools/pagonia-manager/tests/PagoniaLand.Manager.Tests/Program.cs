@@ -44,6 +44,9 @@ var tests = new (string Name, Func<bool> Run)[]
     ("store inspector counts mods/profiles/collections correctly", InspectorCountsCorrectly),
     ("store inspector ignores 'locks' folder when counting collections", InspectorIgnoresLocksFolder),
     ("store state reader throws with diagnostic code when uninitialised", StateReaderThrowsWhenUninitialised),
+    ("store state reader refuses a storeVersion newer than this build (storeSchemaVersionUnsupported)", StateReaderRefusesNewerStoreVersion),
+    ("store state reader tolerates an unparseable/legacy storeVersion (reads through)", StateReaderToleratesLegacyStoreVersion),
+    ("profile store reader refuses a profileVersion newer than this build (profileVersionUnsupported)", ProfileReaderRefusesNewerProfileVersion),
 
     // Install / uninstall / list.
     ("ManagerDiagnostic.From preserves code + maps severity", DiagnosticFromPreservesCodeAndSeverity),
@@ -55,6 +58,24 @@ var tests = new (string Name, Func<bool> Run)[]
     ("doctor: an uninitialised store reports a store error", DoctorUninitialisedStoreErrors),
     ("doctor: two conflicting enabled mods are flagged store-only (no game root)", DoctorFlagsCrossModConflictStoreOnly),
     ("doctor: an enabled mod with an unreadable manifest grades Error (not 'all present')", DoctorFlagsUnreadableEnabledMod),
+    ("doctor: the updates check is Skipped when offline (no fetcher passed)", DoctorUpdatesCheckSkippedWhenOffline),
+    ("doctor: --check-updates surfaces an available mod update as a warning", DoctorUpdatesCheckSurfacesAvailableWhenOptedIn),
+    ("deps: enabling a mod with an unmet dependency warns modDependencyMissing (installed-but-disabled)", DependencyMissingFlaggedOnEnable),
+    ("deps: a dependency that's enabled too produces no missing-dependency warning", DependencySatisfiedWhenBothEnabled),
+    ("deps: enabling a mod incompatible with an enabled one warns modIncompatibleEnabled", IncompatibleFlaggedOnEnable),
+    ("doctor: an enabled mod with a missing dependency grades the dependencies check a warning", DoctorReportsDependencyIssues),
+    ("deps: disabling a depended-upon mod warns modDependedUponByOthers", DisableDependedUponWarns),
+    ("deps: disabling a mod nothing depends on stays silent", DisableNotDependedUponNoWarn),
+    ("deps: uninstalling a depended-upon mod warns modDependedUponByOthers", UninstallDependedUponWarns),
+    ("assisted install: pulls transitive dependencies from the same repo", AssistedInstallPullsTransitiveDeps),
+    ("assisted install: an unresolvable dependency warns but the rest still install", AssistedInstallWarnsOnUnresolvableDep),
+    ("load order: loadAfter reorders the enabled set + reports the adjustment", LoadOrderLoadAfterReorders),
+    ("load order: loadBefore reorders the enabled set", LoadOrderLoadBeforeReorders),
+    ("load order: a loadAfter/loadBefore cycle is reported, both mods kept in manual order", LoadOrderDetectsCycle),
+    ("load order: no constraints leaves the manual order untouched + silent", LoadOrderNoConstraintsLeavesManualOrder),
+    ("load order: a duplicate id in the profile is deduped, not a crash", LoadOrderToleratesDuplicateIds),
+    ("load order: a constraint naming a non-enabled mod is inert", LoadOrderIgnoresConstraintToAbsentMod),
+    ("load order: an already-satisfied constraint pins the mods but reorders nothing", LoadOrderStableWhenConstraintAlreadySatisfied),
     ("install: missing source path emits modSourceNotFound", InstallMissingSourceEmitsCode),
     ("install: source that is not folder or zip emits modSourceNotAFolderOrZip", InstallBadSourceTypeEmitsCode),
     ("install: source folder missing mod.yaml emits modManifestMissing", InstallFolderMissingManifestEmitsCode),
@@ -140,6 +161,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("collection uninstall: refuses path traversal in collectionId and does not delete outside store", CollectionUninstallRefusesPathTraversal),
     ("round trip: collection install -> list -> uninstall -> list shows empty", RoundTripCollectionLifecycle),
     ("collection install: seeds curator tweaks into the profile (origin collection-default)", CollectionInstallSeedsCuratorTweaks),
+    ("collection install: normalises a whitespace-padded curator tweak value before seeding", CollectionInstallNormalisesCuratorTweak),
     ("collection install: --overwrite reseeds tweaks + emits tweakOverridesResetByReinstall", CollectionReinstallOverwriteReseedsTweaks),
     ("collection install: reinstall without --overwrite preserves user tweak overrides", CollectionReinstallWithoutOverwritePreservesUserOverrides),
 
@@ -205,6 +227,7 @@ var tests = new (string Name, Func<bool> Run)[]
     ("reports: deploy -> JSON has reportKind=deploy and validates", ReportDeployValidates),
     ("reports: rollback -> JSON has reportKind=rollback and validates", ReportRollbackValidates),
     ("reports: collection install -> JSON has reportKind=collectionInstall and validates", ReportCollectionInstallValidates),
+    ("reports: outdated -> JSON has reportKind=updates and validates", ReportUpdatesValidates),
     ("reports: status -> JSON has reportKind=status and validates", ReportStatusValidates),
     ("reports: deploy-status -> JSON has reportKind=deployStatus and validates", ReportDeployStatusValidates),
     ("schema-validate: rejects unknown reportKind for the given --kind", SchemaValidateRejectsWrongKind),
@@ -403,6 +426,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("remote fetcher -> ModInstaller round-trip installs cleanly from the fetched temp dir", RemoteFetcherEndToEndInstall),
     ("remote fetcher: index metadata matching mod.yaml emits no drift warning", RemoteFetcherNoMetadataWarningWhenInSync),
     ("remote fetcher: index advertising stale version/safety warns (repoIndexMetadataMismatch)", RemoteFetcherWarnsOnIndexMetadataDrift),
+    ("remote fetcher: a wrong advertised contentHash warns (modContentHashMismatch), still installs", RemoteFetcherWarnsOnContentHashMismatch),
+    ("remote fetcher: a matching advertised contentHash verifies silently", RemoteFetcherAcceptsMatchingContentHash),
 
     // RemoteFetcher.FetchCollection — same-repo + cross-repo mod resolution.
     ("remote collection fetch: same-repo mods land in <tempDir>/mods/<id>/", RemoteFetcherCollectionSameRepoHappy),
@@ -417,6 +442,35 @@ var tests = new (string Name, Func<bool> Run)[]
     ("repo index fetch: repo without index.yaml reports HasIndex=false (not a failure)", RepoIndexFetcherNoIndexReportsHasIndexFalse),
     ("repo index fetch: malformed index.yaml surfaces remoteIndexMalformed", RepoIndexFetcherMalformedIndexSurfacesDiagnostic),
     ("repo index fetch: unknown ref surfaces remoteFetchFailed", RepoIndexFetcherUnknownRefSurfacesDiagnostic),
+    ("repo index fetch: a newer-minor indexFormatVersion reads with formatMinorAhead", RepoIndexFetcherNewerMinorReads),
+    ("repo index fetch: a newer-major indexFormatVersion is refused with formatMajorUnsupported", RepoIndexFetcherNewerMajorRefused),
+
+    // Update detection (read-only `outdated`): semver ordering + mirror-first repo-index compare.
+    ("mod version: semver ordering (major/minor/patch, prerelease, missing parts, unparseable)", ModVersionOrdersCorrectly),
+    ("update detection: a newer index-advertised version surfaces modUpdateAvailable", UpdateDetectionFindsNewerVersion),
+    ("update detection: an up-to-date mod reports no updates", UpdateDetectionUpToDateReportsNoUpdates),
+    ("update detection: a local-only mod (no source) is skipped, not checked", UpdateDetectionSkipsLocalMods),
+    ("collection update detection: a newer index-advertised version surfaces collectionUpdateAvailable", CollectionUpdateDetectionFindsNewerVersion),
+    ("collection update detection: an up-to-date collection reports no updates", CollectionUpdateDetectionUpToDateReportsNoUpdates),
+    ("collection update detection: a local-file collection (no sidecar) is skipped, not checked", CollectionUpdateDetectionSkipsLocalCollections),
+    ("content drift: same version + different advertised contentHash flags modContentDriftAvailable", UpdateDetectionFlagsSameVersionContentDrift),
+    ("content drift: a matching advertised contentHash flags no drift", UpdateDetectionNoDriftWhenContentHashMatches),
+    ("content drift: no advertised contentHash means no drift check", UpdateDetectionNoDriftWhenNoAdvertisedHash),
+    ("update flow: re-points the profile pin to the new version, preserves tweaks, keeps the old version", UpdateMovesProfilePinAndKeepsOldVersion),
+    ("update flow: a pin already at the latest advertised version is a no-op", UpdateIsNoOpWhenAlreadyCurrent),
+    ("update flow: a mod not enabled in the active profile is refused (nothing to re-pin)", UpdateRefusesWhenNotEnabled),
+    ("update flow: a typo'd --profile is a clean profileMissing, not a crash", UpdateRefusesMissingProfile),
+    ("collection update flow: installs the newer version, keeps the old, reseeds the profile", CollectionUpdateInstallsNewerVersionAndReseedsProfile),
+    ("collection update flow: a collection already at the latest advertised version is a no-op", CollectionUpdateIsNoOpWhenAlreadyCurrent),
+    ("collection update flow: a local-file collection (no provenance) is refused", CollectionUpdateRefusesLocalCollection),
+    ("collection update flow: an uninstalled collection id is refused (nothing to update)", CollectionUpdateRefusesWhenNotInstalled),
+    ("collection update tweaks: Merge keeps a genuine user override across the version bump", CollectionUpdateMergeKeepsGenuineOverride),
+    ("collection update tweaks: Merge adopts the new curator default where nothing was overridden", CollectionUpdateMergeAdoptsNewCuratorDefaultForNonOverridden),
+    ("collection update tweaks: --reseed-tweaks discards the override and reseeds the curator value", CollectionUpdateReseedDiscardsOverride),
+    ("collection update tweaks: Ask routes each conflict through the callback", CollectionUpdateAskCallbackResolvesConflict),
+    ("tweaks: an explicit `tweak set` equal to the curator value still reads as profile-override", TweakSetMarksOverrideEvenWhenEqualToCurator),
+    ("tweaks: a pre-marking profile infers + persists userTweaks once on read (heuristic)", LegacyProfileMigratesUserTweaksOnRead),
+    ("collection update tweaks: a coincidental-equal override keeps its mark + survives a later curator change", CollectionUpdateKeepsCoincidentalEqualOverride),
 
     // InstallSourceResolver — shared remote-source dispatch (scripted install + interactive wizard).
     ("resolve remote: gh: spec fetches into temp dir + pins gh provenance", ResolveRemoteGitHubFetchesAndPinsProvenance),
@@ -428,6 +482,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("collection install: --overwrite=false rejects existing profile with profileAlreadyExists", CollectionInstallRefusesOverwriteByDefault),
     ("collection install: --overwrite=true replaces existing profile in-place", CollectionInstallOverwriteReplacesProfile),
     ("collection install: RemoteModSources populates lockfile per-mod source + resolvedAt", CollectionInstallRemoteSourcesAugmentLockfile),
+    ("collection install: RemoteCollectionSource writes provenance sidecar read back as Source", CollectionInstallRemoteSourceWritesProvenanceSidecar),
+    ("collection install: local-file install leaves no provenance sidecar (Source null)", CollectionInstallLocalLeavesNoProvenanceSidecar),
 
     // Catalog source parser — gh: + file: forms.
     ("catalog parser: gh:owner/repo defaults to HEAD + catalog.yaml", CatalogParserShortFormDefaults),
@@ -444,6 +500,8 @@ var tests = new (string Name, Func<bool> Run)[]
     ("catalog fetcher: gh: catalog fetched + parsed + source pinned to commit SHA", CatalogFetcherGitHubHappy),
     ("catalog fetcher: gh: unknown ref surfaces catalogFetchFailed", CatalogFetcherGitHubUnknownRef),
     ("catalog fetcher: gh: malformed yaml surfaces catalogMalformed", CatalogFetcherGitHubMalformed),
+    ("catalog fetcher: a newer-minor catalogFormatVersion reads with formatMinorAhead", CatalogFetcherNewerMinorReads),
+    ("catalog fetcher: a newer-major catalogFormatVersion is refused with formatMajorUnsupported", CatalogFetcherNewerMajorRefused),
     ("catalog fetcher: file: bundled example catalog parses + populates repos + nested catalogs ref", CatalogFetcherFileExample),
     ("catalog fetcher: file: missing path surfaces catalogFetchFailed", CatalogFetcherFileMissing),
 
@@ -494,8 +552,10 @@ var tests = new (string Name, Func<bool> Run)[]
 
     // Direct-URL ZIP source — fetcher.
     ("direct-url fetcher: downloads + extracts + records sha-pinned ResolvedSource", DirectUrlFetcherHappyPath),
+    ("direct-url fetcher: verifies an advertised MD5 (silent match, warns on mismatch but still installs)", DirectUrlFetcherVerifiesMd5),
     ("direct-url fetcher: nested-folder ZIP (one top-level dir) resolves ModRoot inside it", DirectUrlFetcherNestedFolder),
     ("direct-url fetcher: zip-slip traversal entry refused before ModInstaller sees it", DirectUrlFetcherRefusesTraversal),
+    ("direct-url fetcher: a pre-signed URL's ?signature is redacted from diagnostics", DirectUrlFetcherRedactsSignedUrl),
     ("direct-url fetcher: 404 surfaces directUrlFetchFailed + leaves no temp dir behind", DirectUrlFetcher404Cleanup),
     ("direct-url fetcher -> ModInstaller round-trip installs cleanly + sidecar records url: source", DirectUrlFetcherEndToEndInstall),
     ("direct-url: ModLister surfaces sidecar.Source through InstalledMod.Source", DirectUrlInstalledModExposesSource),
@@ -1099,6 +1159,76 @@ static bool InspectorIgnoresLocksFolder()
     }
 }
 
+static bool StateReaderRefusesNewerStoreVersion()
+{
+    // A store written by a newer manager must be refused on read — an older binary that read
+    // + rewrote it would silently drop the fields it doesn't know. Same-install one-way door.
+    var tempRoot = NewTempRoot("reader-newer-store");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        File.WriteAllText(layout.StateFile, "storeVersion: \"0.2\"\nactiveProfile: default\n");
+        try
+        {
+            new StoreStateReader().Read(layout);
+            return false;
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains(ManagerDiagnosticCodes.StoreSchemaVersionUnsupported, StringComparison.Ordinal)
+                && ex.Message.Contains("0.2", StringComparison.Ordinal);
+        }
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool StateReaderToleratesLegacyStoreVersion()
+{
+    // An absent/unparseable storeVersion is the pre-versioning/legacy case — the reader never
+    // checked it before, so it must still read through (only a clearly-newer version is refused).
+    var tempRoot = NewTempRoot("reader-legacy-store");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        File.WriteAllText(layout.StateFile, "storeVersion: not-a-version\nactiveProfile: default\n");
+        var state = new StoreStateReader().Read(layout);
+        return state.StoreVersion == "not-a-version" && state.ActiveProfile == "default";
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool ProfileReaderRefusesNewerProfileVersion()
+{
+    // The profile-level companion to the store guard: a profile written by a newer manager is
+    // refused before this build reads + rewrites it.
+    var tempRoot = NewTempRoot("reader-newer-profile");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        Directory.CreateDirectory(layout.ProfilesDirectory);
+        File.WriteAllText(layout.ProfileFile("default"), "profileVersion: \"1.0\"\nname: default\n");
+        try
+        {
+            new ProfileStore().Read(layout, "default");
+            return false;
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains(ManagerDiagnosticCodes.ProfileVersionUnsupported, StringComparison.Ordinal);
+        }
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
 static bool StateReaderThrowsWhenUninitialised()
 {
     var tempRoot = NewTempRoot("reader-throws");
@@ -1331,6 +1461,46 @@ static bool DoctorFlagsUnreadableEnabledMod()
         return report.Checks.Any(c => c.Name == "Enabled mods installed"
             && c.Status == DoctorStatus.Error
             && c.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModManifestUnreadable));
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool DoctorUpdatesCheckSkippedWhenOffline()
+{
+    // doctor stays fully offline by default: with no fetcher passed, the update check
+    // is Skipped rather than silently hitting the network.
+    var tempRoot = NewTempRoot("doctor-updates-offline");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var report = new DoctorService().Run(layout, gameRoot: null);
+        return report.Checks.Any(c => c.Name == "Updates available" && c.Status == DoctorStatus.Skipped)
+            && !report.HasErrors;
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool DoctorUpdatesCheckSurfacesAvailableWhenOptedIn()
+{
+    // With a fetcher passed (the CLI's --check-updates), an installed mod whose repo
+    // advertises a newer version grades the update check a warning.
+    var tempRoot = NewTempRoot("doctor-updates-optin");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        const string id = "pagonia-land.example.cheaper-sawmill";
+        WriteInstalledModFixture(layout, id, "0.1.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+
+        var report = new DoctorService().Run(layout, gameRoot: null, MakeUpdateRepoFixture("0.2.0"));
+        return report.Checks.Any(c => c.Name == "Updates available"
+            && c.Status == DoctorStatus.Warning
+            && c.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModUpdateAvailable));
     }
     finally
     {
@@ -2065,6 +2235,341 @@ static InstallResult InstallFixtureMod(StoreLayout layout, string tempRoot, stri
 {
     var sourceDir = MakeMinimalFixtureDir(tempRoot, modId, version, subdir);
     return new ModInstaller().Install(sourceDir, layout);
+}
+
+// Install a mod declaring dependency / incompatibility / load-order relations, for the
+// dependency + load-order tests.
+static InstallResult InstallRelationMod(StoreLayout layout, string tempRoot, string modId,
+    string[]? dependencies = null, string[]? incompatibleWith = null,
+    string[]? loadAfter = null, string[]? loadBefore = null)
+{
+    var sourceDir = Path.Combine(tempRoot, modId);
+    Directory.CreateDirectory(Path.Combine(sourceDir, "patches"));
+
+    static string Block(string key, string[]? items) =>
+        items is { Length: > 0 }
+            ? "\n" + key + ":\n" + string.Join("\n", items.Select(i => "  - " + i))
+            : string.Empty;
+
+    File.WriteAllText(Path.Combine(sourceDir, "mod.yaml"), $"""
+patchFormatVersion: "0.1"
+id: {modId}
+name: Relation {modId}
+version: "0.1.0"
+author: Pagonia Land
+gameDatabaseVersion: "1.3.0-11768+193445"
+description: Relation fixture mod for dependency/load-order tests.
+requiredPackages:
+  - core{Block("dependencies", dependencies)}{Block("incompatibleWith", incompatibleWith)}{Block("loadAfter", loadAfter)}{Block("loadBefore", loadBefore)}
+patches:
+  - patches/p.yaml
+""");
+    File.WriteAllText(Path.Combine(sourceDir, "patches", "p.yaml"), """
+operations:
+  - id: rel-op
+    operation: replaceValue
+    risk: low
+    reason: relation fixture
+    target:
+      file: core/gdb/buildings.gd.xml
+      entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+      component: AspectBuildup
+      path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+    expectedOldValue: "4"
+    value: "3"
+""");
+    return new ModInstaller().Install(sourceDir, layout);
+}
+
+static bool DependencyMissingFlaggedOnEnable()
+{
+    var tempRoot = NewTempRoot("dep-missing");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        InstallRelationMod(layout, tempRoot, "rel.a", dependencies: new[] { "rel.b" });
+        InstallRelationMod(layout, tempRoot, "rel.b"); // installed but we won't enable it
+        var result = new ActiveProfileService().Enable(layout, "rel.a", null);
+        return result.Success
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependencyMissing
+                && d.Message.Contains("rel.b") && d.Message.Contains("installed but not enabled"));
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool DependencySatisfiedWhenBothEnabled()
+{
+    var tempRoot = NewTempRoot("dep-ok");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        InstallRelationMod(layout, tempRoot, "rel.a", dependencies: new[] { "rel.b" });
+        InstallRelationMod(layout, tempRoot, "rel.b");
+        new ActiveProfileService().Enable(layout, "rel.b", null);
+        var result = new ActiveProfileService().Enable(layout, "rel.a", null);
+        return result.Success
+            && !result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependencyMissing);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool IncompatibleFlaggedOnEnable()
+{
+    var tempRoot = NewTempRoot("incompat");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        InstallRelationMod(layout, tempRoot, "rel.a", incompatibleWith: new[] { "rel.b" });
+        InstallRelationMod(layout, tempRoot, "rel.b");
+        new ActiveProfileService().Enable(layout, "rel.a", null);
+        var result = new ActiveProfileService().Enable(layout, "rel.b", null); // focus rel.b, rel.a already enabled
+        return result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModIncompatibleEnabled
+            && d.Message.Contains("rel.a") && d.Message.Contains("rel.b"));
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool DoctorReportsDependencyIssues()
+{
+    var tempRoot = NewTempRoot("doctor-deps");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        InstallRelationMod(layout, tempRoot, "rel.a", dependencies: new[] { "rel.b" }); // rel.b never installed
+        new ActiveProfileService().Enable(layout, "rel.a", null);
+        var report = new DoctorService().Run(layout, gameRoot: null);
+        return report.Checks.Any(c => c.Name == "Dependencies & incompatibilities"
+            && c.Status == DoctorStatus.Warning
+            && c.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependencyMissing
+                && d.Message.Contains("not installed")));
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool DisableDependedUponWarns()
+{
+    var tempRoot = NewTempRoot("disable-depended");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        InstallRelationMod(layout, tempRoot, "rel.a", dependencies: new[] { "rel.b" });
+        InstallRelationMod(layout, tempRoot, "rel.b");
+        var svc = new ActiveProfileService();
+        svc.Enable(layout, "rel.b", null);
+        svc.Enable(layout, "rel.a", null);
+
+        var result = svc.Disable(layout, "rel.b"); // rel.a still enabled, depends on rel.b
+        return result.Mutated
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependedUponByOthers
+                && d.Message.Contains("rel.a"));
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool DisableNotDependedUponNoWarn()
+{
+    var tempRoot = NewTempRoot("disable-free");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        InstallRelationMod(layout, tempRoot, "rel.a");
+        InstallRelationMod(layout, tempRoot, "rel.b");
+        var svc = new ActiveProfileService();
+        svc.Enable(layout, "rel.a", null);
+        svc.Enable(layout, "rel.b", null);
+
+        var result = svc.Disable(layout, "rel.b");
+        return result.Mutated
+            && !result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependedUponByOthers);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool UninstallDependedUponWarns()
+{
+    var tempRoot = NewTempRoot("uninstall-depended");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        InstallRelationMod(layout, tempRoot, "rel.a", dependencies: new[] { "rel.b" });
+        InstallRelationMod(layout, tempRoot, "rel.b");
+        var svc = new ActiveProfileService();
+        svc.Enable(layout, "rel.b", null);
+        svc.Enable(layout, "rel.a", null);
+
+        var result = new ModUninstaller().Uninstall("rel.b", null, layout);
+        return result.Outcome == UninstallOutcome.Removed
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependedUponByOthers
+                && d.Message.Contains("rel.a"));
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+// Serve an acme/mods repo whose index lists the given mods, each mod.yaml declaring the given
+// dependencies, with a valid patch — so the assisted dependency installer can fetch + install them.
+static InMemoryRemoteContentFetcher MakeDepRepoFixture(params (string Id, string[] Deps)[] mods)
+{
+    var fetcher = new InMemoryRemoteContentFetcher();
+    var sha = InMemoryRemoteContentFetcher.FakeSha;
+    fetcher.AddRef("acme", "mods", "HEAD", sha);
+
+    var entries = string.Join("\n", mods.Select(m =>
+        $"  - id: {m.Id}\n    path: mods/{m.Id}\n    version: 0.1.0\n    gameDatabaseVersion: \"1.3.0-11768+193445\""));
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/index.yaml",
+        $"indexFormatVersion: \"0.1\"\nrepo:\n  name: Acme\nmods:\n{entries}\n");
+
+    foreach (var m in mods)
+    {
+        var depBlock = m.Deps.Length > 0
+            ? "\ndependencies:\n" + string.Join("\n", m.Deps.Select(d => "  - " + d))
+            : string.Empty;
+        fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/{m.Id}/mod.yaml",
+            $"patchFormatVersion: \"0.1\"\nid: {m.Id}\nname: Dep {m.Id}\nversion: \"0.1.0\"\nauthor: Pagonia Land\ngameDatabaseVersion: \"1.3.0-11768+193445\"\ndescription: assisted-install dep fixture.\nrequiredPackages:\n  - core{depBlock}\npatches:\n  - patches/p.yaml\n");
+        fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/{m.Id}/patches/p.yaml", """
+            operations:
+              - id: dep-op
+                operation: replaceValue
+                risk: low
+                reason: assisted-install fixture
+                target:
+                  file: core/gdb/buildings.gd.xml
+                  entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+                  component: AspectBuildup
+                  path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+                expectedOldValue: "4"
+                value: "3"
+            """);
+    }
+    return fetcher;
+}
+
+static bool AssistedInstallPullsTransitiveDeps()
+{
+    var tempRoot = NewTempRoot("assist-transitive");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        // dep.b depends on dep.c; pulling dep.b must also pull dep.c.
+        var fetcher = MakeDepRepoFixture(("dep.b", new[] { "dep.c" }), ("dep.c", Array.Empty<string>()));
+        var sameRepo = new GitHubSource("acme", "mods", "HEAD", null);
+
+        var result = new AssistedDependencyInstaller(fetcher, allowInsecureSources: false)
+            .InstallMissing(layout, new[] { "dep.b" }, sameRepo, Array.Empty<CatalogSource>(), 5);
+
+        return result.InstalledDependencies.Contains("dep.b")
+            && result.InstalledDependencies.Contains("dep.c")
+            && Directory.Exists(layout.ModVersionDirectory("dep.b", "0.1.0"))
+            && Directory.Exists(layout.ModVersionDirectory("dep.c", "0.1.0"))
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependencyInstalled);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool AssistedInstallWarnsOnUnresolvableDep()
+{
+    var tempRoot = NewTempRoot("assist-unresolvable");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        // dep.b depends on dep.ghost, which the repo doesn't list and no catalogs are subscribed.
+        var fetcher = MakeDepRepoFixture(("dep.b", new[] { "dep.ghost" }));
+        var sameRepo = new GitHubSource("acme", "mods", "HEAD", null);
+
+        var result = new AssistedDependencyInstaller(fetcher, allowInsecureSources: false)
+            .InstallMissing(layout, new[] { "dep.b" }, sameRepo, Array.Empty<CatalogSource>(), 5);
+
+        return result.InstalledDependencies.SequenceEqual(new[] { "dep.b" }) // b installed, ghost couldn't be
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModDependencyUnresolved
+                && d.Message.Contains("dep.ghost"));
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool LoadOrderLoadAfterReorders()
+{
+    // manual [a, b]; a loadAfter b → b must come first → [b, a], with an "adjusted" info.
+    var r = new LoadOrderResolver().Resolve(new[]
+    {
+        new LoadOrderInput("a", new[] { "b" }, Array.Empty<string>()),
+        new LoadOrderInput("b", Array.Empty<string>(), Array.Empty<string>()),
+    });
+    return r.Order.SequenceEqual(new[] { "b", "a" })
+        && r.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.LoadOrderAdjusted)
+        && r.Constrained.SetEquals(new[] { "a", "b" });
+}
+
+static bool LoadOrderLoadBeforeReorders()
+{
+    // manual [a, b]; b loadBefore a → b first → [b, a].
+    var r = new LoadOrderResolver().Resolve(new[]
+    {
+        new LoadOrderInput("a", Array.Empty<string>(), Array.Empty<string>()),
+        new LoadOrderInput("b", Array.Empty<string>(), new[] { "a" }),
+    });
+    return r.Order.SequenceEqual(new[] { "b", "a" })
+        && r.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.LoadOrderAdjusted);
+}
+
+static bool LoadOrderDetectsCycle()
+{
+    var r = new LoadOrderResolver().Resolve(new[]
+    {
+        new LoadOrderInput("a", new[] { "b" }, Array.Empty<string>()),
+        new LoadOrderInput("b", new[] { "a" }, Array.Empty<string>()),
+    });
+    return r.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.LoadOrderCycle
+            && d.Severity == ManagerDiagnosticSeverity.Warning)
+        && r.Order.Count == 2; // both kept (manual-order fallback), nothing dropped
+}
+
+static bool LoadOrderToleratesDuplicateIds()
+{
+    // A hand-edited / corrupted profile can repeat an id in loadOrder; the resolver must dedupe
+    // (first occurrence wins) instead of throwing ArgumentException out of its ToDictionary calls.
+    var r = new LoadOrderResolver().Resolve(new[]
+    {
+        new LoadOrderInput("a", Array.Empty<string>(), Array.Empty<string>()),
+        new LoadOrderInput("b", Array.Empty<string>(), Array.Empty<string>()),
+        new LoadOrderInput("a", Array.Empty<string>(), Array.Empty<string>()),
+    });
+    return r.Order.SequenceEqual(new[] { "a", "b" });
+}
+
+static bool LoadOrderNoConstraintsLeavesManualOrder()
+{
+    var r = new LoadOrderResolver().Resolve(new[]
+    {
+        new LoadOrderInput("a", Array.Empty<string>(), Array.Empty<string>()),
+        new LoadOrderInput("b", Array.Empty<string>(), Array.Empty<string>()),
+    });
+    return r.Order.SequenceEqual(new[] { "a", "b" })
+        && r.Diagnostics.Count == 0
+        && r.Constrained.Count == 0;
+}
+
+static bool LoadOrderIgnoresConstraintToAbsentMod()
+{
+    // loadAfter a mod that isn't enabled is inert — no edge, no reorder.
+    var r = new LoadOrderResolver().Resolve(new[]
+    {
+        new LoadOrderInput("a", new[] { "ghost" }, Array.Empty<string>()),
+        new LoadOrderInput("b", Array.Empty<string>(), Array.Empty<string>()),
+    });
+    return r.Order.SequenceEqual(new[] { "a", "b" }) && r.Diagnostics.Count == 0;
+}
+
+static bool LoadOrderStableWhenConstraintAlreadySatisfied()
+{
+    // manual [a, b, c]; c loadAfter a (already after a) → no reorder, no "adjusted" info; c+a pinned.
+    var r = new LoadOrderResolver().Resolve(new[]
+    {
+        new LoadOrderInput("a", Array.Empty<string>(), Array.Empty<string>()),
+        new LoadOrderInput("b", Array.Empty<string>(), Array.Empty<string>()),
+        new LoadOrderInput("c", new[] { "a" }, Array.Empty<string>()),
+    });
+    return r.Order.SequenceEqual(new[] { "a", "b", "c" })
+        && !r.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.LoadOrderAdjusted)
+        && r.Constrained.SetEquals(new[] { "a", "c" });
 }
 
 // ============================================================================
@@ -2892,6 +3397,7 @@ static string MinimalReportFor(string kind) => kind switch
     ManagerReportKinds.TweakReset => """{"schemaVersion":"0.1","reportKind":"tweakReset","success":true,"mutated":true,"profile":"default","modId":"x","tweakId":null,"diagnostics":[]}""",
     ManagerReportKinds.ExpansionsList => """{"schemaVersion":"0.1","reportKind":"expansionsList","success":true,"gameRoot":"C:/Games/PoP","gameFingerprint":"abcdef0123456789","expansions":[{"package":"dlc1","present":true,"owned":"owned","effective":true}],"diagnostics":[]}""",
     ManagerReportKinds.ExpansionsSet => """{"schemaVersion":"0.1","reportKind":"expansionsSet","success":true,"mutated":true,"gameRoot":"C:/Games/PoP","gameFingerprint":"abcdef0123456789","package":"dlc1","owned":"owned","diagnostics":[]}""",
+    ManagerReportKinds.Updates => """{"schemaVersion":"0.1","reportKind":"updates","checkedModCount":0,"skippedLocalModCount":0,"checkedCollectionCount":0,"skippedLocalCollectionCount":0,"modUpdates":[],"collectionUpdates":[],"contentDrifts":[],"diagnostics":[]}""",
     _ => throw new InvalidOperationException($"Unknown kind: {kind}"),
 };
 
@@ -2974,6 +3480,43 @@ static bool ReportRollbackValidates()
         var json = ManagerReports.ToJson(result);
         return json.Contains("\"reportKind\": \"rollback\"", StringComparison.Ordinal)
             && WriteAndValidate(ManagerReportKinds.Rollback, Path.Combine(tempRoot, "report.json"), json);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool ReportUpdatesValidates()
+{
+    var tempRoot = NewTempRoot("report-updates");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        // An installed mod with a newer version advertised → a non-empty modUpdates array, so the
+        // report exercises the populated shape, not just the empty one.
+        WriteInstalledModFixture(layout, "pagonia-land.example.cheaper-sawmill", "0.1.0",
+            $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/pagonia-land.example.cheaper-sawmill");
+        WriteInstalledCollectionFixture(layout, "pagonia-land.example.beginner-qol", "0.1.0",
+            $"gh:acme/presets#{InMemoryRemoteContentFetcher.FakeSha}/pagonia-land.example.beginner-qol");
+
+        var fetcher = MakeUpdateRepoFixture("0.2.0");
+        fetcher.AddRef("acme", "presets", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+        fetcher.AddText($"https://raw.githubusercontent.com/acme/presets/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+            indexFormatVersion: "0.1"
+            repo:
+              name: Acme Presets
+            collections:
+              - id: pagonia-land.example.beginner-qol
+                path: collections/beginner-qol.collection.yaml
+                version: 0.3.0
+                gameDatabaseVersion: "1.4.0-test"
+            """);
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+        var json = ManagerReports.ToJson(result);
+        return json.Contains("\"reportKind\": \"updates\"", StringComparison.Ordinal)
+            && WriteAndValidate(ManagerReportKinds.Updates, Path.Combine(tempRoot, "report.json"), json);
     }
     finally
     {
@@ -5486,6 +6029,32 @@ static bool CollectionInstallSeedsCuratorTweaks()
         return stored is { } t && t.TryGetValue("softwood-cost", out var v) && v == "5"
             && view.Value == "5"
             && view.Origin == TweakValueOrigins.CollectionDefault;
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool CollectionInstallNormalisesCuratorTweak()
+{
+    var tempRoot = NewTempRoot("coll-tweak-normalise");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        // Curator wrote the value with surrounding whitespace; seeding must normalise (trim) it against
+        // the mod's integer declaration, or " 5 " lands verbatim in an integer field the resolver
+        // mishandles. (Before the fix it was stored as-is.)
+        var (modsRoot, collectionPath, modId) = BuildTweakCollectionFixture(tempRoot, "test.collection.normalise", " 5 ");
+
+        var result = new CollectionInstallService().Install(layout, collectionPath, modsRoot, profileNameOverride: null);
+        if (result.Outcome != CollectionInstallOutcome.Installed)
+        {
+            return false;
+        }
+
+        var stored = new ProfileStore().Read(layout, result.ProfileName!).EnabledMods.Single(m => m.Id == modId).Tweaks;
+        return stored is { } t && t.TryGetValue("softwood-cost", out var v) && v == "5";
     }
     finally
     {
@@ -9223,6 +9792,78 @@ static bool RemoteFetcherWarnsOnIndexMetadataDrift()
     }
 }
 
+// Re-serve acme/mods' index.yaml with a contentHash on the cheaper-sawmill entry.
+static void SetIndexContentHash(InMemoryRemoteContentFetcher fetcher, string contentHash)
+{
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", $"""
+        indexFormatVersion: "0.1"
+        repo:
+          name: ACME Mods
+        mods:
+          - id: pagonia-land.example.cheaper-sawmill
+            path: mods/cheaper-sawmill
+            version: 0.1.0
+            gameDatabaseVersion: "1.3.0-11694+192849"
+            contentHash: {contentHash}
+        """);
+}
+
+static bool RemoteFetcherWarnsOnContentHashMismatch()
+{
+    var fetcher = MakeRepoFixture();
+    SetIndexContentHash(fetcher, new string('0', 64)); // advertised hash can't match the real payload
+    var result = new RemoteFetcher(fetcher)
+        .FetchMod(new GitHubSource("acme", "mods", "main", "pagonia-land.example.cheaper-sawmill"));
+    try
+    {
+        // Still succeeds (warning, not fatal); flags the integrity/drift mismatch.
+        return result.Success
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModContentHashMismatch
+                && d.Severity == ManagerDiagnosticSeverity.Warning);
+    }
+    finally
+    {
+        if (result.TempDirectory is not null && Directory.Exists(result.TempDirectory))
+        { Directory.Delete(result.TempDirectory, true); }
+    }
+}
+
+static bool RemoteFetcherAcceptsMatchingContentHash()
+{
+    var source = new GitHubSource("acme", "mods", "main", "pagonia-land.example.cheaper-sawmill");
+
+    // First fetch (no contentHash advertised) to learn the payload's real hash...
+    var fetcher = MakeRepoFixture();
+    var first = new RemoteFetcher(fetcher).FetchMod(source);
+    string? realHash;
+    try
+    {
+        realHash = first.Success && first.TempDirectory is not null
+            ? PagoniaLand.Patcher.ContentHash.OfModPayload(first.TempDirectory)
+            : null;
+    }
+    finally
+    {
+        if (first.TempDirectory is not null && Directory.Exists(first.TempDirectory))
+        { Directory.Delete(first.TempDirectory, true); }
+    }
+    if (realHash is null) { return false; }
+
+    // ...then advertise exactly that, and confirm the verify stays silent.
+    SetIndexContentHash(fetcher, realHash);
+    var second = new RemoteFetcher(fetcher).FetchMod(source);
+    try
+    {
+        return second.Success
+            && !second.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModContentHashMismatch);
+    }
+    finally
+    {
+        if (second.TempDirectory is not null && Directory.Exists(second.TempDirectory))
+        { Directory.Delete(second.TempDirectory, true); }
+    }
+}
+
 static bool RemoteFetcherUnknownModIdSurfacesDiagnostic()
 {
     var fetcher = MakeRepoFixture();
@@ -9400,6 +10041,1036 @@ static bool RepoIndexFetcherUnknownRefSurfacesDiagnostic()
     return !result.Success
         && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.RemoteFetchFailed
             && d.Severity == ManagerDiagnosticSeverity.Error);
+}
+
+static bool RepoIndexFetcherNewerMinorReads()
+{
+    // A newer same-major minor reads: the shared format-version policy tolerates it (unknown
+    // optional fields ignored) and surfaces an info recommend-update note — same code the
+    // patcher emits, so manager + patcher agree.
+    var fetcher = new InMemoryRemoteContentFetcher();
+    fetcher.AddRef("acme", "mods", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+        indexFormatVersion: "0.99"
+        repo:
+          name: Future Repo
+        mods:
+          - id: pagonia-land.example.cheaper-sawmill
+            path: mods/cheaper-sawmill
+            displayName: Cheaper Sawmill
+            version: 0.1.0
+        """);
+
+    var source = new GitHubSource("acme", "mods", "HEAD", ModSpec: null);
+    var result = new RepoIndexFetcher(fetcher).Fetch(source);
+
+    return result.Success
+        && result.HasIndex
+        && result.Index!.Mods.Count == 1
+        && result.Diagnostics.Any(d => d.Code == PagoniaLand.Patcher.DiagnosticCodes.FormatMinorAhead
+            && d.Severity == ManagerDiagnosticSeverity.Info);
+}
+
+static bool RepoIndexFetcherNewerMajorRefused()
+{
+    // A newer major is a breaking shape this build can't read — refused with the actionable
+    // formatMajorUnsupported error, so the browse list is never built from it.
+    var fetcher = new InMemoryRemoteContentFetcher();
+    fetcher.AddRef("acme", "mods", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+        indexFormatVersion: "1.0"
+        repo:
+          name: Future Repo
+        """);
+
+    var source = new GitHubSource("acme", "mods", "HEAD", ModSpec: null);
+    var result = new RepoIndexFetcher(fetcher).Fetch(source);
+
+    return !result.Success
+        && result.Diagnostics.Any(d => d.Code == PagoniaLand.Patcher.DiagnosticCodes.FormatMajorUnsupported
+            && d.Severity == ManagerDiagnosticSeverity.Error);
+}
+
+static bool ModVersionOrdersCorrectly()
+{
+    return ModVersion.IsNewer("0.2.0", "0.1.0")
+        && ModVersion.IsNewer("0.1.1", "0.1.0")
+        && ModVersion.IsNewer("1.0.0", "0.9.9")
+        && !ModVersion.IsNewer("0.1.0", "0.1.0")
+        && !ModVersion.IsNewer("0.1.0", "0.2.0")
+        // release outranks a pre-release of the same core
+        && ModVersion.IsNewer("1.0.0", "1.0.0-beta")
+        && !ModVersion.IsNewer("1.0.0-beta", "1.0.0")
+        // numeric pre-release identifiers compare numerically: rc.10 > rc.2 (not ordinal, where '1' < '2')
+        && ModVersion.IsNewer("1.0.0-rc.10", "1.0.0-rc.2")
+        && !ModVersion.IsNewer("1.0.0-rc.2", "1.0.0-rc.10")
+        // missing components default to 0 (0.2 == 0.2.0 > 0.1.5)
+        && ModVersion.IsNewer("0.2", "0.1.5")
+        // an unparseable version is never claimed newer (no false positives)
+        && !ModVersion.IsNewer("garbage", "0.1.0")
+        && !ModVersion.IsNewer("0.2.0", "garbage");
+}
+
+// Materialise an installed mod on disk: a version directory + an install sidecar carrying the
+// transport-neutral provenance, exactly what ModLister reads back.
+static void WriteInstalledModFixture(StoreLayout layout, string id, string version, string source)
+{
+    var dir = layout.ModVersionDirectory(id, version);
+    Directory.CreateDirectory(dir);
+    File.WriteAllText(
+        Path.Combine(dir, ModInstaller.SidecarFileName),
+        $"installedAt: \"2026-06-17T00:00:00Z\"\nsourceType: github\nsource: \"{source}\"\n");
+}
+
+static bool UpdateDetectionFindsNewerVersion()
+{
+    var tempRoot = NewTempRoot("updates-newer");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        WriteInstalledModFixture(layout, "pagonia-land.example.cheaper-sawmill", "0.1.0",
+            "gh:acme/mods#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef/pagonia-land.example.cheaper-sawmill");
+
+        var fetcher = new InMemoryRemoteContentFetcher();
+        fetcher.AddRef("acme", "mods", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+        fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+            indexFormatVersion: "0.1"
+            repo:
+              name: Acme Mods
+            mods:
+              - id: pagonia-land.example.cheaper-sawmill
+                path: mods/cheaper-sawmill
+                displayName: Cheaper Sawmill
+                version: 0.2.0
+                gameDatabaseVersion: "1.4.0-test"
+            """);
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+
+        return result.CheckedCount == 1
+            && result.Updates.Count == 1
+            && result.Updates[0].Id == "pagonia-land.example.cheaper-sawmill"
+            && result.Updates[0].InstalledVersion == "0.1.0"
+            && result.Updates[0].AvailableVersion == "0.2.0"
+            && result.Updates[0].GameDatabaseVersion == "1.4.0-test"
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModUpdateAvailable
+                && d.Severity == ManagerDiagnosticSeverity.Info);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool UpdateDetectionUpToDateReportsNoUpdates()
+{
+    var tempRoot = NewTempRoot("updates-current");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        WriteInstalledModFixture(layout, "pagonia-land.example.cheaper-sawmill", "0.2.0",
+            "gh:acme/mods#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef/pagonia-land.example.cheaper-sawmill");
+
+        var fetcher = new InMemoryRemoteContentFetcher();
+        fetcher.AddRef("acme", "mods", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+        fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+            indexFormatVersion: "0.1"
+            repo:
+              name: Acme Mods
+            mods:
+              - id: pagonia-land.example.cheaper-sawmill
+                path: mods/cheaper-sawmill
+                displayName: Cheaper Sawmill
+                version: 0.2.0
+                gameDatabaseVersion: "1.4.0-test"
+            """);
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+        return result.CheckedCount == 1 && result.Updates.Count == 0;
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool UpdateDetectionSkipsLocalMods()
+{
+    var tempRoot = NewTempRoot("updates-local");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        // No source -> a local folder/zip install: nothing to check against, must be skipped.
+        WriteInstalledModFixture(layout, "pagonia-land.example.local-only", "0.1.0", "");
+
+        var result = new UpdateDetectionService(new InMemoryRemoteContentFetcher()).Check(layout);
+        return result.Updates.Count == 0
+            && result.CheckedCount == 0
+            && result.SkippedLocalCount == 1;
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+// Lay down a fully-installed mod (mod.yaml + a patch + gh: sidecar) so its payload hash can be
+// recomputed — used for same-version content-drift detection.
+static void WriteInstalledModPayload(StoreLayout layout, string id, string version, string source)
+{
+    var dir = layout.ModVersionDirectory(id, version);
+    Directory.CreateDirectory(Path.Combine(dir, "patches"));
+    File.WriteAllText(Path.Combine(dir, "mod.yaml"), $"""
+        patchFormatVersion: "0.1"
+        id: {id}
+        name: Drift Fixture
+        version: "{version}"
+        author: Pagonia Land
+        gameDatabaseVersion: "1.3.0-11768+193445"
+        description: Fixture for content-drift detection.
+        requiredPackages:
+          - core
+        patches:
+          - patches/p.yaml
+        """);
+    File.WriteAllText(Path.Combine(dir, "patches", "p.yaml"), "operations: []\n");
+    File.WriteAllText(Path.Combine(dir, ModInstaller.SidecarFileName),
+        $"installedAt: \"2026-06-17T00:00:00Z\"\nsourceType: github\nsource: \"{source}\"\n");
+}
+
+static void WriteDriftIndex(InMemoryRemoteContentFetcher fetcher, string id, string version, string? contentHash)
+{
+    var hashLine = contentHash is null ? string.Empty : $"\n    contentHash: {contentHash}";
+    fetcher.AddRef("acme", "mods", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", $"""
+        indexFormatVersion: "0.1"
+        repo:
+          name: Acme Mods
+        mods:
+          - id: {id}
+            path: mods/x
+            version: {version}
+            gameDatabaseVersion: "1.3.0-11768+193445"{hashLine}
+        """);
+}
+
+static bool UpdateDetectionFlagsSameVersionContentDrift()
+{
+    var tempRoot = NewTempRoot("updates-drift");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        const string id = "pagonia-land.example.drifty";
+        WriteInstalledModPayload(layout, id, "0.1.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+
+        var fetcher = new InMemoryRemoteContentFetcher();
+        // Same version, but advertise a contentHash that can't match the installed payload.
+        WriteDriftIndex(fetcher, id, "0.1.0", new string('0', 64));
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+        return result.Updates.Count == 0
+            && result.ContentDrifts.Count == 1
+            && result.ContentDrifts[0].Id == id
+            && result.ContentDrifts[0].Version == "0.1.0"
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModContentDriftAvailable);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool UpdateDetectionNoDriftWhenContentHashMatches()
+{
+    var tempRoot = NewTempRoot("updates-nodrift");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        const string id = "pagonia-land.example.steady";
+        WriteInstalledModPayload(layout, id, "0.1.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+        var realHash = PagoniaLand.Patcher.ContentHash.OfModPayload(layout.ModVersionDirectory(id, "0.1.0"));
+
+        var fetcher = new InMemoryRemoteContentFetcher();
+        WriteDriftIndex(fetcher, id, "0.1.0", realHash);
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+        return result.ContentDrifts.Count == 0
+            && !result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModContentDriftAvailable);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool UpdateDetectionNoDriftWhenNoAdvertisedHash()
+{
+    var tempRoot = NewTempRoot("updates-nohash");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        const string id = "pagonia-land.example.nohash";
+        WriteInstalledModPayload(layout, id, "0.1.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+
+        var fetcher = new InMemoryRemoteContentFetcher();
+        WriteDriftIndex(fetcher, id, "0.1.0", contentHash: null); // index doesn't advertise a hash
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+        return result.ContentDrifts.Count == 0;
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+// Lay down an installed collection (manifest + provenance sidecar) at the store layout
+// without going through the install pipeline, so update detection can be exercised in
+// isolation. An empty source leaves out the sidecar (a local-file install).
+static void WriteInstalledCollectionFixture(StoreLayout layout, string id, string version, string source)
+{
+    var dir = layout.CollectionVersionDirectory(id, version);
+    Directory.CreateDirectory(dir);
+    File.WriteAllText(layout.CollectionManifestFile(id, version), $"""
+        collectionFormatVersion: 0.1
+        id: {id}
+        name: Fixture {id}
+        version: "{version}"
+        author: Pagonia Land
+        gameDatabaseVersion: "1.3.0-11768+193445"
+        description: Fixture installed collection for update-detection tests.
+        conflictPolicy: strict
+        mods:
+          - id: test.mod.a
+            version: "0.1.0"
+            required: true
+            enabled: true
+        loadOrder:
+          - test.mod.a
+        """);
+    if (!string.IsNullOrEmpty(source))
+    {
+        File.WriteAllText(
+            Path.Combine(dir, CollectionInstallService.SidecarFileName),
+            $"installedAt: \"2026-06-17T00:00:00Z\"\nsource: \"{source}\"\n");
+    }
+}
+
+static bool CollectionUpdateDetectionFindsNewerVersion()
+{
+    var tempRoot = NewTempRoot("coll-updates-newer");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        WriteInstalledCollectionFixture(layout, "pagonia-land.example.beginner-qol", "0.1.0",
+            "gh:acme/presets#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef/pagonia-land.example.beginner-qol");
+
+        var fetcher = new InMemoryRemoteContentFetcher();
+        fetcher.AddRef("acme", "presets", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+        fetcher.AddText($"https://raw.githubusercontent.com/acme/presets/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+            indexFormatVersion: "0.1"
+            repo:
+              name: Acme Presets
+            collections:
+              - id: pagonia-land.example.beginner-qol
+                path: collections/beginner-qol.collection.yaml
+                displayName: Beginner QoL
+                version: 0.2.0
+                gameDatabaseVersion: "1.4.0-test"
+            """);
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+
+        return result.CheckedCollectionCount == 1
+            && result.CollectionUpdates.Count == 1
+            && result.CollectionUpdates[0].Id == "pagonia-land.example.beginner-qol"
+            && result.CollectionUpdates[0].InstalledVersion == "0.1.0"
+            && result.CollectionUpdates[0].AvailableVersion == "0.2.0"
+            && result.CollectionUpdates[0].GameDatabaseVersion == "1.4.0-test"
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionUpdateAvailable
+                && d.Severity == ManagerDiagnosticSeverity.Info);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool CollectionUpdateDetectionUpToDateReportsNoUpdates()
+{
+    var tempRoot = NewTempRoot("coll-updates-current");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        WriteInstalledCollectionFixture(layout, "pagonia-land.example.beginner-qol", "0.2.0",
+            "gh:acme/presets#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef/pagonia-land.example.beginner-qol");
+
+        var fetcher = new InMemoryRemoteContentFetcher();
+        fetcher.AddRef("acme", "presets", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+        fetcher.AddText($"https://raw.githubusercontent.com/acme/presets/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", """
+            indexFormatVersion: "0.1"
+            repo:
+              name: Acme Presets
+            collections:
+              - id: pagonia-land.example.beginner-qol
+                path: collections/beginner-qol.collection.yaml
+                displayName: Beginner QoL
+                version: 0.2.0
+                gameDatabaseVersion: "1.4.0-test"
+            """);
+
+        var result = new UpdateDetectionService(fetcher).Check(layout);
+        return result.CheckedCollectionCount == 1 && result.CollectionUpdates.Count == 0;
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool CollectionUpdateDetectionSkipsLocalCollections()
+{
+    var tempRoot = NewTempRoot("coll-updates-local");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        // No provenance sidecar -> a local-file install: nothing to check against, must be skipped.
+        WriteInstalledCollectionFixture(layout, "pagonia-land.example.local-coll", "0.1.0", "");
+
+        var result = new UpdateDetectionService(new InMemoryRemoteContentFetcher()).Check(layout);
+        return result.CollectionUpdates.Count == 0
+            && result.CheckedCollectionCount == 0
+            && result.SkippedLocalCollectionCount == 1;
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+// Serves acme/mods' cheaper-sawmill at a given version (index + mod.yaml + patch), so the update
+// flow can install a newer version end to end through the real remote-install path.
+static InMemoryRemoteContentFetcher MakeUpdateRepoFixture(string version)
+{
+    var fetcher = new InMemoryRemoteContentFetcher();
+    fetcher.AddRef("acme", "mods", "HEAD", InMemoryRemoteContentFetcher.FakeSha);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/index.yaml", $"""
+        indexFormatVersion: "0.1"
+        repo:
+          name: ACME Mods
+        mods:
+          - id: pagonia-land.example.cheaper-sawmill
+            path: mods/cheaper-sawmill
+            version: {version}
+            gameDatabaseVersion: "1.3.0-11694+192849"
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/mods/cheaper-sawmill/mod.yaml", $"""
+        patchFormatVersion: 0.1
+        id: pagonia-land.example.cheaper-sawmill
+        name: Cheaper Sawmill
+        version: {version}
+        author: ACME
+        gameDatabaseVersion: "1.3.0-11694+192849"
+        description: Lowers the Sawmill Softwood Trunk cost by one.
+        requiredPackages:
+          - core
+        optionalPackages: []
+        requiresNewGame: false
+        safeToRemove: unknown
+        multiplayerSafe: unknown
+        campaignSafe: unknown
+        loadAfter: []
+        loadBefore: []
+        incompatibleWith: []
+        patches:
+          - patches/buildings.yaml
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{InMemoryRemoteContentFetcher.FakeSha}/mods/cheaper-sawmill/patches/buildings.yaml", """
+        operations:
+          - id: cheaper-sawmill-softwood-cost
+            operation: replaceValue
+            risk: low
+            reason: Example patch.
+            target:
+              file: core/gdb/buildings.gd.xml
+              entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+              entityName: Sawmill
+              component: AspectBuildup
+              path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+            expectedOldValue: "4"
+            value: "3"
+        """);
+    return fetcher;
+}
+
+static bool UpdateMovesProfilePinAndKeepsOldVersion()
+{
+    var tempRoot = NewTempRoot("update-flow");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        new StoreInitializer().Initialize(layout);
+
+        const string id = "pagonia-land.example.cheaper-sawmill";
+        // Old 0.1.0 installed with gh: provenance; active profile pins it with a user tweak override.
+        WriteInstalledModFixture(layout, id, "0.1.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+        new ProfileStore().Write(layout, new ProfileFile
+        {
+            ProfileVersion = StoreLayoutConstants.CurrentProfileVersion,
+            Name = "default",
+            EnabledMods = new List<ProfileEnabledMod>
+            {
+                new() { Id = id, Version = "0.1.0", Tweaks = new Dictionary<string, string> { ["softwood-cost"] = "2" } },
+            },
+            LoadOrder = new List<string> { id },
+        });
+
+        var fetcher = MakeUpdateRepoFixture("0.2.0");
+        var result = new ModUpdateService(fetcher, allowInsecureSources: false).Update(layout, id, "default");
+
+        if (result.Outcome != ModUpdateOutcome.Updated || result.FromVersion != "0.1.0" || result.ToVersion != "0.2.0")
+        {
+            return false;
+        }
+
+        var pinned = new ProfileStore().Read(layout, "default").EnabledMods.FirstOrDefault(m => m.Id == id);
+        return pinned is not null
+            && pinned.Version == "0.2.0"
+            // user tweak override carried forward across the version bump
+            && pinned.Tweaks is { Count: 1 } && pinned.Tweaks["softwood-cost"] == "2"
+            // old version kept on disk (rollback anchor); new version installed alongside
+            && Directory.Exists(layout.ModVersionDirectory(id, "0.1.0"))
+            && Directory.Exists(layout.ModVersionDirectory(id, "0.2.0"))
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModUpdated);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool UpdateIsNoOpWhenAlreadyCurrent()
+{
+    var tempRoot = NewTempRoot("update-current");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        new StoreInitializer().Initialize(layout);
+
+        const string id = "pagonia-land.example.cheaper-sawmill";
+        WriteInstalledModFixture(layout, id, "0.2.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+        new ProfileStore().Write(layout, new ProfileFile
+        {
+            ProfileVersion = StoreLayoutConstants.CurrentProfileVersion,
+            Name = "default",
+            EnabledMods = new List<ProfileEnabledMod> { new() { Id = id, Version = "0.2.0" } },
+            LoadOrder = new List<string> { id },
+        });
+
+        var fetcher = MakeUpdateRepoFixture("0.2.0");
+        var result = new ModUpdateService(fetcher, allowInsecureSources: false).Update(layout, id, "default");
+
+        return result.Outcome == ModUpdateOutcome.AlreadyCurrent
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModUpdateAlreadyCurrent);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool UpdateRefusesMissingProfile()
+{
+    var tempRoot = NewTempRoot("update-missing-profile");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        new StoreInitializer().Initialize(layout);
+
+        const string id = "pagonia-land.example.cheaper-sawmill";
+        WriteInstalledModFixture(layout, id, "0.1.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+
+        // A typo'd --profile must not throw out of ProfileStore.Read — it returns a clean profileMissing.
+        var result = new ModUpdateService(new InMemoryRemoteContentFetcher(), allowInsecureSources: false)
+            .Update(layout, id, "does-not-exist");
+
+        return result.Outcome == ModUpdateOutcome.Failed
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ProfileMissing);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+static bool UpdateRefusesWhenNotEnabled()
+{
+    var tempRoot = NewTempRoot("update-not-enabled");
+    try
+    {
+        var layout = new StoreLayout(tempRoot);
+        new StoreInitializer().Initialize(layout); // default profile is empty
+
+        const string id = "pagonia-land.example.cheaper-sawmill";
+        WriteInstalledModFixture(layout, id, "0.1.0", $"gh:acme/mods#{InMemoryRemoteContentFetcher.FakeSha}/{id}");
+
+        // No network needed — the mod isn't enabled, so there's no pin to move.
+        var result = new ModUpdateService(new InMemoryRemoteContentFetcher(), allowInsecureSources: false).Update(layout, id, "default");
+
+        return result.Outcome == ModUpdateOutcome.NotEnabled
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModUpdateNotEnabled);
+    }
+    finally
+    {
+        CleanupTempRoot(tempRoot);
+    }
+}
+
+// Serves a single-mod collection repo (acme/mods) at given collection + mod versions, so the
+// collection update flow can install a newer version end to end through the real remote path.
+// AddText overwrites by URL, so a test can "publish" a newer version by re-calling it.
+static void SeedCollectionRepoFixture(InMemoryRemoteContentFetcher fetcher, string collectionVersion, string modVersion)
+{
+    var sha = InMemoryRemoteContentFetcher.FakeSha;
+    fetcher.AddRef("acme", "mods", "HEAD", sha);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/index.yaml", $"""
+        indexFormatVersion: "0.1"
+        repo:
+          name: ACME Mods
+        mods:
+          - id: test.upd.mod
+            path: mods/test.upd.mod
+            version: {modVersion}
+            gameDatabaseVersion: "1.3.0-11768+193445"
+        collections:
+          - id: test.upd.collection
+            path: collections/test.upd.collection.yaml
+            version: {collectionVersion}
+            gameDatabaseVersion: "1.3.0-11768+193445"
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/collections/test.upd.collection.yaml", $"""
+        collectionFormatVersion: 0.1
+        id: test.upd.collection
+        name: Updatable Collection
+        version: "{collectionVersion}"
+        author: Pagonia Land
+        gameDatabaseVersion: "1.3.0-11768+193445"
+        description: Fixture collection for the update flow.
+        conflictPolicy: strict
+        mods:
+          - id: test.upd.mod
+            version: "{modVersion}"
+            required: true
+            enabled: true
+        loadOrder:
+          - test.upd.mod
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/test.upd.mod/mod.yaml", $"""
+        patchFormatVersion: "0.1"
+        id: test.upd.mod
+        name: Updatable Mod
+        version: "{modVersion}"
+        author: Pagonia Land
+        gameDatabaseVersion: "1.3.0-11768+193445"
+        description: Fixture mod for the collection update flow.
+        requiredPackages:
+          - core
+        patches:
+          - patches/p.yaml
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/test.upd.mod/patches/p.yaml", """
+        operations:
+          - id: test-upd-mod-op
+            operation: replaceValue
+            risk: low
+            reason: collection update fixture
+            target:
+              file: core/gdb/buildings.gd.xml
+              entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+              component: AspectBuildup
+              path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+            expectedOldValue: "4"
+            value: "3"
+        """);
+}
+
+// Install test.upd.collection at the version the fixture currently serves, through the real
+// remote fetch + install path (so the provenance sidecar is written). Returns the installed
+// collection version.
+static string InstallRemoteCollectionFixture(StoreLayout layout, InMemoryRemoteContentFetcher fetcher)
+{
+    var source = new GitHubSource("acme", "mods", "HEAD", "test.upd.collection");
+    var fetch = new RemoteFetcher(fetcher).FetchCollection(source);
+    if (!fetch.Success) { throw new InvalidOperationException("fixture fetch failed"); }
+    try
+    {
+        var result = new CollectionInstallService().InstallWithOptions(layout, fetch.CollectionFilePath!, fetch.ModsRoot!,
+            new CollectionInstallOptions
+            {
+                RemoteModSources = new Dictionary<string, string>(fetch.ModSources, StringComparer.Ordinal),
+                RemoteCollectionSource = fetch.ResolvedCollectionSource,
+            });
+        if (result.Outcome != CollectionInstallOutcome.Installed) { throw new InvalidOperationException("fixture install failed"); }
+        return result.CollectionVersion!;
+    }
+    finally
+    {
+        if (fetch.TempDirectory is not null && Directory.Exists(fetch.TempDirectory)) { Directory.Delete(fetch.TempDirectory, true); }
+    }
+}
+
+static bool CollectionUpdateInstallsNewerVersionAndReseedsProfile()
+{
+    var tempRoot = NewTempRoot("coll-update-flow");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var fetcher = new InMemoryRemoteContentFetcher();
+
+        // Publish + install 0.1.0.
+        SeedCollectionRepoFixture(fetcher, collectionVersion: "0.1.0", modVersion: "0.1.0");
+        InstallRemoteCollectionFixture(layout, fetcher);
+
+        // Publish 0.2.0 of the collection at HEAD, then update.
+        SeedCollectionRepoFixture(fetcher, collectionVersion: "0.2.0", modVersion: "0.1.0");
+        var result = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection");
+
+        if (result.Outcome != CollectionUpdateOutcome.Updated
+            || result.FromVersion != "0.1.0" || result.ToVersion != "0.2.0")
+        {
+            return false;
+        }
+
+        return File.Exists(layout.CollectionManifestFile("test.upd.collection", "0.2.0"))
+            // old version kept on disk as the rollback anchor
+            && File.Exists(layout.CollectionManifestFile("test.upd.collection", "0.1.0"))
+            // the linked profile now reports the collection at the new version
+            && new CollectionLister().List(layout).Any(c => c.Id == "test.upd.collection" && c.Version == "0.2.0")
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionUpdated);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionUpdateIsNoOpWhenAlreadyCurrent()
+{
+    var tempRoot = NewTempRoot("coll-update-current");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var fetcher = new InMemoryRemoteContentFetcher();
+        SeedCollectionRepoFixture(fetcher, collectionVersion: "0.1.0", modVersion: "0.1.0");
+        InstallRemoteCollectionFixture(layout, fetcher);
+
+        // HEAD still advertises 0.1.0 — nothing to do.
+        var result = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection");
+
+        return result.Outcome == CollectionUpdateOutcome.AlreadyCurrent
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionUpdateAlreadyCurrent);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionUpdateRefusesLocalCollection()
+{
+    var tempRoot = NewTempRoot("coll-update-local");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        // Local-file install: no provenance sidecar, so there's no source to update from.
+        var (modsRoot, collectionPath) = BuildCollectionFixture(tempRoot, "test.local.coll", new[]
+        {
+            ("test.mod.a", "0.1.0", (string?)null),
+        });
+        new CollectionInstallService().Install(layout, collectionPath, modsRoot, profileNameOverride: null);
+
+        var result = new CollectionUpdateService(new InMemoryRemoteContentFetcher()).Update(layout, "test.local.coll");
+
+        return result.Outcome == CollectionUpdateOutcome.NoRemoteSource
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionUpdateNoRemoteSource);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionUpdateRefusesWhenNotInstalled()
+{
+    var tempRoot = NewTempRoot("coll-update-missing");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var result = new CollectionUpdateService(new InMemoryRemoteContentFetcher()).Update(layout, "no.such.collection");
+
+        return result.Outcome == CollectionUpdateOutcome.NotInstalled
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionUpdateNotInstalled);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+// Serves a single-mod collection (test.upd.collection / test.upd.mod) where the mod declares an
+// integer tweak `softwood-cost` fed into its op, and the collection's curator sets a value for it.
+// Parameterised so a test can "publish" a newer collection version and/or change the curator value.
+static void SeedTweakCollectionRepoFixture(InMemoryRemoteContentFetcher fetcher, string collectionVersion, string curatorTweakValue)
+{
+    var sha = InMemoryRemoteContentFetcher.FakeSha;
+    fetcher.AddRef("acme", "mods", "HEAD", sha);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/index.yaml", $"""
+        indexFormatVersion: "0.1"
+        repo:
+          name: ACME Mods
+        mods:
+          - id: test.upd.mod
+            path: mods/test.upd.mod
+            version: 0.1.0
+            gameDatabaseVersion: "1.3.0-11768+193445"
+        collections:
+          - id: test.upd.collection
+            path: collections/test.upd.collection.yaml
+            version: {collectionVersion}
+            gameDatabaseVersion: "1.3.0-11768+193445"
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/collections/test.upd.collection.yaml", $"""
+        collectionFormatVersion: 0.1
+        id: test.upd.collection
+        name: Updatable Tweak Collection
+        version: "{collectionVersion}"
+        author: Pagonia Land
+        gameDatabaseVersion: "1.3.0-11768+193445"
+        description: Fixture collection with a curator tweak override.
+        conflictPolicy: strict
+        mods:
+          - id: test.upd.mod
+            version: "0.1.0"
+            required: true
+            enabled: true
+            tweaks:
+              softwood-cost: "{curatorTweakValue}"
+        loadOrder:
+          - test.upd.mod
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/test.upd.mod/mod.yaml", """
+        patchFormatVersion: "0.1"
+        id: test.upd.mod
+        name: Updatable Tweak Mod
+        version: "0.1.0"
+        author: Pagonia Land
+        gameDatabaseVersion: "1.3.0-11768+193445"
+        description: Fixture mod with a tweak for the collection update flow.
+        requiredPackages:
+          - core
+        tweaks:
+          - id: softwood-cost
+            type: integer
+            label: Softwood trunk cost
+            default: 2
+            min: 1
+            max: 8
+        patches:
+          - patches/p.yaml
+        """);
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/mods/{sha}/mods/test.upd.mod/patches/p.yaml", """
+        operations:
+          - id: test-upd-mod-op
+            operation: replaceValue
+            risk: low
+            reason: collection update tweak fixture
+            target:
+              file: core/gdb/buildings.gd.xml
+              entityGuid: c732cb26-7487-4a7b-b1ba-b65e094f9bac
+              component: AspectBuildup
+              path: Costs/Item[Content/Resource='c22b4997-5563-44ab-8aa0-04a7b2c826be']/Content/Amount
+            expectedOldValue: "4"
+            value: "{{ tweaks.softwood-cost }}"
+        """);
+}
+
+// Resolve the current effective softwood-cost value on the updated collection's profile.
+static string ReadUpdModTweak(StoreLayout layout)
+    => new TweakOverrideService().Read(layout, "test.upd.collection", "test.upd.mod")
+        .Tweaks.Single(t => t.Declaration.Id == "softwood-cost").Value;
+
+static bool CollectionUpdateMergeKeepsGenuineOverride()
+{
+    var tempRoot = NewTempRoot("coll-update-merge-keep");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var fetcher = new InMemoryRemoteContentFetcher();
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.1.0", curatorTweakValue: "5");
+        InstallRemoteCollectionFixture(layout, fetcher);
+
+        // User makes a genuine override (5 -> 7).
+        new TweakOverrideService().Set(layout, "test.upd.collection", "test.upd.mod", "softwood-cost", "7");
+
+        // Publish 0.2.0 (curator value unchanged at 5). Default policy = Merge.
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.2.0", curatorTweakValue: "5");
+        var result = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection");
+
+        return result.Outcome == CollectionUpdateOutcome.Updated
+            && ReadUpdModTweak(layout) == "7" // the user's override survived the update
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionTweakKept);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionUpdateMergeAdoptsNewCuratorDefaultForNonOverridden()
+{
+    var tempRoot = NewTempRoot("coll-update-merge-adopt");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var fetcher = new InMemoryRemoteContentFetcher();
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.1.0", curatorTweakValue: "5");
+        InstallRemoteCollectionFixture(layout, fetcher);
+        // No user override — the stored 5 is just the curator default.
+
+        // Publish 0.2.0 with a NEW curator value (6). Merge must adopt it (nothing genuine to keep).
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.2.0", curatorTweakValue: "6");
+        var result = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection");
+
+        return result.Outcome == CollectionUpdateOutcome.Updated
+            && ReadUpdModTweak(layout) == "6" // followed the new curator default
+            && !result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionTweakKept);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionUpdateReseedDiscardsOverride()
+{
+    var tempRoot = NewTempRoot("coll-update-reseed");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var fetcher = new InMemoryRemoteContentFetcher();
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.1.0", curatorTweakValue: "5");
+        InstallRemoteCollectionFixture(layout, fetcher);
+        new TweakOverrideService().Set(layout, "test.upd.collection", "test.upd.mod", "softwood-cost", "7");
+
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.2.0", curatorTweakValue: "5");
+        var result = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection", CollectionTweakPolicy.Reseed);
+
+        return result.Outcome == CollectionUpdateOutcome.Updated
+            && ReadUpdModTweak(layout) == "5" // override discarded, curator value reseeded
+            && !result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionTweakKept);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionUpdateAskCallbackResolvesConflict()
+{
+    var tempRoot = NewTempRoot("coll-update-ask");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var fetcher = new InMemoryRemoteContentFetcher();
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.1.0", curatorTweakValue: "5");
+        InstallRemoteCollectionFixture(layout, fetcher);
+        new TweakOverrideService().Set(layout, "test.upd.collection", "test.upd.mod", "softwood-cost", "7");
+
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.2.0", curatorTweakValue: "5");
+
+        // Callback fires once (one genuine conflict) and chooses the curator value.
+        var callbackHits = 0;
+        var result = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection",
+            CollectionTweakPolicy.Ask,
+            conflict =>
+            {
+                callbackHits++;
+                return conflict is { ModId: "test.upd.mod", TweakId: "softwood-cost", YourValue: "7", CuratorValue: "5" }
+                    ? CollectionTweakResolution.TakeCurator
+                    : CollectionTweakResolution.KeepYours;
+            });
+
+        return result.Outcome == CollectionUpdateOutcome.Updated
+            && callbackHits == 1
+            && ReadUpdModTweak(layout) == "5" // callback chose curator
+            && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CollectionTweakReset);
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool TweakSetMarksOverrideEvenWhenEqualToCurator()
+{
+    var tempRoot = NewTempRoot("tweak-explicit-equal");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var (modsRoot, collectionPath, modId) = BuildTweakCollectionFixture(tempRoot, "test.collection.explicit", "5");
+        new CollectionInstallService().Install(layout, collectionPath, modsRoot, profileNameOverride: null);
+        const string profile = "test.collection.explicit";
+
+        // Seeded curator value reads as collection-default.
+        var before = new TweakOverrideService().Read(layout, profile, modId)
+            .Tweaks.Single(t => t.Declaration.Id == "softwood-cost");
+
+        // User explicitly sets the SAME value the curator uses. The old heuristic would call this
+        // collection-default; explicit marking records it as the user's.
+        new TweakOverrideService().Set(layout, profile, modId, "softwood-cost", "5");
+        var after = new TweakOverrideService().Read(layout, profile, modId)
+            .Tweaks.Single(t => t.Declaration.Id == "softwood-cost");
+
+        return before.Origin == TweakValueOrigins.CollectionDefault
+            && after.Value == "5"
+            && after.Origin == TweakValueOrigins.ProfileOverride;
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool LegacyProfileMigratesUserTweaksOnRead()
+{
+    var tempRoot = NewTempRoot("tweak-legacy-migrate");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var (modsRoot, collectionPath, modId) = BuildTweakCollectionFixture(tempRoot, "test.collection.legacy", "5");
+        new CollectionInstallService().Install(layout, collectionPath, modsRoot, profileNameOverride: null);
+        const string profile = "test.collection.legacy";
+
+        // Simulate a pre-marking profile: a user value (7 != curator 5) stored WITHOUT userTweaks.
+        var store = new ProfileStore();
+        var p = store.Read(layout, profile);
+        store.Write(layout, new ProfileFile
+        {
+            ProfileVersion = p.ProfileVersion,
+            Name = p.Name,
+            Collection = p.Collection,
+            LoadOrder = p.LoadOrder,
+            EnabledMods = p.EnabledMods.Select(m => m.Id == modId
+                ? new ProfileEnabledMod { Id = m.Id, Version = m.Version, Tweaks = new Dictionary<string, string> { ["softwood-cost"] = "7" }, UserTweaks = null }
+                : m).ToList(),
+        });
+
+        // First read infers + persists the marker via the heuristic (7 != 5 ⇒ user).
+        var view = new TweakOverrideService().Read(layout, profile, modId)
+            .Tweaks.Single(t => t.Declaration.Id == "softwood-cost");
+        var persisted = store.Read(layout, profile).EnabledMods.Single(m => m.Id == modId).UserTweaks;
+
+        return view.Origin == TweakValueOrigins.ProfileOverride
+            && persisted is not null && persisted.Contains("softwood-cost");
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionUpdateKeepsCoincidentalEqualOverride()
+{
+    var tempRoot = NewTempRoot("coll-update-coincidental");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var fetcher = new InMemoryRemoteContentFetcher();
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.1.0", curatorTweakValue: "5");
+        InstallRemoteCollectionFixture(layout, fetcher);
+
+        // User explicitly sets the SAME value the curator currently uses (5).
+        new TweakOverrideService().Set(layout, "test.upd.collection", "test.upd.mod", "softwood-cost", "5");
+
+        // Update 0.1.0 -> 0.2.0, curator still 5. The explicit mark must survive the reseed.
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.2.0", curatorTweakValue: "5");
+        var r1 = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection");
+        var originAfter = new TweakOverrideService().Read(layout, "test.upd.collection", "test.upd.mod")
+            .Tweaks.Single(t => t.Declaration.Id == "softwood-cost").Origin;
+
+        // Now the curator diverges (6). Because the value is still marked as the user's, it is kept
+        // at 5 rather than swept up to the new curator default — which only works because the mark
+        // survived the coincidental-equal update above.
+        SeedTweakCollectionRepoFixture(fetcher, collectionVersion: "0.3.0", curatorTweakValue: "6");
+        var r2 = new CollectionUpdateService(fetcher).Update(layout, "test.upd.collection");
+
+        return r1.Outcome == CollectionUpdateOutcome.Updated
+            && originAfter == TweakValueOrigins.ProfileOverride
+            && r2.Outcome == CollectionUpdateOutcome.Updated
+            && ReadUpdModTweak(layout) == "5";
+    }
+    finally { CleanupTempRoot(tempRoot); }
 }
 
 // ---- InstallSourceResolver (shared remote-source dispatch) -----------------
@@ -9792,6 +11463,67 @@ static bool CollectionInstallRemoteSourcesAugmentLockfile()
             && lockObj.Mods.All(m => !string.IsNullOrEmpty(m.Source) && !string.IsNullOrEmpty(m.ResolvedAt))
             && lockObj.Mods.Single(m => m.Id == "test.mod.a").Source.Contains("acme/mods#aaaaaaaa")
             && lockObj.Mods.Single(m => m.Id == "test.mod.b").Source.Contains("other/repo#bbbbbbbb");
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionInstallRemoteSourceWritesProvenanceSidecar()
+{
+    var tempRoot = NewTempRoot("coll-provenance-sidecar");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var (modsRoot, collectionPath) = BuildCollectionFixture(tempRoot, "test.collection.prov", new[]
+        {
+            ("test.mod.a", "0.1.0", (string?)null),
+        });
+
+        const string collectionSource = "gh:acme/presets#cccccccccccccccccccccccccccccccccccccccc/test.collection.prov";
+        var result = new CollectionInstallService().InstallWithOptions(layout, collectionPath, modsRoot,
+            new CollectionInstallOptions { RemoteCollectionSource = collectionSource });
+
+        if (result.Outcome != CollectionInstallOutcome.Installed) { return false; }
+
+        // Sidecar lands beside the manifest in the version dir, and the lister
+        // surfaces it as InstalledCollection.Source.
+        var sidecarPath = Path.Combine(
+            layout.CollectionVersionDirectory("test.collection.prov", "0.1.0"),
+            CollectionInstallService.SidecarFileName);
+
+        var listed = new CollectionLister().List(layout)
+            .Single(c => c.Id == "test.collection.prov" && c.Version == "0.1.0");
+
+        return File.Exists(sidecarPath)
+            && listed.Source == collectionSource;
+    }
+    finally { CleanupTempRoot(tempRoot); }
+}
+
+static bool CollectionInstallLocalLeavesNoProvenanceSidecar()
+{
+    var tempRoot = NewTempRoot("coll-no-sidecar");
+    try
+    {
+        var layout = InitLayout(tempRoot);
+        var (modsRoot, collectionPath) = BuildCollectionFixture(tempRoot, "test.collection.local", new[]
+        {
+            ("test.mod.a", "0.1.0", (string?)null),
+        });
+
+        // No RemoteCollectionSource -> local-file install: nothing to update-check
+        // against, so no sidecar is written and Source reads back null.
+        var result = new CollectionInstallService().Install(layout, collectionPath, modsRoot, profileNameOverride: null);
+        if (result.Outcome != CollectionInstallOutcome.Installed) { return false; }
+
+        var sidecarPath = Path.Combine(
+            layout.CollectionVersionDirectory("test.collection.local", "0.1.0"),
+            CollectionInstallService.SidecarFileName);
+
+        var listed = new CollectionLister().List(layout)
+            .Single(c => c.Id == "test.collection.local" && c.Version == "0.1.0");
+
+        return !File.Exists(sidecarPath)
+            && string.IsNullOrEmpty(listed.Source);
     }
     finally { CleanupTempRoot(tempRoot); }
 }
@@ -10280,6 +12012,8 @@ static bool RemoteHostPolicyBlocksInternalAndMappedHosts()
     bool Blocked(string url) => RemoteHostPolicy.IsBlocked(new Uri(url));
     return Blocked("http://127.0.0.1/")
         && Blocked("http://[::1]/")
+        && Blocked("http://0.0.0.0/")                   // unspecified IPv4 — OS routes to localhost
+        && Blocked("http://[::]/")                      // unspecified IPv6
         && Blocked("http://169.254.169.254/latest/meta-data/")
         && Blocked("http://[fe80::1]/")
         && Blocked("http://[::ffff:127.0.0.1]/")        // IPv4-mapped loopback
@@ -10612,6 +12346,60 @@ static bool DirectUrlFetcherHappyPath()
     {
         if (result.TempRoot is not null && Directory.Exists(result.TempRoot))
         { Directory.Delete(result.TempRoot, true); }
+    }
+}
+
+static bool DirectUrlFetcherRedactsSignedUrl()
+{
+    // mod.io hands back a pre-signed binary URL carrying a ?signature= credential. It must not leak
+    // into the diagnostics that flow to the console / --json report (mirrors the api_key redaction).
+    var (bytes, _, _) = MakeMinimalModZip(nested: false);
+    var fetcher = new InMemoryRemoteContentFetcher();
+    var url = "https://thumb.modcdn.io/files/9876/some-mod.zip?signature=abc123&expires=1234567890";
+    fetcher.AddBytes(url, bytes);
+
+    var result = new DirectUrlFetcher(fetcher).Fetch(new DirectUrlSource(url, IsHttp: false));
+    try
+    {
+        var fetched = result.Diagnostics.First(d => d.Code == ManagerDiagnosticCodes.DirectUrlFetched);
+        return result.Success
+            && !fetched.Message.Contains("signature", StringComparison.OrdinalIgnoreCase)
+            && !fetched.Message.Contains("abc123", StringComparison.Ordinal)
+            && fetched.Message.Contains("thumb.modcdn.io/files/9876/some-mod.zip", StringComparison.Ordinal); // path kept
+    }
+    finally
+    {
+        if (result.TempRoot is not null && Directory.Exists(result.TempRoot))
+        { Directory.Delete(result.TempRoot, true); }
+    }
+}
+
+static bool DirectUrlFetcherVerifiesMd5()
+{
+    // A mod.io download advertises an MD5; the fetcher must verify it — silent on a match, a warning
+    // (still installing) on a mismatch. Closes the gap where filehash.md5 was parsed but never checked.
+    var (bytes, _, _) = MakeMinimalModZip(nested: false);
+    var fetcher = new InMemoryRemoteContentFetcher();
+    var url = "https://example.com/mods/modio-mod.zip";
+    fetcher.AddBytes(url, bytes);
+    var goodMd5 = Convert.ToHexString(System.Security.Cryptography.MD5.HashData(bytes)).ToLowerInvariant();
+    var source = new DirectUrlSource(url, IsHttp: false);
+
+    var matching = new DirectUrlFetcher(fetcher).Fetch(source, goodMd5);
+    var mismatched = new DirectUrlFetcher(fetcher).Fetch(source, "ffffffffffffffffffffffffffffffff");
+    try
+    {
+        return matching.Success
+            && matching.Diagnostics.All(d => d.Code != ManagerDiagnosticCodes.ModIoChecksumMismatch)
+            && mismatched.Success
+            && mismatched.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.ModIoChecksumMismatch);
+    }
+    finally
+    {
+        foreach (var r in new[] { matching, mismatched })
+        {
+            if (r.TempRoot is not null && Directory.Exists(r.TempRoot)) { Directory.Delete(r.TempRoot, true); }
+        }
     }
 }
 
@@ -11179,6 +12967,54 @@ static bool CatalogFetcherGitHubMalformed()
 
     return !result.Success
         && result.Diagnostics.Any(d => d.Code == ManagerDiagnosticCodes.CatalogMalformed);
+}
+
+static bool CatalogFetcherNewerMinorReads()
+{
+    // A newer same-major minor catalog reads with an info recommend-update note.
+    var fetcher = new InMemoryRemoteContentFetcher();
+    fetcher.AddRef("acme", "future", "HEAD", CatalogFakeSha());
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/future/{CatalogFakeSha()}/catalog.yaml", """
+        catalogFormatVersion: "0.99"
+        catalog:
+          name: Future Catalog
+        repos:
+          - owner: someone
+            repo: their-mods
+            summary: One-line.
+        """);
+
+    var src = new GitHubCatalogSource("acme", "future", "HEAD", "catalog.yaml");
+    var result = new CatalogFetcher(fetcher).Fetch(src);
+
+    return result.Success
+        && result.Catalog?.Repos.Count == 1
+        && result.Diagnostics.Any(d => d.Code == PagoniaLand.Patcher.DiagnosticCodes.FormatMinorAhead
+            && d.Severity == ManagerDiagnosticSeverity.Info);
+}
+
+static bool CatalogFetcherNewerMajorRefused()
+{
+    // A newer-major catalog is refused: the successful parse is turned into a failure carrying
+    // the actionable formatMajorUnsupported error, so its repos never enter the aggregate.
+    var fetcher = new InMemoryRemoteContentFetcher();
+    fetcher.AddRef("acme", "future", "HEAD", CatalogFakeSha());
+    fetcher.AddText($"https://raw.githubusercontent.com/acme/future/{CatalogFakeSha()}/catalog.yaml", """
+        catalogFormatVersion: "1.0"
+        catalog:
+          name: Future Catalog
+        repos:
+          - owner: someone
+            repo: their-mods
+            summary: One-line.
+        """);
+
+    var src = new GitHubCatalogSource("acme", "future", "HEAD", "catalog.yaml");
+    var result = new CatalogFetcher(fetcher).Fetch(src);
+
+    return !result.Success
+        && result.Diagnostics.Any(d => d.Code == PagoniaLand.Patcher.DiagnosticCodes.FormatMajorUnsupported
+            && d.Severity == ManagerDiagnosticSeverity.Error);
 }
 
 static bool CatalogFetcherFileExample()

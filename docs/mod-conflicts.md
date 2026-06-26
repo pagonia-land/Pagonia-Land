@@ -142,10 +142,10 @@ Suggested result: warning, not automatic failure.
 Every mod should declare the snapshot it was authored against:
 
 ```yaml
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 ```
 
-The validator should compare this with the local current snapshot. Prefer exact program versions such as `1.4.0-11944+194631` over descriptive labels.
+The validator should compare this with the local current snapshot. Prefer exact program versions such as `1.4.0-12032+195221` over descriptive labels.
 
 If the snapshot differs:
 

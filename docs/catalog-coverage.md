@@ -14,15 +14,15 @@ The remaining work is not "missing everything". It is more specific: many XML co
 
 ## Current Health Check
 
-Latest local validation (against `1.4.0-11944+194631`, regenerated 2026-06-16):
+Latest local validation (against `1.4.0-12032+195221`, regenerated 2026-06-24):
 
 | Metric | Count |
 | --- | ---: |
 | XML files | 60 |
-| Entity definitions | 4,715 |
-| Unique entity GUIDs | 4,715 |
-| GUID-like references | 31,763 |
-| Resolved references | 24,422 |
+| Entity definitions | 4,717 |
+| Unique entity GUIDs | 4,717 |
+| GUID-like references | 31,755 |
+| Resolved references | 24,414 |
 | Null GUID references | 7,311 |
 | Other unresolved references | 30 |
 | Validation warnings | 2 |

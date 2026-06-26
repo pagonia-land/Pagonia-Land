@@ -3,7 +3,7 @@ id: pagonia-land.example.tweakable-economy
 name: Tweakable Economy
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: >-
   Small worked example of a user-adjustable mod: it lowers the Sawmill's
   construction cost, and exposes that cost as a `softwood-cost` tweak so a

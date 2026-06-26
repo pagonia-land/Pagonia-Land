@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 
@@ -45,15 +46,49 @@ public sealed class HttpRemoteContentFetcher : IRemoteContentFetcher, IDisposabl
         // so the SSRF host policy is re-checked on every hop. Otherwise a 3xx Location pointing at
         // 169.254.169.254 (or any loopback / link-local host) would be followed unchecked, defeating
         // the parse-time guard.
-        _client = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false });
+        var handler = new SocketsHttpHandler { AllowAutoRedirect = false };
+        // Connection-time SSRF guard: resolve the host ourselves and connect only to allowed IPs, so a
+        // DNS name that resolves to an internal address (DNS-rebinding) is refused — the parse-time
+        // IsBlocked check only sees literal-IP hosts. Re-resolving here also closes the parse->connect
+        // TOCTOU window. Public hosts (github.com, mod.io) resolve and connect normally.
+        handler.ConnectCallback = async (context, ct) =>
+        {
+            var host = context.DnsEndPoint.Host;
+            var addresses = IPAddress.TryParse(host, out var literal)
+                ? new[] { literal }
+                : await Dns.GetHostAddressesAsync(host, ct).ConfigureAwait(false);
+            var allowed = addresses.Where(a => !RemoteHostPolicy.IsBlockedAddress(a)).ToArray();
+            if (allowed.Length == 0)
+            {
+                throw new HttpRequestException($"Refusing to connect to '{host}': it resolves only to blocked internal address(es).");
+            }
+
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(allowed, context.DnsEndPoint.Port, ct).ConfigureAwait(false);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        };
+        _client = new HttpClient(handler);
+        // Cap every buffered read (HttpCompletionOption.ResponseContentRead + ReadAsString/ByteArray)
+        // at the metadata ceiling so a path like ResolveCommitShaAsync can't be streamed unbounded into
+        // memory. The streamed-download / header-read paths use ReadAsStreamAsync and are unaffected.
+        _client.MaxResponseContentBufferSize = MaxMetadataBytes;
         // 120s caps any individual HTTP round-trip. The default HttpClient
         // timeout (100s) would let a dead server hang the interactive shell
         // for almost two minutes; 120s gives federated-catalog walks on
         // flaky-but-alive uplinks enough headroom while keeping a bounded
-        // ceiling. With TryFetchAsync using ResponseContentRead the cap
-        // bounds the WHOLE response (not just headers), so small catalog
-        // YAMLs and mod.io JSON fit easily. The CancellationToken remains
-        // the authoritative cancel mechanism when callers wire one through.
+        // ceiling on the round-trip. TryFetchAsync uses ResponseHeadersRead
+        // and then a manual MaxMetadataBytes-bounded copy loop, so the timeout
+        // bounds the round-trip while the byte loop bounds the buffered size —
+        // small catalog YAMLs and mod.io JSON fit easily. The CancellationToken
+        // remains the authoritative cancel mechanism when callers wire one through.
         _client.Timeout = TimeSpan.FromSeconds(120);
         _client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
         // GitHub API responses for the commits endpoint are JSON by default;
@@ -153,7 +188,7 @@ public sealed class HttpRemoteContentFetcher : IRemoteContentFetcher, IDisposabl
             if (!Uri.TryCreate(current, UriKind.Absolute, out var uri)
                 || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                throw new HttpRequestException($"Refusing to fetch a non-http(s) URL: '{current}'.");
+                throw new HttpRequestException($"Refusing to fetch a non-http(s) URL: '{Redact(current)}'.");
             }
             if (RemoteHostPolicy.IsBlocked(uri))
             {
@@ -171,12 +206,17 @@ public sealed class HttpRemoteContentFetcher : IRemoteContentFetcher, IDisposabl
             response.Dispose();
             if (hop >= MaxRedirects)
             {
-                throw new HttpRequestException($"Too many redirects fetching '{url}'.");
+                throw new HttpRequestException($"Too many redirects fetching '{Redact(url)}'.");
             }
 
             current = next.ToString();
         }
     }
+
+    // Strip the query string before a URL goes into an exception/diagnostic message: a mod.io fetch
+    // URL carries the api_key as a query param, and these messages flow to the console + --json report.
+    private static string Redact(string url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.GetLeftPart(UriPartial.Path) : "<url>";
 
     private static bool IsRedirect(HttpStatusCode status)
         => status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found or HttpStatusCode.SeeOther

@@ -62,6 +62,15 @@ public sealed class RepoIndexMod
     [YamlMember(Alias = "gameDatabaseVersion")]
     public string GameDatabaseVersion { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Optional SHA-256 over the mod's logical payload (mod.yaml + referenced patches), maintained by
+    /// the patcher's <c>index build</c>. When present, the consumer re-computes it on the fetched
+    /// download and warns on a mismatch (<c>manager.modContentHashMismatch</c>) — download integrity
+    /// plus same-version content-drift detection. Empty when the index doesn't advertise it.
+    /// </summary>
+    [YamlMember(Alias = "contentHash")]
+    public string ContentHash { get; init; } = string.Empty;
+
     [YamlMember(Alias = "safetyFlags")]
     public RepoIndexSafetyFlags? SafetyFlags { get; init; }
 }

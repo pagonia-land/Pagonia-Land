@@ -3,7 +3,7 @@ id: pagonia-land.example.cheaper-sawmill
 name: Cheaper Sawmill
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: Lowers the Sawmill's Softwood Trunk construction cost by one. Demonstrates a single replaceValue operation on a building's AspectBuildup.
 requiredPackages:
   - core

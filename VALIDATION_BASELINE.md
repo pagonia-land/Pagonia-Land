@@ -2,7 +2,7 @@
 
 This document records the known validation status for the currently extracted local game database. It is the reference point that distinguishes expected warnings from new problems introduced by a game update or a modding experiment.
 
-**Baseline:** `1.4.0-11944+194631` — 1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, Steam Beta branch, 2026-06-16. See [CHANGELOG.md](CHANGELOG.md#140-11944194631-2026-06-16-pagonia-editor-update-beta-update-1) for the delta from the previous baseline (`1.4.0-11893+194274`, 1.4.0 Pagonia Editor Update beta).
+**Baseline:** `1.4.0-12032+195221` — 1.4.0 "Quality of Life & Pagonia Editor Update" (QoL 8), official release (Steam stable branch), 2026-06-24. See [CHANGELOG.md](CHANGELOG.md#140-12032195221-2026-06-24-quality-of-life-and-pagonia-editor-update-official-release) for the delta from the previous baseline (`1.4.0-11975+194885`, 1.4.0 Pagonia Editor Update Beta Update #2).
 
 ## Current Status
 
@@ -17,10 +17,10 @@ Current result:
 | Check | Count |
 | --- | ---: |
 | XML files | 60 |
-| Entity definitions | 4,715 |
-| Unique entity GUIDs | 4,715 |
-| GUID-like references | 31,763 |
-| Resolved references | 24,422 |
+| Entity definitions | 4,717 |
+| Unique entity GUIDs | 4,717 |
+| GUID-like references | 31,755 |
+| Resolved references | 24,414 |
 | Null GUID references | 7,311 |
 | Other unresolved references | 30 |
 | Building recipe links | 95 |
@@ -37,16 +37,16 @@ Zero errors and a stable two-warning baseline. If validate prints more than this
 
 ### 1. Unresolved Non-Null GUID References (30)
 
-Thirty GUID references resolve to no entity in the shipped XML. They split into two stable "magic token" GUIDs (unchanged since 1.2.2) and four references that 1.3.1 newly orphaned:
+Thirty GUID references resolve to no entity in the shipped XML. They split into two stable "magic token" GUIDs (12 references, unchanged since 1.2.2) and four GUIDs (18 references) that the 1.3.1 `NoMVP.*` cleanup newly orphaned:
 
 ```text
-Stable magic tokens (12 — do not touch):
+Stable magic tokens (2 GUIDs / 12 references — do not touch):
   ac941c5f-8266-4456-80f6-d32c777017dc
     7 references — <Unit>/<Item> contexts, first seen in game-gdb/core/gdb/buildings.gd.xml
   d860e55d-71de-4200-b7e1-46f2143d6ebd
     5 references — <CustomFaction> contexts, first seen in game-gdb/core/gdb/narration.gd.xml
 
-Newly orphaned by the 1.3.1 NoMVP cleanup (18 — also do not touch):
+Newly orphaned by the 1.3.1 NoMVP cleanup (4 GUIDs / 18 references — also do not touch):
   57f90c67-4001-4da9-9cd9-62f5e11b6e48  6 references — <Content>, NoMVP.Wooden Wheel
   9cfc6c71-03e7-4615-9b72-a0f8a9a53398  6 references — <Content>, NoMVP.Iron-bound Wheel
   d9fcc739-96f3-4701-ae44-47ea2ed6312f  3 references — <Content>, NoMVP.Handcart

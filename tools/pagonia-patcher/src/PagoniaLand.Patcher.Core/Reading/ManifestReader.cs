@@ -52,9 +52,15 @@ public sealed class ManifestReader
     public ReadResult<PatchFile> ReadPatchFile(string path)
         => ReadYamlFile<PatchFile>(path, DiagnosticCodes.PatchFileReadFailed);
 
+    /// <remarks>This is a plain deserialize — it does <b>not</b> evaluate <c>collectionFormatVersion</c>.
+    /// The MAJOR.MINOR tier gate (newer-minor reads with a note, newer/retired major refused) is the
+    /// caller's responsibility: any consumer reading a public collection file must run the shared
+    /// format-version policy (as the resolver / schema-validate paths do) before trusting it.</remarks>
     public ReadResult<CollectionManifest> ReadCollectionManifest(string path)
         => ReadYamlFile<CollectionManifest>(path, DiagnosticCodes.CollectionReadFailed);
 
+    /// <remarks>This is a plain deserialize — it does <b>not</b> evaluate <c>collectionLockVersion</c>.
+    /// The MAJOR.MINOR tier gate is the caller's responsibility (see <see cref="ReadCollectionManifest"/>).</remarks>
     public ReadResult<CollectionLock> ReadCollectionLock(string path)
         => ReadYamlFile<CollectionLock>(path, DiagnosticCodes.CollectionLockReadFailed);
 

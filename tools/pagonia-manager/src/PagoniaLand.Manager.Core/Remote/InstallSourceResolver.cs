@@ -150,9 +150,10 @@ public static class InstallSourceResolver
                 return new RemoteSourceResolution { Aborted = true, Diagnostics = diagnostics };
             }
 
-            // Verified https above; chain into the DirectUrlFetcher for the download + unpack.
+            // Verified https above; chain into the DirectUrlFetcher for the download + unpack, passing
+            // the advertised modfile MD5 so the fetcher verifies download integrity (warns on mismatch).
             var pseudoDirect = new DirectUrlSource(modIoResult.BinaryUrl, IsHttp: false);
-            var downloadResult = new DirectUrlFetcher(http).Fetch(pseudoDirect);
+            var downloadResult = new DirectUrlFetcher(http).Fetch(pseudoDirect, modIoResult.Md5);
             diagnostics.AddRange(downloadResult.Diagnostics);
             if (!downloadResult.Success || downloadResult.TempRoot is null || downloadResult.ModRootDirectory is null)
             {

@@ -486,16 +486,19 @@ public sealed class PakPatcher
     }
 
     /// <summary>
-    /// Compression heuristic for newly-added entries: gzip-pack the text-shaped
-    /// file extensions the game uses for game-database, sandbox, and config
-    /// files (plus the per-module JSON metadata that shipped paks gzip too);
-    /// store everything else verbatim. Mirrors the heuristic in
-    /// scripts/sandbox-pack.ps1 so both code paths agree.
+    /// The text-shaped file extensions newly-added entries are gzip-compressed for — the
+    /// game-database / sandbox / config files plus the per-module JSON metadata that shipped paks
+    /// gzip too; everything else is stored verbatim. This is the single source of truth for the
+    /// compression-by-extension heuristic; <c>scripts/sandbox-pack.ps1</c> hardcodes the same set,
+    /// and a paker test asserts the two stay identical so a pak built either way has one layout.
     /// </summary>
+    public static readonly IReadOnlySet<string> CompressibleExtensions =
+        new HashSet<string>(StringComparer.Ordinal) { ".xml", ".yaml", ".yml", ".txt", ".json" };
+
     private static bool ShouldCompressByExtension(string entryName)
     {
         var ext = Path.GetExtension(entryName.AsSpan()).ToString().ToLowerInvariant();
-        return ext is ".xml" or ".yaml" or ".yml" or ".txt" or ".json";
+        return CompressibleExtensions.Contains(ext);
     }
 
     private static PakDiagnostic Error(string code, string message)

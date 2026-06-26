@@ -13,7 +13,7 @@ public static class TweakValueOrigins
     /// <summary>A value stored in this profile's <c>enabledMods[].tweaks</c> map.</summary>
     public const string ProfileOverride = "profile-override";
 
-    /// <summary>A value seeded into the profile by a collection install (reserved; populated later).</summary>
+    /// <summary>A value seeded into the profile by a collection install that the user hasn't changed.</summary>
     public const string CollectionDefault = "collection-default";
 }
 
@@ -69,18 +69,12 @@ public sealed class TweakOverrideService
             return new TweakReadResult { ProfileName = ctx?.ProfileName, ModId = modId, Diagnostics = diagnostics };
         }
 
-        // The collection (if the profile is pinned to one) supplied some of the
-        // stored values at install time. Re-read its curator tweaks so a value
-        // still matching the collection's reads as collection-default, while a
-        // value the user changed reads as profile-override.
-        var collectionTweaks = LoadCollectionCuratorTweaks(layout, ctx.Profile, modId);
-
         var usagesByTweak = ctx.Usages
             .GroupBy(u => u.TweakId, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<TweakUsage>)g.ToList(), StringComparer.Ordinal);
 
         var views = ctx.Declarations
-            .Select(decl => new TweakValueView(decl, ResolveValue(ctx, decl), ResolveOrigin(ctx, decl, collectionTweaks))
+            .Select(decl => new TweakValueView(decl, ResolveValue(ctx, decl), ResolveOrigin(ctx, decl))
             {
                 Usages = usagesByTweak.TryGetValue(decl.Id, out var u) ? u : [],
             })
@@ -128,7 +122,15 @@ public sealed class TweakOverrideService
             [declaration.Id] = NormalizeValue(declaration, value),
         };
 
-        WriteTweaks(layout, ctx, updated);
+        // Mark this tweak as an explicit user override (so its origin is unambiguous even when the
+        // value coincidentally equals the collection's curator value).
+        var updatedUserTweaks = new List<string>(ctx.UserTweaks);
+        if (!updatedUserTweaks.Contains(declaration.Id, StringComparer.Ordinal))
+        {
+            updatedUserTweaks.Add(declaration.Id);
+        }
+
+        WriteTweaks(layout, ctx, updated, updatedUserTweaks);
 
         // No success info diagnostic: Success + Mutated already convey the outcome,
         // and each caller (CLI / wizard) prints its own confirmation line.
@@ -158,7 +160,7 @@ public sealed class TweakOverrideService
             var hadAny = ctx.EnabledMod.Tweaks is { Count: > 0 };
             if (hadAny)
             {
-                WriteTweaks(layout, ctx, null);
+                WriteTweaks(layout, ctx, null, null);
             }
             return new TweakMutationResult
             {
@@ -195,7 +197,12 @@ public sealed class TweakOverrideService
 
         var remaining = new Dictionary<string, string>(ctx.EnabledMod.Tweaks, StringComparer.Ordinal);
         remaining.Remove(declaration.Id);
-        WriteTweaks(layout, ctx, remaining.Count == 0 ? null : remaining);
+        var remainingUserTweaks = ctx.UserTweaks
+            .Where(id => !string.Equals(id, declaration.Id, StringComparison.Ordinal))
+            .ToList();
+        WriteTweaks(layout, ctx,
+            remaining.Count == 0 ? null : remaining,
+            remaining.Count == 0 ? null : remainingUserTweaks);
 
         return new TweakMutationResult
         {
@@ -212,7 +219,8 @@ public sealed class TweakOverrideService
         ProfileFile Profile,
         ProfileEnabledMod EnabledMod,
         IReadOnlyList<TweakDeclaration> Declarations,
-        IReadOnlyList<TweakUsage> Usages);
+        IReadOnlyList<TweakUsage> Usages,
+        IReadOnlyList<string> UserTweaks);
 
     private bool TryLoadContext(
         StoreLayout layout,
@@ -259,7 +267,7 @@ public sealed class TweakOverrideService
                 ManagerDiagnosticSeverity.Error,
                 ManagerDiagnosticCodes.ModInstallMissing,
                 $"Mod '{modId}' version '{enabledMod.Version}' is enabled in profile '{resolvedName}' but not installed at '{modDirectory}'."));
-            context = new Context(resolvedName, profile, enabledMod, [], []);
+            context = new Context(resolvedName, profile, enabledMod, [], [], []);
             return false;
         }
 
@@ -269,7 +277,7 @@ public sealed class TweakOverrideService
             .Select(ManagerDiagnostic.From));
         if (readResult.Value is null)
         {
-            context = new Context(resolvedName, profile, enabledMod, [], []);
+            context = new Context(resolvedName, profile, enabledMod, [], [], []);
             return false;
         }
 
@@ -283,18 +291,42 @@ public sealed class TweakOverrideService
         // current id (the author lists the old id under `aliases:`). When anything
         // moves, the profile YAML is rewritten on the spot so the stored shape
         // catches up — the migration diagnostic then fires only once.
-        var (migrated, migrationDiagnostics, changed) =
+        var (migrated, migrationDiagnostics, aliasChanged) =
             TweakAliasMigrator.Migrate(modId, enabledMod.Tweaks, declarations);
         diagnostics.AddRange(migrationDiagnostics);
 
-        if (changed)
+        // One-time origin migration: a profile written before explicit user-override marking has
+        // no userTweaks. Infer it once via the legacy heuristic (a stored value differing from the
+        // collection's curator value is the user's), then persist — from then on the marking is
+        // explicit, so an override coincidentally equal to the curator's value is still the user's.
+        var userTweaks = enabledMod.UserTweaks;
+        var originMigrated = false;
+        if (userTweaks is null && migrated is { Count: > 0 })
         {
-            enabledMod = new ProfileEnabledMod { Id = enabledMod.Id, Version = enabledMod.Version, Tweaks = migrated };
+            userTweaks = InferUserTweaks(migrated, declarations, LoadCollectionCuratorTweaks(layout, profile, modId));
+            originMigrated = true;
+        }
+
+        // Keep the marker ids pointed at current ids when an alias rename moved the keys.
+        if (aliasChanged && userTweaks is { Count: > 0 })
+        {
+            userTweaks = RemapUserTweaks(userTweaks, declarations, migrated);
+        }
+
+        if (aliasChanged || originMigrated)
+        {
+            enabledMod = new ProfileEnabledMod
+            {
+                Id = enabledMod.Id,
+                Version = enabledMod.Version,
+                Tweaks = migrated,
+                UserTweaks = userTweaks,
+            };
             profile = ReplaceEnabledMod(profile, enabledMod);
             _profileStore.Write(layout, profile);
         }
 
-        context = new Context(resolvedName, profile, enabledMod, declarations, usages);
+        context = new Context(resolvedName, profile, enabledMod, declarations, usages, userTweaks ?? []);
         return true;
     }
 
@@ -322,26 +354,75 @@ public sealed class TweakOverrideService
             ? stored
             : decl.Default;
 
-    private static string ResolveOrigin(Context ctx, TweakDeclaration decl, IReadOnlyDictionary<string, string>? collectionTweaks)
+    private static string ResolveOrigin(Context ctx, TweakDeclaration decl)
     {
-        if (ctx.EnabledMod.Tweaks is not { } tweaks || !tweaks.TryGetValue(decl.Id, out var stored))
+        if (ctx.EnabledMod.Tweaks is not { } tweaks || !tweaks.ContainsKey(decl.Id))
         {
             return TweakValueOrigins.Default;
         }
 
-        // A stored value still equal to the collection's curator-supplied value is
-        // attributed to the collection; anything else is the user's own override. The stored value
-        // was normalised on write (boolean canonicalised, trimmed), so normalise the curator value
-        // the same way before comparing — otherwise a curator's " true " would never match the
-        // stored `true` and a freshly-seeded default would mis-report as a user override.
-        if (collectionTweaks is not null
-            && collectionTweaks.TryGetValue(decl.Id, out var curatorValue)
-            && string.Equals(stored, NormalizeValue(decl, curatorValue), StringComparison.Ordinal))
+        // Origin is now explicit: a stored value the user set is in userTweaks (recorded on `tweak
+        // set`, or inferred once on migration); any other stored value was seeded by a collection
+        // install. No value comparison — so a user override that equals the curator's value still
+        // reads as the user's.
+        return ctx.UserTweaks.Contains(decl.Id, StringComparer.Ordinal)
+            ? TweakValueOrigins.ProfileOverride
+            : TweakValueOrigins.CollectionDefault;
+    }
+
+    /// <summary>One-time origin inference for a pre-marking profile: a stored value that differs
+    /// from the collection's (normalised) curator value is taken to be the user's. Values still
+    /// equal to the curator's read as collection defaults.</summary>
+    private static List<string> InferUserTweaks(
+        IReadOnlyDictionary<string, string> tweaks,
+        IReadOnlyList<TweakDeclaration> declarations,
+        IReadOnlyDictionary<string, string>? curatorTweaks)
+    {
+        var result = new List<string>();
+        foreach (var (id, value) in tweaks)
         {
-            return TweakValueOrigins.CollectionDefault;
+            var decl = declarations.FirstOrDefault(d => string.Equals(d.Id, id, StringComparison.Ordinal));
+            var equalsCurator = decl is not null
+                && curatorTweaks is not null
+                && curatorTweaks.TryGetValue(id, out var curatorValue)
+                && string.Equals(value, NormalizeValue(decl, curatorValue), StringComparison.Ordinal);
+            if (!equalsCurator)
+            {
+                result.Add(id);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Map user-tweak marker ids forward when an alias rename moved the keys, keeping only
+    /// ids still present in the (migrated) stored map.</summary>
+    private static List<string> RemapUserTweaks(
+        IReadOnlyList<string> userTweaks,
+        IReadOnlyList<TweakDeclaration> declarations,
+        IReadOnlyDictionary<string, string>? tweaks)
+    {
+        var declaredIds = new HashSet<string>(declarations.Select(d => d.Id), StringComparer.Ordinal);
+        var aliasToCurrent = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var decl in declarations)
+        {
+            foreach (var alias in decl.Aliases)
+            {
+                aliasToCurrent[alias] = decl.Id;
+            }
         }
 
-        return TweakValueOrigins.ProfileOverride;
+        var result = new List<string>();
+        foreach (var id in userTweaks)
+        {
+            var current = declaredIds.Contains(id) ? id : (aliasToCurrent.TryGetValue(id, out var c) ? c : null);
+            if (current is not null
+                && tweaks is not null && tweaks.ContainsKey(current)
+                && !result.Contains(current, StringComparer.Ordinal))
+            {
+                result.Add(current);
+            }
+        }
+        return result;
     }
 
     /// <summary>The curator-supplied tweak overrides for <paramref name="modId"/> from the
@@ -378,11 +459,11 @@ public sealed class TweakOverrideService
             .Tweaks;
     }
 
-    private void WriteTweaks(StoreLayout layout, Context ctx, Dictionary<string, string>? tweaks)
+    private void WriteTweaks(StoreLayout layout, Context ctx, Dictionary<string, string>? tweaks, List<string>? userTweaks)
     {
         var rebuiltEnabled = ctx.Profile.EnabledMods
             .Select(m => string.Equals(m.Id, ctx.EnabledMod.Id, StringComparison.Ordinal)
-                ? new ProfileEnabledMod { Id = m.Id, Version = m.Version, Tweaks = tweaks }
+                ? new ProfileEnabledMod { Id = m.Id, Version = m.Version, Tweaks = tweaks, UserTweaks = userTweaks }
                 : m)
             .ToList();
 
@@ -409,6 +490,31 @@ public sealed class TweakOverrideService
         => decl.Type == "boolean" && bool.TryParse(value, out var b)
             ? b.ToString().ToLowerInvariant()
             : value.Trim();
+
+    /// <summary>
+    /// Canonicalise a curator-supplied tweak map for collection seeding: trim each value and lowercase
+    /// booleans (the same <see cref="NormalizeValue"/> rule a user <c>tweak set</c> goes through), and
+    /// map an alias key forward to the current id. Without this a curator value like <c>" True "</c>
+    /// would be stored verbatim and the patcher's resolver would mishandle it (its ternary compares
+    /// without trimming, so <c>" true "</c> falls to the false branch; <c>" 3 "</c> lands raw in an
+    /// integer field). An unknown id is kept verbatim (surfaced elsewhere as an orphaned override).
+    /// Range/type validation stays lenient here — an out-of-range curator value surfaces at plan time
+    /// rather than failing the install on a curator quirk.
+    /// </summary>
+    public static Dictionary<string, string> NormalizeCuratorTweaks(
+        IReadOnlyList<TweakDeclaration> declarations,
+        IReadOnlyDictionary<string, string> rawTweaks)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (tweakId, value) in rawTweaks)
+        {
+            var declaration = declarations.FirstOrDefault(d =>
+                string.Equals(d.Id, tweakId, StringComparison.Ordinal)
+                || d.Aliases.Any(a => string.Equals(a, tweakId, StringComparison.Ordinal)));
+            result[declaration?.Id ?? tweakId] = declaration is null ? value : NormalizeValue(declaration, value);
+        }
+        return result;
+    }
 
     private static bool TryValidateValue(string modId, TweakDeclaration decl, string value, List<ManagerDiagnostic> diagnostics)
     {

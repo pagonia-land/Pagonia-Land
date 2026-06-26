@@ -16,7 +16,7 @@ mods:
     displayName: Cheaper Sawmill
     description: Reduces the Sawmill's construction cost by one Softwood Trunk.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - qol
       - balance
@@ -32,7 +32,7 @@ mods:
     displayName: Wine Icon Test
     description: Cosmetic DLC-pack icon swap; demonstrates the optional-package patch shape.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - visual
       - dlc
@@ -42,7 +42,7 @@ mods:
     displayName: Tweakable Economy
     description: Lowers the Sawmill cost and exposes it as a `softwood-cost` tweak; the worked example for user-adjustable mods.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - tweakable
       - balance
@@ -54,7 +54,7 @@ collections:
     displayName: Beginner QoL Pack
     description: Small safe quality-of-life preset wiring both example mods into one ready-to-play setup.
     version: 0.1.0
-    gameDatabaseVersion: "1.4.0-11944+194631"
+    gameDatabaseVersion: "1.4.0-12032+195221"
     tags:
       - qol
       - preset

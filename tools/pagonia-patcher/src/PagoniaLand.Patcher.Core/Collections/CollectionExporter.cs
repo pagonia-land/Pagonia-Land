@@ -90,7 +90,7 @@ public sealed class CollectionExporter
 
         var collection = new CollectionManifest
         {
-            CollectionFormatVersion = "0.1",
+            CollectionFormatVersion = FormatVersionPolicy.CurrentVersion(ManagedFormat.Collection),
             Id = options.Id,
             Name = options.Name,
             Version = string.IsNullOrWhiteSpace(options.Version) ? "0.1.0" : options.Version,

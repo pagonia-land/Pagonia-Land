@@ -1,0 +1,342 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:PagoniaLand.App"
+        x:Class="PagoniaLand.App.MainWindow"
+        Width="1080" Height="700"
+        MinWidth="950" MinHeight="460"
+        Icon="/Assets/icon-128.png"
+        Title="Pagonia Land"
+        x:CompileBindings="False">
+
+  <DockPanel Margin="16">
+
+    <!-- Header (always visible): the brand opens the Catalog view; the gear opens Settings. -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*">
+      <Button x:Name="BrandButton" Grid.Column="0" Classes="plain" ToolTip.Tip="Open the catalog">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <Image Source="/Assets/icon-128.png" Width="34" Height="34" VerticalAlignment="Center" />
+          <StackPanel VerticalAlignment="Center" Spacing="1">
+            <TextBlock Text="Pagonia Land" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock Text="Community Modding Workshop" FontSize="12" Opacity="0.6" />
+          </StackPanel>
+        </StackPanel>
+      </Button>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="18" VerticalAlignment="Center" HorizontalAlignment="Right">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <Image x:Name="Spinner" Classes="spinner" Width="22" Height="22" IsVisible="False"
+                 VerticalAlignment="Center" RenderTransformOrigin="50%,50%">
+            <Image.RenderTransform>
+              <RotateTransform />
+            </Image.RenderTransform>
+          </Image>
+          <StackPanel VerticalAlignment="Center" Spacing="1" MaxWidth="480">
+            <TextBlock x:Name="StatusText" Text="Welcome Pioneer" FontWeight="SemiBold"
+                       HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="StatusDetail" Opacity="0.7" FontStyle="Italic" IsVisible="False"
+                       HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </StackPanel>
+        <Button x:Name="SettingsButton" Classes="plain" ToolTip.Tip="Settings — install, generate, cache">
+          <StackPanel>
+            <TextBlock Text="⚙" FontSize="22" HorizontalAlignment="Center" />
+            <TextBlock Text="Settings" FontSize="10" Opacity="0.7" HorizontalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- Main area: the Settings view and the Catalog view overlap; one is shown at a time. -->
+    <Grid Margin="0,12,0,0">
+
+      <!-- Settings — install / generate / cache / debug. -->
+      <StackPanel x:Name="SettingsView" Spacing="8" VerticalAlignment="Top" IsVisible="False">
+        <TextBlock Opacity="0.7" HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="680"
+                   TextWrapping="Wrap"
+                   Text="Point at your game install (the folder with pak/), a folder of .pak files, or an extracted game-gdb — then Generate." />
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0" HorizontalAlignment="Center">
+          <TextBox x:Name="PathBox" Width="540" PlaceholderText="game install / pak folder / extracted game-gdb" />
+          <Button x:Name="DetectButton" Content="Auto-detect" />
+          <Button x:Name="BrowseButton" Content="Browse…" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+          <Button x:Name="GenerateButton" Content="Generate" Classes="accent"
+                  ToolTip.Tip="Pick a recognised game install, pak folder, or extracted game-gdb first." />
+          <Button x:Name="CacheFolderButton" Content="Cache folder"
+                  ToolTip.Tip="Open the local cache folder (catalog snapshot, icons, search index)." />
+          <Button x:Name="DumpButton" Content="Dump → PNG" />
+          <!-- Hover-only help for the dump tool: a drawn "?" badge (font-glyph-independent). -->
+          <Border Width="26" Height="26" CornerRadius="13" BorderThickness="1.2"
+                  BorderBrush="#80888888" VerticalAlignment="Center" Cursor="Help"
+                  ToolTip.Tip="Export every texture (.image / .texture) in a folder to a full-quality PNG of the same name, written next to the source file. Point it at a game-gdb or pak folder to pull icons and textures out of the game.">
+            <TextBlock Text="?" FontSize="16" FontWeight="SemiBold" Opacity="0.7"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </StackPanel>
+
+        <!-- Direct download links for the latest release, picked for the running platform.
+             Populated in code (BuildDownloadLinks) — the RID / archive extension is platform-specific. -->
+        <Border Margin="0,16,0,0" Padding="14,11" CornerRadius="6" HorizontalAlignment="Center"
+                Background="#14888888" BorderBrush="#22888888" BorderThickness="1">
+          <StackPanel Spacing="8">
+            <TextBlock x:Name="DownloadsHeading" FontWeight="SemiBold" FontSize="13" Opacity="0.85"
+                       TextWrapping="Wrap" TextAlignment="Center" />
+            <WrapPanel x:Name="DownloadsLinks" MaxWidth="640" HorizontalAlignment="Center" />
+          </StackPanel>
+        </Border>
+
+        <!-- About: version · website · credits + EE trademark notice. -->
+        <StackPanel Spacing="6" Margin="0,16,0,0" HorizontalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+            <TextBlock x:Name="VersionInfo" Opacity="0.55" FontSize="11" VerticalAlignment="Center" />
+            <HyperlinkButton Content="pagonia.land" NavigateUri="https://pagonia.land/"
+                             FontSize="11" Padding="0" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Opacity="0.45" FontSize="11" TextWrapping="Wrap" MaxWidth="680"
+                     HorizontalAlignment="Center" TextAlignment="Center"
+                     Text="Independent modding community project, maintained by Lava Block. Pioneers of Pagonia is a trademark of Envision Entertainment GmbH — not affiliated with, endorsed by, or supported by EE." />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Catalog — navigation + the domain tabs. -->
+      <DockPanel x:Name="CatalogView">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+          <Button x:Name="BackButton" Content="←" IsEnabled="False"
+                  ToolTip.Tip="Back (or the mouse back button)" />
+          <Button x:Name="ForwardButton" Content="→" IsEnabled="False"
+                  ToolTip.Tip="Forward (or the mouse forward button)" />
+          <AutoCompleteBox x:Name="GlobalSearch" Width="340" Margin="8,0,0,0"
+                           PlaceholderText="Find anything — jump across all domains…"
+                           FilterMode="Custom" MinimumPrefixLength="1" MaxDropDownHeight="440"
+                           IsTextCompletionEnabled="False"
+                           ValueMemberBinding="{Binding Name}">
+            <AutoCompleteBox.ItemTemplate>
+              <DataTemplate x:DataType="local:SearchResult">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Image Source="{Binding Icon}" Width="22" Height="22" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Domain}" Opacity="0.5" VerticalAlignment="Center" />
+                </StackPanel>
+              </DataTemplate>
+            </AutoCompleteBox.ItemTemplate>
+          </AutoCompleteBox>
+          <TextBox x:Name="FilterBox" Width="260" PlaceholderText="Filter the open tab…" />
+          <TextBlock x:Name="FilterCount" VerticalAlignment="Center" Opacity="0.6" />
+        </StackPanel>
+
+        <TabControl x:Name="Tabs" Margin="0,8,0,0">
+          <TabControl.Styles>
+            <!-- Centre the tab strip (the tab headers sit left by default). -->
+            <Style Selector="TabControl /template/ ItemsPresenter">
+              <Setter Property="HorizontalAlignment" Value="Center" />
+            </Style>
+          </TabControl.Styles>
+
+      <TabItem Header="Overview">
+        <ScrollViewer>
+          <StackPanel Margin="20" Spacing="16" HorizontalAlignment="Center">
+            <TextBlock Text="Catalog overview" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock x:Name="OverviewSummary" Opacity="0.8" TextWrapping="Wrap"
+                       HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="680"
+                       Text="Generate to load your install's catalog." />
+
+            <WrapPanel HorizontalAlignment="Center">
+              <Button x:Name="GoResources" Margin="0,0,12,12" Padding="16,12">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Image x:Name="IconResources" Width="40" Height="40" Stretch="Uniform" VerticalAlignment="Center" IsVisible="False" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="CountResources" Text="—" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="Resources" Opacity="0.7" />
+                  </StackPanel>
+                </StackPanel>
+              </Button>
+              <Button x:Name="GoBuildings" Margin="0,0,12,12" Padding="16,12">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Image x:Name="IconBuildings" Width="40" Height="40" Stretch="Uniform" VerticalAlignment="Center" IsVisible="False" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="CountBuildings" Text="—" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="Buildings" Opacity="0.7" />
+                  </StackPanel>
+                </StackPanel>
+              </Button>
+              <Button x:Name="GoRecipes" Margin="0,0,12,12" Padding="16,12">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Image x:Name="IconRecipes" Width="40" Height="40" Stretch="Uniform" VerticalAlignment="Center" IsVisible="False" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="CountRecipes" Text="—" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="Recipes" Opacity="0.7" />
+                  </StackPanel>
+                </StackPanel>
+              </Button>
+              <Button x:Name="GoUnits" Margin="0,0,12,12" Padding="16,12">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Image x:Name="IconUnits" Width="40" Height="40" Stretch="Uniform" VerticalAlignment="Center" IsVisible="False" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="CountUnits" Text="—" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="Units" Opacity="0.7" />
+                  </StackPanel>
+                </StackPanel>
+              </Button>
+              <Button x:Name="GoObjectives" Margin="0,0,12,12" Padding="16,12">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Image x:Name="IconObjectives" Width="40" Height="40" Stretch="Uniform" VerticalAlignment="Center" IsVisible="False" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="CountObjectives" Text="—" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="Objectives" Opacity="0.7" />
+                  </StackPanel>
+                </StackPanel>
+              </Button>
+            </WrapPanel>
+
+            <Border BorderBrush="#33888888" BorderThickness="1" CornerRadius="6" Padding="14" MaxWidth="720">
+              <StackPanel Spacing="6">
+                <TextBlock Text="How it connects" FontWeight="SemiBold" TextAlignment="Center" />
+                <TextBlock TextWrapping="Wrap" Opacity="0.85" TextAlignment="Center"
+                           Text="Resources are produced and consumed by Recipes. Buildings run Recipes (staffed by worker Units) and are built from Resources. Units are recruited using Resources. Click a card above to open that catalog; select a row there to see its full details on the right." />
+              </StackPanel>
+            </Border>
+
+            <Border BorderBrush="#33888888" BorderThickness="1" CornerRadius="6" Padding="14" MaxWidth="720">
+              <StackPanel Spacing="8">
+                <TextBlock x:Name="SourcesHeader" Text="Sources" FontWeight="SemiBold" TextAlignment="Center" />
+                <TextBlock Opacity="0.7" TextWrapping="Wrap" TextAlignment="Center"
+                           Text="The catalog is read from every pak in your install — core plus any DLC, decorations and tools paks, not just core.pak." />
+                <Grid ColumnDefinitions="170,90,100,90,90" Margin="0,4,0,0" HorizontalAlignment="Center">
+                  <TextBlock Grid.Column="0" Text="Pak"     FontWeight="SemiBold" Opacity="0.55" />
+                  <TextBlock Grid.Column="1" Text="Size"    FontWeight="SemiBold" Opacity="0.55" />
+                  <TextBlock Grid.Column="2" Text="Entries" FontWeight="SemiBold" Opacity="0.55" />
+                  <TextBlock Grid.Column="3" Text="GameDB"  FontWeight="SemiBold" Opacity="0.55" />
+                  <TextBlock Grid.Column="4" Text="Assets"  FontWeight="SemiBold" Opacity="0.55" />
+                </Grid>
+                <ItemsControl x:Name="SourcesList" HorizontalAlignment="Center">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="local:SourceRow">
+                      <Grid ColumnDefinitions="170,90,100,90,90" Margin="0,1">
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="{Binding Size}" Opacity="0.8" />
+                        <TextBlock Grid.Column="2" Text="{Binding Entries}" Opacity="0.8" />
+                        <TextBlock Grid.Column="3" Text="{Binding GameDatabase}" Opacity="0.8" />
+                        <TextBlock Grid.Column="4" Text="{Binding Assets}" Opacity="0.8" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border BorderBrush="#33888888" BorderThickness="1" CornerRadius="6" Padding="14" MaxWidth="720">
+              <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                <TextBlock Text="💡" FontSize="18" VerticalAlignment="Center" />
+                <TextBlock TextWrapping="Wrap" Opacity="0.85" VerticalAlignment="Center"
+                           Text="Tip: double-click any row in a catalog to copy its GUID to the clipboard." />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Resources">
+        <Grid ColumnDefinitions="3*,2*">
+          <DataGrid x:Name="ResourceGrid" Grid.Column="0" IsReadOnly="True" GridLinesVisibility="Horizontal" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="" Width="44">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate><Image Source="{Binding Icon}" Width="30" Height="30" Margin="4,2" /></DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Resource" Binding="{Binding Name}"      Width="*" />
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}"  Width="180" />
+              <DataGridTextColumn Header="Carry"    Binding="{Binding CarryType}" Width="110" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock x:Name="ResourceEmpty" Grid.Column="0" Text="Generate to load the catalog."
+                     HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" IsVisible="False" />
+          <Border Grid.Column="1" BorderBrush="#33888888" BorderThickness="1,0,0,0">
+            <ContentControl Content="{Binding #ResourceGrid.SelectedItem}" />
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Buildings">
+        <Grid ColumnDefinitions="3*,2*">
+          <DataGrid x:Name="BuildingGrid" Grid.Column="0" IsReadOnly="True" GridLinesVisibility="Horizontal" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="" Width="44">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate><Image Source="{Binding Icon}" Width="30" Height="30" Margin="4,2" /></DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Building" Binding="{Binding Name}"     Width="*" />
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="180" />
+              <DataGridTextColumn Header="Group"    Binding="{Binding Group}"    Width="120" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock x:Name="BuildingEmpty" Grid.Column="0" Text="Generate to load the catalog."
+                     HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" IsVisible="False" />
+          <Border Grid.Column="1" BorderBrush="#33888888" BorderThickness="1,0,0,0">
+            <ContentControl Content="{Binding #BuildingGrid.SelectedItem}" />
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Recipes">
+        <Grid ColumnDefinitions="3*,2*">
+          <DataGrid x:Name="RecipeGrid" Grid.Column="0" IsReadOnly="True" GridLinesVisibility="Horizontal" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Recipe"     Binding="{Binding Name}"       Width="*" />
+              <DataGridTextColumn Header="Identifier" Binding="{Binding Identifier}" Width="180" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock x:Name="RecipeEmpty" Grid.Column="0" Text="Generate to load the catalog."
+                     HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" IsVisible="False" />
+          <Border Grid.Column="1" BorderBrush="#33888888" BorderThickness="1,0,0,0">
+            <ContentControl Content="{Binding #RecipeGrid.SelectedItem}" />
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Units">
+        <Grid ColumnDefinitions="3*,2*">
+          <DataGrid x:Name="UnitGrid" Grid.Column="0" IsReadOnly="True" GridLinesVisibility="Horizontal" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="" Width="44">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate><Image Source="{Binding Icon}" Width="30" Height="30" Margin="4,2" /></DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Unit"          Binding="{Binding Name}"          Width="*" />
+              <DataGridTextColumn Header="Recruited from" Binding="{Binding RecruitedFrom}" Width="180" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock x:Name="UnitEmpty" Grid.Column="0" Text="Generate to load the catalog."
+                     HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" IsVisible="False" />
+          <Border Grid.Column="1" BorderBrush="#33888888" BorderThickness="1,0,0,0">
+            <ContentControl Content="{Binding #UnitGrid.SelectedItem}" />
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Objectives">
+        <Grid ColumnDefinitions="3*,2*">
+          <DataGrid x:Name="ObjectiveGrid" Grid.Column="0" IsReadOnly="True" GridLinesVisibility="Horizontal" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Objective" Binding="{Binding Name}"     Width="*" />
+              <DataGridTextColumn Header="Category"  Binding="{Binding Category}" Width="200" />
+              <DataGridTextColumn Header="Hidden"    Binding="{Binding Hidden}"   Width="80" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock x:Name="ObjectiveEmpty" Grid.Column="0" Text="Generate to load the catalog."
+                     HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" IsVisible="False" />
+          <Border Grid.Column="1" BorderBrush="#33888888" BorderThickness="1,0,0,0">
+            <ContentControl Content="{Binding #ObjectiveGrid.SelectedItem}" />
+          </Border>
+        </Grid>
+      </TabItem>
+
+        </TabControl>
+
+      </DockPanel>
+    </Grid>
+
+  </DockPanel>
+</Window>

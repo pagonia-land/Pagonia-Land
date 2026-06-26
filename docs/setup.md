@@ -21,7 +21,7 @@ For readers who want the speedrun, here's the whole flow as a checklist. Each st
 1. [Check prerequisites](#prerequisites) — game install, PowerShell, optionally git + ripgrep.
 2. [Extract the game database XMLs](#extract-the-game-database-xmls) into `game-gdb/`.
 3. [Run validation](#validate-the-local-database) — baseline is 0 errors / 2 warnings.
-4. [Generate local indexes](#generate-local-indexes) — JSON snapshots under `generated/`.
+4. [Generate local indexes](#generate-local-indexes) — JSON index files under `generated/`.
 5. [Generate the local catalog](#generate-the-local-catalog) — browseable Markdown.
 6. [Read one example](#read-one-example) — sawmill trace or a small first edit.
 
@@ -29,7 +29,7 @@ The whole loop is repeatable: after a game update or a local edit, run validate 
 
 ## Scope
 
-The Pagonia Editor that ships with the game lets you author all of it — maps, scenarios, and GameDatabase changes (buildings, units, recipes, costs, objectives) — published as `.pak` mods; the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it. This repository is the **GameDatabase** data and distribution side underneath those mods.
+The Pagonia Editor that ships with the game lets you author all of it — maps, scenarios, and GameDatabase changes (buildings, units, recipes, costs, objectives) — published as `.pak` mods; the [community wiki on wiki.gg](https://pioneersofpagonia.wiki.gg/wiki/Category:Modding) covers using it. This repository **complements** that editor — the **GameDatabase** reference and the text / CI / automation + install / deploy / rollback tooling around those mods.
 
 The repository contains documentation, scripts, local analysis workflows, and modding examples. It does **not** publish extracted game database XMLs — you bring your own from your own Pioneers of Pagonia installation. Only `game-gdb/README.md` is committed; the package folders below it stay local.
 

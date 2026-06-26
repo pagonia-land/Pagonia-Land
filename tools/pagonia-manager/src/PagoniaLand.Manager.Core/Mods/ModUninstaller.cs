@@ -97,6 +97,11 @@ public sealed class ModUninstaller
             return new UninstallResult { ModId = modId, Version = version, Diagnostics = diagnostics };
         }
 
+        // Advisory: warn if the active profile's enabled mods depend on the one being removed —
+        // before it silently breaks them. Best-effort + never blocks: any failure to resolve the
+        // profile (uninitialised store, missing profile) just skips the check.
+        WarnIfDependedUpon(layout, modId, diagnostics);
+
         Directory.Delete(versionDirectory, recursive: true);
 
         var parentPruned = false;
@@ -115,6 +120,40 @@ public sealed class ModUninstaller
             ParentDirectoryPruned = parentPruned,
             Diagnostics = diagnostics,
         };
+    }
+
+    private static void WarnIfDependedUpon(StoreLayout layout, string modId, List<ManagerDiagnostic> diagnostics)
+    {
+        try
+        {
+            if (!new StoreStateReader().Exists(layout))
+            {
+                return;
+            }
+            var state = new StoreStateReader().Read(layout);
+            var profileName = string.IsNullOrWhiteSpace(state.ActiveProfile)
+                ? StoreLayoutConstants.DefaultProfileName
+                : state.ActiveProfile!;
+            var profileStore = new ProfileStore();
+            if (!profileStore.Exists(layout, profileName))
+            {
+                return;
+            }
+
+            var dependents = ModDependencyDetector.DependentsOf(
+                EnabledModSet.Load(layout, profileStore.Read(layout, profileName)), modId);
+            if (dependents.Count > 0)
+            {
+                diagnostics.Add(new ManagerDiagnostic(
+                    ManagerDiagnosticSeverity.Warning,
+                    ManagerDiagnosticCodes.ModDependedUponByOthers,
+                    $"Uninstalling '{modId}', but {string.Join(", ", dependents)} (enabled in profile '{profileName}') depend(s) on it — that dependency may be unmet if no other version of '{modId}' remains enabled."));
+            }
+        }
+        catch
+        {
+            // Advisory only — never let the dependents check abort an uninstall.
+        }
     }
 
     /// <summary>

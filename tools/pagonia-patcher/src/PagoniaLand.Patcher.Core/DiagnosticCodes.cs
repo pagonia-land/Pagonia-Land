@@ -42,6 +42,7 @@ public static class DiagnosticCodes
     public const string TweakEnumMissingValues = "tweakEnumMissingValues";
     public const string TweakDefaultOutOfRange = "tweakDefaultOutOfRange";
     public const string TweakDefaultNotInteger = "tweakDefaultNotInteger";
+    public const string TweakBoundNotInteger = "tweakBoundNotInteger";
     public const string TweakDefaultNotEnumValue = "tweakDefaultNotEnumValue";
     public const string TweakMinGreaterThanMax = "tweakMinGreaterThanMax";
     public const string TweakStepInvalid = "tweakStepInvalid";
@@ -128,7 +129,16 @@ public static class DiagnosticCodes
     public const string LockfileModResolved = "lockfileModResolved";
     public const string LockfileModMissing = "lockfileModMissing";
     public const string LockfileArchiveHashMismatch = "lockfileArchiveHashMismatch";
-    public const string LockfileVersionUnsupported = "lockfileVersionUnsupported";
+
+    // Format-version governance (the shared MAJOR.MINOR tiered reader — see FormatVersionPolicy).
+    // Cover every *FormatVersion field: a newer minor reads with a recommend-update note;
+    // a newer/retired major refuses with an actionable message; a non-MAJOR.MINOR value is malformed.
+    public const string FormatMinorAhead = "formatMinorAhead";
+    public const string FormatMajorUnsupported = "formatMajorUnsupported";
+    public const string FormatMajorRetired = "formatMajorRetired";
+    public const string FormatVersionMalformed = "formatVersionMalformed";
+    // Emitted when an in-place writer bumps an older same-major file up to the current minor.
+    public const string FormatMigratedInPlace = "formatMigratedInPlace";
 
     // Collection export
     public const string CollectionExportNoMods = "collectionExportNoMods";

@@ -42,4 +42,17 @@ public sealed class ProfileEnabledMod
     // Optional: an absent `tweaks` key reads back as null.
     [YamlMember(Alias = "tweaks")]
     public Dictionary<string, string>? Tweaks { get; init; }
+
+    // The subset of <see cref="Tweaks"/> ids the user *explicitly* set (via `tweak set`),
+    // as opposed to values a collection install seeded from the curator. This makes a
+    // value's origin explicit instead of inferred by comparing it to the curator's value —
+    // so a deliberate override that happens to equal the curator's value is still recognised
+    // as the user's, and a collection update keeps it. Meanings:
+    //   null       — not yet recorded (a pre-marking profile); inferred once on first read
+    //                via the legacy heuristic (value != curator ⇒ user) and then persisted.
+    //   empty list — recorded, and nothing is a user override (e.g. a fresh collection seed).
+    //   non-empty  — exactly the user-set tweak ids.
+    // Always a subset of Tweaks' keys; entries are dropped alongside their value.
+    [YamlMember(Alias = "userTweaks")]
+    public List<string>? UserTweaks { get; init; }
 }

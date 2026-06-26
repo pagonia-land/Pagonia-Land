@@ -41,6 +41,15 @@ public sealed class ProfileStore
                 $"Profile file '{path}' is empty or invalid.");
         }
 
+        // Internal format-version guard: refuse a profile written by a newer manager (the
+        // store-level guard's profile companion) before this build reads + rewrites it.
+        InternalFormatVersionGuard.EnsureNotNewer(
+            profile.ProfileVersion,
+            StoreLayoutConstants.CurrentProfileVersion,
+            "profileVersion",
+            ManagerDiagnosticCodes.ProfileVersionUnsupported,
+            path);
+
         return profile;
     }
 

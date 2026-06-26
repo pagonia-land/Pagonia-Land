@@ -1,6 +1,6 @@
 # Game Database Overview
 
-Snapshot: `1.4.0-11944+194631` (1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, 2026-06-16). Based on 60 `*.gd.xml` files across `core`, `decorations1`, `dlc1`, and `tools`.
+Snapshot: `1.4.0-12032+195221` (1.4.0 "Quality of Life & Pagonia Editor Update" (QoL 8), official release, 2026-06-24). Based on 60 `*.gd.xml` files across `core`, `decorations1`, `dlc1`, and `tools`.
 
 This page is the high-level map of how the database is organised. For empirical oddities the structured docs don't cover, see [Quirks And Anomalies](docs/quirks-and-anomalies.md). For mod-distribution mechanics (Pattern A / B / C, cross-pak entity merging primitives), see [Mod Distribution Patterns](docs/mod-distribution.md).
 
@@ -21,11 +21,11 @@ The actual meaning of an entity is defined by its `Values`: a building is not a 
 
 | Package | Entities | Role |
 | --- | ---: | --- |
-| `core` | 4,149 | Base game: resources, units, buildings, recipes, campaign, NPCs, terrain, UI, audio |
+| `core` | 4,151 | Base game: resources, units, buildings, recipes, campaign, NPCs, terrain, UI, audio |
 | `decorations1` | 19 | Small expansion with decorative buildables |
 | `dlc1` | 521 | Meadowsong expansion: new units, resources, buildings, NPCs, objectives, and scenario map |
 | `tools` | 26 | Editor/Magmaview data for terrain, vegetation, and brushes |
-| Total | 4,715 | All GUIDs are unique |
+| Total | 4,717 | All GUIDs are unique |
 
 ## Key Analysis Numbers
 
@@ -34,10 +34,10 @@ These numbers come from a structural scan of all XML files in the extracted game
 | Metric | Count | Notes |
 | --- | ---: | --- |
 | XML files | 60 | All files use the `*.gd.xml` pattern |
-| Total entities | 4,715 | Every entity has a unique GUID |
-| Unique GUIDs | 4,715 | No duplicate entity GUIDs were found |
-| GUID-like references | 31,763 | Text values matching the GUID format |
-| Resolved references | 24,422 | References that point to an entity in this XML set |
+| Total entities | 4,717 | Every entity has a unique GUID |
+| Unique GUIDs | 4,717 | No duplicate entity GUIDs were found |
+| GUID-like references | 31,755 | Text values matching the GUID format |
+| Resolved references | 24,414 | References that point to an entity in this XML set |
 | Null GUID references | 7,311 | Explicit empty/default references using `00000000-0000-0000-0000-000000000000` |
 | Other unresolved references | 30 | 12 engine-magic GUIDs (Unit + CustomFaction wildcards) plus 18 transient `NoMVP.` orphans the 1.3.1 hotfix introduced — see [Quirks And Anomalies](docs/quirks-and-anomalies.md) |
 
@@ -45,7 +45,7 @@ Package-level entity distribution:
 
 | Package | Entity count |
 | --- | ---: |
-| `core` | 4,149 |
+| `core` | 4,151 |
 | `decorations1` | 19 |
 | `dlc1` | 521 |
 | `tools` | 26 |
@@ -82,7 +82,7 @@ The extracted XML set is largely self-contained: 77% of references resolve to a 
 | `game-gdb/core/gdb/audio.gd.xml` | 36 | Discover/audio events |
 | `game-gdb/core/gdb/credits.gd.xml` | 33 | Credits categories and entries |
 | `game-gdb/core/gdb/dlcs.gd.xml` | 4 | DLC/unlock metadata |
-| `game-gdb/core/gdb/modfilters.gd.xml` | 2 | Mod-browser filter categories (`ModFilterCategory`) — new in 1.4.0 |
+| `game-gdb/core/gdb/modfilters.gd.xml` | 3 | Mod-browser filter categories (`ModFilterCategory`: `Category`, `Required DLC`, `Type`) — new in 1.4.0 |
 
 ### Maps and Campaign
 
@@ -139,11 +139,11 @@ This shows the central design idea: entities are carriers for multiple component
 
 ## Reference System
 
-The scan finds 31,763 GUID-like text values:
+The scan finds 31,755 GUID-like text values:
 
 | Reference class | Count |
 | --- | ---: |
-| Resolvable to an entity in this XML set | 24,422 |
+| Resolvable to an entity in this XML set | 24,414 |
 | Null GUID `00000000-0000-0000-0000-000000000000` | 7,311 |
 | Other unresolved references | 30 |
 
@@ -168,13 +168,13 @@ Cross-package references:
 
 | From | To | Count | Meaning |
 | --- | --- | ---: | --- |
-| `core` | `core` | 21,287 | The base game is largely self-contained |
-| `dlc1` | `dlc1` | 1,861 | Meadowsong-internal new systems |
-| `dlc1` | `core` | 1,235 | Meadowsong builds heavily on core categories, units, UI, and base mechanics |
+| `core` | `core` | 21,279 | The base game is largely self-contained |
+| `dlc1` | `dlc1` | 1,863 | Meadowsong-internal new systems |
+| `dlc1` | `core` | 1,233 | Meadowsong builds heavily on core categories, units, UI, and base mechanics |
 | `decorations1` | `core` | 18 | Decoration pack uses core construction categories/materials |
 | `tools` | `tools` | 21 | Editor data is isolated |
 
-Dependency direction is strictly one-way: **no `core` reference ever targets `dlc1`, `decorations1`, or `tools`** (empirically verified against all 31,763 references). This means a mod can extend core without core needing to know the mod exists, and removing a DLC can never leave dangling references in core — the architectural foundation under [Mod Distribution Patterns](docs/mod-distribution.md) Pattern B.
+Dependency direction is strictly one-way: **no `core` reference ever targets `dlc1`, `decorations1`, or `tools`** (empirically verified against all 31,755 references). This means a mod can extend core without core needing to know the mod exists, and removing a DLC can never leave dangling references in core — the architectural foundation under [Mod Distribution Patterns](docs/mod-distribution.md) Pattern B.
 
 ## Important Data Flows
 
@@ -245,7 +245,7 @@ The campaign files are therefore not just map data, but scenario-specific mini d
 
 Meadowsong introduced declarative entity-relation primitives that let one pak modify another without byte-patching the shipped XML. Three are visible in shipped content:
 
-| Primitive | Uses in 1.3.2 | Meaning |
+| Primitive | Uses in 1.3.x+ | Meaning |
 | --- | ---: | --- |
 | `InheritanceMode="Template"` | 18 | New entity inherits structure from another, then overrides selected fields |
 | `InheritanceMode="Replace"` | 14 | Replaces an existing entity by GUID with the new shape |

@@ -67,7 +67,7 @@ This is version-specific data. When the game database changes, regenerate the ca
 
 ## Current Local Snapshot
 
-The latest local catalog generation produced (as of `1.4.0-11944+194631`, 1.4.0 "Pagonia Editor Update" (QoL 8) Beta Update #1, Steam Beta branch, 2026-06-16):
+The latest local catalog generation produced (as of `1.4.0-12032+195221`, 1.4.0 "Quality of Life & Pagonia Editor Update" (QoL 8), official release (Steam stable branch), 2026-06-24):
 
 | Catalog | Count |
 | --- | ---: |
@@ -80,9 +80,9 @@ The latest local catalog generation produced (as of `1.4.0-11944+194631`, 1.4.0 
 | Resources | 149 |
 | Resource flow rows | 149 |
 | Resource usage rows | 1,489 |
-| Localization rows | 6,172 |
-| Unique localization keys | 4,880 |
-| Declared localization tags | 261 |
+| Localization rows | 6,182 |
+| Unique localization keys | 4,890 |
+| Declared localization tags | 271 |
 | Referenced localization-like keys | 5,911 |
 | Keys not in local tag index | 5,829 |
 | Objective flow rows | 814 |
@@ -151,7 +151,7 @@ The latest local catalog generation produced (as of `1.4.0-11944+194631`, 1.4.0 
 | Shrine recipes | 35 |
 | Production graph edges | 277 |
 | Production chain graph edges | 450 |
-| Search index items | 26,870 |
+| Search index items | 26,882 |
 | Package filters | 4 |
 | Buildings with recipes | 26 |
 | Buildings with dependencies | 146 |

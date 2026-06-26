@@ -3,7 +3,7 @@ id: pagonia-land.collections.cheaper-buildings
 name: Cheaper Buildings
 version: 0.1.0
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: Bundles the Cheaper Sawmill and Cheaper Quarry mods into one preset that trims early construction costs across your first production buildings.
 conflictPolicy: strict
 requiresNewGame: false

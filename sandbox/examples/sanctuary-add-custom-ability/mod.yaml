@@ -3,7 +3,7 @@ id: pagonia-land.example.sanctuary-add-custom-ability
 name: Sanctuary (Cornucopia) — Add Custom Ability (Example)
 version: "0.1.0"
 author: Pagonia Land
-gameDatabaseVersion: "1.4.0-11944+194631"
+gameDatabaseVersion: "1.4.0-12032+195221"
 description: >-
   End-to-end worked example for the Meadowsong DLC. Combines a Pattern B
   overlay pak (defines a brand-new Sanctuary ability as an entity in
