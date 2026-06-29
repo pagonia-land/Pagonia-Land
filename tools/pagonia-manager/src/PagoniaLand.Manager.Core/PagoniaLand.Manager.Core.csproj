@@ -24,7 +24,7 @@
     ILLink.Descriptors.xml so trimming / AOT keep their public properties.
   -->
   <ItemGroup>
-    <PackageReference Include="YamlDotNet" Version="18.0.0" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <!--
