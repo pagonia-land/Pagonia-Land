@@ -27,9 +27,9 @@
          itself depends on core >= 12.0.5 — so this is the matched, supported combination.
          Avalonia.Diagnostics (the dev-only F12 inspector) has no 12.x release yet, so it's dropped —
          nothing called AttachDevTools() anyway. -->
-    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="Avalonia" Version="12.1.0" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.1" />
     <!-- Belt-and-suspenders: pin the runtime assemblies Catalog.Core needs (System.IO.Hashing
