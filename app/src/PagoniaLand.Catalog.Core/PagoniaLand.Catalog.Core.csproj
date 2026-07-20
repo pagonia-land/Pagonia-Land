@@ -23,7 +23,7 @@
     <!-- PakReader uses System.IO.Hashing (CRC32) at runtime. The transitive package
          doesn't reliably flow across the two project-reference hops to the app's output,
          so declare it here (and in the app) to guarantee the assembly is deployed. -->
-    <PackageReference Include="System.IO.Hashing" Version="10.0.9" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.10" />
     <!-- Managed BCn (BC1..BC7) decoder for the game's RTEX icon/texture pixel data
          (icons ship as BC7_sRGB). Pure C#, no native dependency. -->
     <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />

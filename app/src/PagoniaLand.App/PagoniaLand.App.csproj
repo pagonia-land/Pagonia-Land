@@ -36,7 +36,7 @@
          via Paker.Core's PakReader; BCnEncoder.Net via TextureDecoder for BC7 icons) directly
          on the executable so they are always deployed — transitive package flow across the
          project-reference hops has proven unreliable in this repo. -->
-    <PackageReference Include="System.IO.Hashing" Version="10.0.9" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.10" />
     <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />
   </ItemGroup>
 
